@@ -1,7 +1,49 @@
+import { BrowserRouter, Routes, Route } from 'react-router';
+import { AuthProvider, RequireRole } from './lib/auth';
+import { ToastProvider } from './components';
+
+import Landing from './pages/publik/Landing';
+import Fitur from './pages/publik/Fitur';
+import Kelebihan from './pages/publik/Kelebihan';
+import Dokumentasi from './pages/publik/Dokumentasi';
+import Privasi from './pages/publik/Privasi';
+import Daftar from './pages/publik/Daftar';
+import Masuk from './pages/publik/Masuk';
+
+import DashboardGuru from './pages/guru/Dashboard';
+import DashboardAdmin from './pages/admin/Statistik';
+import NotFound from './pages/NotFound';
+
 export default function App() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-800">
-      <h1 className="text-4xl font-bold tracking-tight">Discere</h1>
-    </main>
+    <BrowserRouter>
+      <ToastProvider>
+        <AuthProvider>
+          <Routes>
+            {/* Rute Publik */}
+            <Route path="/" element={<Landing />} />
+            <Route path="/fitur" element={<Fitur />} />
+            <Route path="/kelebihan" element={<Kelebihan />} />
+            <Route path="/dokumentasi" element={<Dokumentasi />} />
+            <Route path="/privasi" element={<Privasi />} />
+            <Route path="/daftar" element={<Daftar />} />
+            <Route path="/masuk" element={<Masuk />} />
+
+            {/* Rute Terlindungi Guru */}
+            <Route element={<RequireRole allowedRole="guru" />}>
+              <Route path="/guru" element={<DashboardGuru />} />
+            </Route>
+
+            {/* Rute Terlindungi Admin */}
+            <Route element={<RequireRole allowedRole="admin" />}>
+              <Route path="/admin" element={<DashboardAdmin />} />
+            </Route>
+
+            {/* Halaman 404 */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
+      </ToastProvider>
+    </BrowserRouter>
   );
 }
