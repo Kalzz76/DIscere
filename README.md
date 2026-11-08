@@ -1,6 +1,33 @@
 # Discere
 
-Platform kelas interaktif untuk guru: papan tulis digital tak terbatas untuk materi pelajaran dan game lomba interaktif berbasis web.
+Platform kelas interaktif untuk guru: papan tulis digital tak terbatas untuk materi pelajaran dan game lomba interaktif berbasis web. Dibuat untuk **LOGICODIX 2026 Hackathon Competition**, subtema **Smart & Fun Education**.
+
+Tagline: *"Belajar seru, tarik kemenangan bersama."*
+
+---
+
+## Fitur Utama
+
+- **Sistem Desain & Aksesibilitas Modern:**
+  - Desain bertema 17 Agustusan ramah anak: Merah `#D7262E`, Kuning `#F5B700`, Biru `#1E2A5A`, dan Slate.
+  - Tipografi lokal: font *Baloo 2* untuk judul dan *Inter* untuk teks isi via `@fontsource` (tanpa CDN eksternal).
+  - Dukungan mode gelap otomatis (`prefers-color-scheme`) dan pengurangan gerak (`prefers-reduced-motion`).
+  - Komponen antarmuka modular: Button, Card, Input, Modal, Badge, dan Toast dengan ikon `lucide-react`.
+- **Halaman Publik Lengkap:**
+  - **Beranda (`/`):** 7 bagian komprehensif (Hero dengan simulasi tarik tambang animasi SVG, Masalah, Cara Kerja 3 langkah, Fitur Unggulan, Kelebihan, FAQ, dan Call-to-Action).
+  - **Fitur (`/fitur`):** Penjelasan detail papan tulis Fabric.js, lomba tarik tambang, 2 mode main, asisten AI, kolaborasi, dan rekapitulasi evaluasi.
+  - **Kelebihan (`/kelebihan`):** Keunggulan siswa tanpa akun, jalan di kelas tanpa HP, hemat sumber daya lokal, dan jaminan privasi data.
+  - **Dokumentasi (`/dokumentasi`):** Panduan langkah demi langkah guru di kelas beserta tanya jawab teknis jaringan lokal.
+  - **Kebijakan Privasi (`/privasi`):** Transparansi data sesuai UU PDP No. 27 Tahun 2022, penegasan bahwa nama siswa tidak disimpan ke database, dan isolasi akses admin.
+- **Autentikasi & Keamanan:**
+  - Pendaftaran guru (`/daftar`) dan Masuk (`/masuk`) divalidasi ganda dengan Zod (sisi klien dan server).
+  - Sesi JWT aman tersimpan di cookie `httpOnly` dengan perlindungan rate limit `express-rate-limit`.
+  - Proteksi rute otomatis: pengunjung belum login diarahkan ke `/masuk`, guru diarahkan ke `/guru`, dan admin diarahkan ke `/admin`.
+- **Database & Data Awal:**
+  - Basis data SQLite lokal berbasis Prisma ORM 7 dengan adapter driver `better-sqlite3`.
+  - Skrip seed idempoten dengan akun demo guru, administrator, serta 5 template soal siap pakai.
+
+---
 
 ## Cara Menjalankan
 
