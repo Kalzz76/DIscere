@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../db.js';
 import { config } from '../config.js';
-import { COOKIE_NAME } from '../middleware/auth.js';
+import { COOKIE_NAME, authMiddleware, AuthRequest } from '../middleware/auth.js';
 
 export const authRouter = Router();
 
@@ -27,6 +27,64 @@ const daftarSchema = z.object({
 const masukSchema = z.object({
   email: z.string({ message: 'Email wajib diisi.' }).email('Format email tidak valid.'),
   kataSandi: z.string({ message: 'Kata sandi wajib diisi.' }).min(1, 'Kata sandi wajib diisi.'),
+});
+
+// POST /api/auth/daftar
+authRouter.post('/daftar', authRateLimiter, async (req, res, next) => {
+  try {
+    const validData = daftarSchema.parse(req.body);
+    const emailNorm = validData.email.trim().toLowerCase();
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email: emailNorm },
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        pesan: 'Email sudah terdaftar. Silakan gunakan email lain atau masuk.',
+      });
+    }
+
+    const passwordHash = await bcryptjs.hash(validData.kataSandi, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        nama: validData.nama.trim(),
+        email: emailNorm,
+        passwordHash,
+        role: 'guru', // Role selalu guru untuk pendaftaran publik
+        sekolah: validData.sekolah?.trim() || null,
+        status: 'aktif',
+      },
+      select: {
+        id: true,
+        nama: true,
+        email: true,
+        role: true,
+        sekolah: true,
+        status: true,
+      },
+    });
+
+    const token = jwt.sign({ userId: user.id }, config.jwtSecret, {
+      expiresIn: '7d',
+    });
+
+    res.cookie(COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: config.isProduction,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+
+    return res.status(201).json({
+      pesan: 'Pendaftaran berhasil.',
+      user,
+    });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 // POST /api/auth/masuk
@@ -85,59 +143,24 @@ authRouter.post('/masuk', authRateLimiter, async (req, res, next) => {
     return next(error);
   }
 });
-authRouter.post('/daftar', authRateLimiter, async (req, res, next) => {
-  try {
-    const validData = daftarSchema.parse(req.body);
-    const emailNorm = validData.email.trim().toLowerCase();
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email: emailNorm },
-    });
+// POST /api/auth/keluar
+authRouter.post('/keluar', (_req, res) => {
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    secure: config.isProduction,
+    sameSite: 'lax',
+    path: '/',
+  });
 
-    if (existingUser) {
-      return res.status(400).json({
-        pesan: 'Email sudah terdaftar. Silakan gunakan email lain atau masuk.',
-      });
-    }
+  return res.json({
+    pesan: 'Berhasil keluar.',
+  });
+});
 
-    const passwordHash = await bcryptjs.hash(validData.kataSandi, 10);
-
-    const user = await prisma.user.create({
-      data: {
-        nama: validData.nama.trim(),
-        email: emailNorm,
-        passwordHash,
-        role: 'guru', // Role selalu guru untuk pendaftaran publik
-        sekolah: validData.sekolah?.trim() || null,
-        status: 'aktif',
-      },
-      select: {
-        id: true,
-        nama: true,
-        email: true,
-        role: true,
-        sekolah: true,
-        status: true,
-      },
-    });
-
-    const token = jwt.sign({ userId: user.id }, config.jwtSecret, {
-      expiresIn: '7d',
-    });
-
-    res.cookie(COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: config.isProduction,
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/',
-    });
-
-    return res.status(201).json({
-      pesan: 'Pendaftaran berhasil.',
-      user,
-    });
-  } catch (error) {
-    return next(error);
-  }
+// GET /api/auth/saya
+authRouter.get('/saya', authMiddleware, (req: AuthRequest, res) => {
+  return res.json({
+    user: req.user,
+  });
 });
