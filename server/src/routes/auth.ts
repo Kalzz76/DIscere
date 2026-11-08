@@ -24,7 +24,67 @@ const daftarSchema = z.object({
   sekolah: z.string().optional(),
 });
 
-// POST /api/auth/daftar
+const masukSchema = z.object({
+  email: z.string({ message: 'Email wajib diisi.' }).email('Format email tidak valid.'),
+  kataSandi: z.string({ message: 'Kata sandi wajib diisi.' }).min(1, 'Kata sandi wajib diisi.'),
+});
+
+// POST /api/auth/masuk
+authRouter.post('/masuk', authRateLimiter, async (req, res, next) => {
+  try {
+    const validData = masukSchema.parse(req.body);
+    const emailNorm = validData.email.trim().toLowerCase();
+
+    const user = await prisma.user.findUnique({
+      where: { email: emailNorm },
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        pesan: 'Email atau kata sandi tidak cocok.',
+      });
+    }
+
+    const passwordMatch = await bcryptjs.compare(validData.kataSandi, user.passwordHash);
+    if (!passwordMatch) {
+      return res.status(401).json({
+        pesan: 'Email atau kata sandi tidak cocok.',
+      });
+    }
+
+    if (user.status !== 'aktif') {
+      return res.status(403).json({
+        pesan: 'Akun Anda telah dinonaktifkan. Silakan hubungi administrator.',
+      });
+    }
+
+    const token = jwt.sign({ userId: user.id }, config.jwtSecret, {
+      expiresIn: '7d',
+    });
+
+    res.cookie(COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: config.isProduction,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+
+    return res.json({
+      pesan: 'Berhasil masuk.',
+      user: {
+        id: user.id,
+        nama: user.nama,
+        email: user.email,
+        role: user.role,
+        sekolah: user.sekolah,
+        status: user.status,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
 authRouter.post('/daftar', authRateLimiter, async (req, res, next) => {
   try {
     const validData = daftarSchema.parse(req.body);
