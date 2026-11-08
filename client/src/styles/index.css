@@ -1,0 +1,12 @@
+@import "tailwindcss";
+@import "@fontsource/baloo-2/index.css";
+@import "@fontsource/inter/index.css";
+
+:root {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Baloo 2', system-ui, cursive, sans-serif;
+}
+
