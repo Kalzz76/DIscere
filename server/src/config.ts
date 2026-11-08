@@ -12,7 +12,9 @@ export const config = {
   aiApiKey: process.env.AI_API_KEY || '',
   aiModel: process.env.AI_MODEL || '',
   aiBatasHarian: parseInt(process.env.AI_BATAS_HARIAN || '30', 10),
-  seedAdminPassword: process.env.SEED_ADMIN_PASSWORD || 'admin123456',
+  seedAdminEmail: process.env.SEED_ADMIN_EMAIL || 'admin@discere.local',
+  seedAdminPassword: process.env.SEED_ADMIN_PASSWORD || 'AdminDiscere2026!',
+  seedGuruEmail: process.env.SEED_GURU_EMAIL || 'guru@discere.local',
+  seedGuruPassword: process.env.SEED_GURU_PASSWORD || 'GuruDiscere2026!',
   isProduction: process.env.NODE_ENV === 'production',
 };
-
