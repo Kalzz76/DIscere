@@ -33,7 +33,7 @@ Peraturan lomba mewajibkan karya yang transparan dan bisa dipertanggungjawabkan,
 4. **Jangan pernah mengubah riwayat**: dilarang `git push --force`, `git rebase`, `git reset --hard` ke commit yang sudah di-push, `git commit --amend` setelah di-push, dan menghapus commit atau tag. Kalau ada kesalahan, perbaiki lewat commit baru.
 5. Jangan mengubah `git config` (nama dan email pembuat commit). Commit memakai identitas pemilik project apa adanya.
 6. **Jangan commit**: file `.env`, `node_modules/`, hasil build (`dist/`), file database (`*.db`, `*.sqlite`), dan kunci API. Pastikan `.gitignore` sudah memuatnya sejak commit pertama. Sediakan `.env.example` tanpa nilai rahasia.
-7. Setelah commit, **push ke GitHub** (`git push origin main`) kalau remote sudah diatur. Kalau belum, beri tahu pemilik project, jangan mencoba membuat repository sendiri.
+7. Setelah SETIAP commit, langsung `git push` ke remote. Dilarang menumpuk commit yang belum di-push. Kalau remote belum diatur, beri tahu pemilik project.
 8. Setelah **tiap tahap selesai**, beri tag sederhana: `git tag tahap-1`, `tahap-2`, dst., lalu push tag.
 9. Setelah commit, tuliskan di balasan: hash singkat dan pesan commit, serta ringkasan apa yang sudah jalan dan apa yang belum.
 10. **Batas submission:** Sabtu, 14 November 2026 (ikuti jam resmi dari panitia). Setelah batas waktu itu **tidak boleh ada commit atau perubahan apa pun**. Versi yang dinilai adalah commit terakhir sebelum batas waktu.
