@@ -5,7 +5,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import os from 'os';
+import cookieParser from 'cookie-parser';
 import { config } from './config.js';
+import { authRouter } from './routes/auth.js';
+import { errorHandler } from './middleware/error.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -17,11 +20,15 @@ export const io = new Server(server, {
 });
 
 app.use(express.json());
+app.use(cookieParser());
 
 // Endpoint health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
+
+// Rute API
+app.use('/api/auth', authRouter);
 
 // Socket.IO event handler dasar
 io.on('connection', (socket) => {
@@ -44,6 +51,9 @@ if (fs.existsSync(clientDist)) {
     next();
   });
 }
+
+// Error handler terpusat
+app.use(errorHandler);
 
 function getLocalIp(): string {
   const interfaces = os.networkInterfaces();
