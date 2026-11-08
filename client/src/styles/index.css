@@ -1,12 +1,36 @@
 @import "tailwindcss";
 @import "@fontsource/baloo-2/index.css";
+@import "@fontsource/baloo-2/700.css";
 @import "@fontsource/inter/index.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+
+@theme {
+  --color-brand-red: #D7262E;
+  --color-brand-red-hover: #B91C23;
+  --color-brand-yellow: #F5B700;
+  --color-brand-yellow-hover: #D9A200;
+  --color-brand-blue: #1E2A5A;
+  --color-brand-blue-hover: #151D40;
+
+  --font-heading: 'Baloo 2', system-ui, cursive, sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
 
 :root {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Baloo 2', system-ui, cursive, sans-serif;
+  font-family: var(--font-heading);
 }
 
+/* Dukungan aksesibilitas: menghormati prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
