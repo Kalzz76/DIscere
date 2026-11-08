@@ -9,8 +9,6 @@ import cookieParser from 'cookie-parser';
 import { config } from './config.js';
 import { authRouter } from './routes/auth.js';
 import { errorHandler } from './middleware/error.js';
-import { authMiddleware, AuthRequest } from './middleware/auth.js';
-import { roleMiddleware } from './middleware/role.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -31,15 +29,6 @@ app.get('/api/health', (_req, res) => {
 
 // Rute API Auth
 app.use('/api/auth', authRouter);
-
-// Rute uji sementara role & auth (akan dihapus setelah verifikasi)
-app.get('/api/uji/guru', authMiddleware, roleMiddleware('guru'), (req: AuthRequest, res) => {
-  res.json({ pesan: 'Akses guru berhasil.', user: req.user });
-});
-
-app.get('/api/uji/admin', authMiddleware, roleMiddleware('admin'), (req: AuthRequest, res) => {
-  res.json({ pesan: 'Akses admin berhasil.', user: req.user });
-});
 
 // Socket.IO event handler dasar
 io.on('connection', (socket) => {
