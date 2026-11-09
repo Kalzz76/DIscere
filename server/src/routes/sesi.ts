@@ -1,13 +1,78 @@
-import { Router, Response } from 'express';
+import { Router, Response, Request } from 'express';
 import { z } from 'zod';
+import QRCode from 'qrcode';
+import os from 'os';
 import { prisma } from '../db.js';
+import { config } from '../config.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { roleMiddleware } from '../middleware/role.js';
 import { soloManager } from '../games/soloManager.js';
+import { multiManager } from '../games/multiManager.js';
 
 export const sesiRouter = Router();
 
-// Seluruh rute sesi membutuhkan login sebagai guru
+function getNetworkBaseUrl(req: Request): string {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] || []) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return `http://${iface.address}:${config.port}`;
+      }
+    }
+  }
+  return `http://${req.hostname || 'localhost'}:${config.port}`;
+}
+
+// 0. GET /api/sesi/token/:token - Publik: Cek validitas token sesi untuk siswa bergabung
+sesiRouter.get('/token/:token', async (req: Request, res: Response) => {
+  try {
+    const token = req.params.token as string;
+    if (!token || token.length !== 6) {
+      return res.status(400).json({ valid: false, pesan: 'Kode token harus terdiri dari 6 angka.' });
+    }
+
+    // Cek di memori multiManager
+    const active = multiManager.dapatkanSesiDariToken(token);
+    if (active) {
+      if (active.status === 'selesai') {
+        return res.status(400).json({ valid: false, pesan: 'Sesi permainan ini sudah selesai.' });
+      }
+      return res.json({
+        valid: true,
+        sessionId: active.sessionId,
+        templateJudul: active.templateJudul,
+        status: active.status,
+        totalPeserta: active.peserta.size,
+      });
+    }
+
+    // Cek di database jika belum termuat di memori
+    const sessionDb = await prisma.session.findFirst({
+      where: { token, status: { in: ['lobi', 'jalan'] } },
+      include: {
+        template: {
+          select: { judul: true, id: true },
+        },
+      },
+    });
+
+    if (!sessionDb) {
+      return res.status(404).json({ valid: false, pesan: 'Kode token tidak ditemukan atau sudah tidak aktif.' });
+    }
+
+    return res.json({
+      valid: true,
+      sessionId: sessionDb.id,
+      templateJudul: sessionDb.template.judul,
+      status: sessionDb.status,
+      totalPeserta: 0,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ valid: false, pesan: err.message || 'Gagal memeriksa token.' });
+  }
+});
+
+// Seluruh rute sesi berikut membutuhkan login sebagai guru
 sesiRouter.use(authMiddleware);
 sesiRouter.use(roleMiddleware('guru'));
 
@@ -151,14 +216,16 @@ sesiRouter.get('/riwayat/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// 3. POST /api/sesi - Buat sesi Solo baru dari template
+// 3. POST /api/sesi - Buat sesi (Solo atau Multiplayer) dari template
 const buatSesiSchema = z.object({
   templateId: z.string().min(1, 'ID template wajib disertakan.'),
+  mode: z.enum(['solo', 'multi']).optional(),
 });
 
 sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { templateId } = buatSesiSchema.parse(req.body);
+    const parsed = buatSesiSchema.parse(req.body);
+    const templateId = parsed.templateId;
 
     const template = await prisma.template.findUnique({
       where: { id: templateId },
@@ -178,7 +245,59 @@ sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Buat record session di database
+    const targetMode = parsed.mode || (template.mode === 'multi' ? 'multi' : 'solo');
+
+    if (targetMode === 'multi') {
+      const token = multiManager.generateUniqueToken();
+      const baseUrl = getNetworkBaseUrl(req);
+      const joinUrl = `${baseUrl}/main?token=${token}`;
+      const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
+
+      const session = await prisma.session.create({
+        data: {
+          templateId: template.id,
+          hostId: req.user!.id,
+          mode: 'multi',
+          token,
+          status: 'lobi',
+        },
+      });
+
+      const activeSession = multiManager.inisialisasiSesi(
+        session.id,
+        token,
+        req.user!.id,
+        { id: template.id, judul: template.judul },
+        template.questions.map((q) => ({
+          id: q.id,
+          urutan: q.urutan,
+          teks: q.teks,
+          opsiA: q.opsiA,
+          opsiB: q.opsiB,
+          opsiC: q.opsiC,
+          jawabanBenar: q.jawabanBenar,
+          penjelasan: q.penjelasan,
+        }))
+      );
+
+      return res.status(201).json({
+        pesan: 'Sesi Multiplayer berhasil dibuat.',
+        session: {
+          id: session.id,
+          mode: 'multi',
+          token,
+          qrDataUrl,
+          joinUrl,
+          networkUrl: baseUrl,
+          templateId: template.id,
+          templateJudul: template.judul,
+          status: 'lobi',
+          totalSoal: activeSession.totalSoal,
+        },
+      });
+    }
+
+    // Default: Mode Solo
     const session = await prisma.session.create({
       data: {
         templateId: template.id,
@@ -209,6 +328,7 @@ sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
       pesan: 'Sesi Solo berhasil dibuat.',
       session: {
         id: session.id,
+        mode: 'solo',
         templateId: template.id,
         templateJudul: template.judul,
         state: activeSession.state,
@@ -223,15 +343,66 @@ sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// 4. GET /api/sesi/:id - Ambil detail sesi Solo aktif
+// 4. GET /api/sesi/:id - Ambil detail sesi Solo atau Multiplayer aktif
 sesiRouter.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
 
-    // Periksa apakah ada di in-memory active solo manager
+    // A. Cek di in-memory multiManager
+    const activeMulti = multiManager.dapatkanSesi(id);
+    if (activeMulti) {
+      if (activeMulti.hostId !== req.user!.id) {
+        return res.status(403).json({ pesan: 'Anda tidak memiliki hak akses ke sesi ini.' });
+      }
+      const baseUrl = getNetworkBaseUrl(req);
+      const joinUrl = `${baseUrl}/main?token=${activeMulti.token}`;
+      const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
+      const soalAktif = activeMulti.questions[activeMulti.currentQuestionIndex] || null;
+
+      return res.json({
+        session: {
+          sessionId: activeMulti.sessionId,
+          mode: 'multi',
+          token: activeMulti.token,
+          qrDataUrl,
+          joinUrl,
+          networkUrl: baseUrl,
+          templateId: activeMulti.templateId,
+          templateJudul: activeMulti.templateJudul,
+          status: activeMulti.status,
+          currentQuestionIndex: activeMulti.currentQuestionIndex,
+          totalSoal: activeMulti.totalSoal,
+          taliPosition: activeMulti.taliPosition,
+          skorMerah: activeMulti.skorMerah,
+          skorPutih: activeMulti.skorPutih,
+          totalPeserta: activeMulti.peserta.size,
+          daftarPeserta: Array.from(activeMulti.peserta.values()).map((p) => ({
+            id: p.id,
+            nama: p.nama,
+            tim: p.tim,
+            connected: p.connected,
+          })),
+          soalSaatIni: soalAktif
+            ? {
+                id: soalAktif.id,
+                urutan: soalAktif.urutan,
+                nomorSoal: activeMulti.currentQuestionIndex + 1,
+                teks: soalAktif.teks,
+                opsiA: soalAktif.opsiA,
+                opsiB: soalAktif.opsiB,
+                opsiC: soalAktif.opsiC,
+                endsAt: activeMulti.soalBerakhirPada,
+              }
+            : null,
+          isFinished: activeMulti.status === 'selesai',
+        },
+      });
+    }
+
+    // B. Cek di in-memory active solo manager
     let activeSession = soloManager.dapatkanSesi(id, req.user!.id);
 
-    // Jika belum ada di memori (misal guru me-refresh browser), pulihkan dari database
+    // C. Jika belum ada di memori (misal guru me-refresh browser), pulihkan dari database
     if (!activeSession) {
       const sessionDb = await prisma.session.findUnique({
         where: { id },
@@ -251,11 +422,96 @@ sesiRouter.get('/:id', async (req: AuthRequest, res: Response) => {
         return res.status(403).json({ pesan: 'Anda tidak memiliki hak akses ke sesi ini.' });
       }
 
-      // Jika sesi sudah selesai di database
+      // Jika sesi multiplayer
+      if (sessionDb.mode === 'multi') {
+        const token = sessionDb.token || multiManager.generateUniqueToken();
+        const baseUrl = getNetworkBaseUrl(req);
+        const joinUrl = `${baseUrl}/main?token=${token}`;
+        const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
+
+        if (sessionDb.status === 'selesai') {
+          return res.json({
+            session: {
+              sessionId: sessionDb.id,
+              mode: 'multi',
+              token,
+              qrDataUrl,
+              joinUrl,
+              networkUrl: baseUrl,
+              templateId: sessionDb.templateId,
+              templateJudul: sessionDb.template.judul,
+              hostId: sessionDb.hostId,
+              status: 'selesai',
+              taliPosition: sessionDb.result?.posisiAkhir ?? 0,
+              skorMerah: sessionDb.result?.skorMerah ?? 0,
+              skorPutih: sessionDb.result?.skorPutih ?? 0,
+              totalSoal: sessionDb.template.questions.length,
+              totalPeserta: 0,
+              daftarPeserta: [],
+              isFinished: true,
+            },
+          });
+        }
+
+        const multi = multiManager.inisialisasiSesi(
+          sessionDb.id,
+          token,
+          sessionDb.hostId,
+          { id: sessionDb.template.id, judul: sessionDb.template.judul },
+          sessionDb.template.questions.map((q) => ({
+            id: q.id,
+            urutan: q.urutan,
+            teks: q.teks,
+            opsiA: q.opsiA,
+            opsiB: q.opsiB,
+            opsiC: q.opsiC,
+            jawabanBenar: q.jawabanBenar,
+            penjelasan: q.penjelasan,
+          }))
+        );
+
+        const soalAktif = multi.questions[multi.currentQuestionIndex] || null;
+
+        return res.json({
+          session: {
+            sessionId: multi.sessionId,
+            mode: 'multi',
+            token: multi.token,
+            qrDataUrl,
+            joinUrl,
+            networkUrl: baseUrl,
+            templateId: multi.templateId,
+            templateJudul: multi.templateJudul,
+            status: multi.status,
+            currentQuestionIndex: multi.currentQuestionIndex,
+            totalSoal: multi.totalSoal,
+            taliPosition: multi.taliPosition,
+            skorMerah: multi.skorMerah,
+            skorPutih: multi.skorPutih,
+            totalPeserta: multi.peserta.size,
+            daftarPeserta: [],
+            soalSaatIni: soalAktif
+              ? {
+                  id: soalAktif.id,
+                  urutan: soalAktif.urutan,
+                  nomorSoal: multi.currentQuestionIndex + 1,
+                  teks: soalAktif.teks,
+                  opsiA: soalAktif.opsiA,
+                  opsiB: soalAktif.opsiB,
+                  opsiC: soalAktif.opsiC,
+                }
+              : null,
+            isFinished: false,
+          },
+        });
+      }
+
+      // Jika sesi sudah selesai di database (Solo)
       if (sessionDb.status === 'selesai') {
         return res.json({
           session: {
             sessionId: sessionDb.id,
+            mode: 'solo',
             templateId: sessionDb.templateId,
             templateJudul: sessionDb.template.judul,
             hostId: sessionDb.hostId,
@@ -269,7 +525,7 @@ sesiRouter.get('/:id', async (req: AuthRequest, res: Response) => {
         });
       }
 
-      // Inisialisasi ulang ke memori jika sesi masih aktif
+      // Inisialisasi ulang ke memori jika sesi masih aktif (Solo)
       activeSession = soloManager.inisialisasiSesi(
         sessionDb.id,
         req.user!.id,
@@ -287,12 +543,13 @@ sesiRouter.get('/:id', async (req: AuthRequest, res: Response) => {
       );
     }
 
-    // Format data untuk host screen
+    // Format data untuk host screen (Solo)
     const soalSaatIni = activeSession.questions[activeSession.currentQuestionIndex] || null;
 
     return res.json({
       session: {
         sessionId: activeSession.sessionId,
+        mode: 'solo',
         templateId: activeSession.templateId,
         templateJudul: activeSession.templateJudul,
         state: activeSession.state,
@@ -591,7 +848,50 @@ sesiRouter.post('/:id/main-lagi', async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ pesan: 'Anda tidak berwenang atas sesi ini.' });
     }
 
-    // Buat sesi baru
+    // Buat sesi baru sesuai mode sesi sebelumnya
+    if (sessionLama.mode === 'multi') {
+      const token = multiManager.generateUniqueToken();
+      const baseUrl = getNetworkBaseUrl(req);
+      const joinUrl = `${baseUrl}/main?token=${token}`;
+      const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
+
+      const sessionBaru = await prisma.session.create({
+        data: {
+          templateId: sessionLama.templateId,
+          hostId: req.user!.id,
+          mode: 'multi',
+          token,
+          status: 'lobi',
+        },
+      });
+
+      multiManager.inisialisasiSesi(
+        sessionBaru.id,
+        token,
+        req.user!.id,
+        { id: sessionLama.template.id, judul: sessionLama.template.judul },
+        sessionLama.template.questions.map((q) => ({
+          id: q.id,
+          urutan: q.urutan,
+          teks: q.teks,
+          opsiA: q.opsiA,
+          opsiB: q.opsiB,
+          opsiC: q.opsiC,
+          jawabanBenar: q.jawabanBenar,
+          penjelasan: q.penjelasan,
+        }))
+      );
+
+      return res.status(201).json({
+        pesan: 'Sesi Multiplayer baru berhasil dibuat.',
+        sessionId: sessionBaru.id,
+        token,
+        qrDataUrl,
+        joinUrl,
+      });
+    }
+
+    // Default: Mode Solo
     const sessionBaru = await prisma.session.create({
       data: {
         templateId: sessionLama.templateId,
