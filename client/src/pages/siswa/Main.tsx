@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router';
 import { getSocket } from '../../lib/socket';
 import { Button, Card } from '../../components';
 import { soundEffects } from '../../lib/soundEffects';
+import MainKerupuk from './MainKerupuk';
 import {
   Users,
   Trophy,
@@ -52,6 +53,9 @@ export default function MainSiswa() {
   const [namaPeserta, setNamaPeserta] = useState<string>('');
   const [templateJudul, setTemplateJudul] = useState<string>('');
   const [tim, setTim] = useState<'merah' | 'putih' | null>(null);
+  const [gameType, setGameType] = useState<'tarik_tambang' | 'makan_kerupuk'>('tarik_tambang');
+  const [kerupukState, setKerupukState] = useState<any>(null);
+  const [kerupukLeaderboard, setKerupukLeaderboard] = useState<any[]>([]);
   const [stage, setStage] = useState<'GABUNG' | 'LOBBY' | 'PLAYING' | 'SELESAI'>('GABUNG');
 
   // Lobby states
@@ -137,6 +141,13 @@ export default function MainSiswa() {
             setNamaPeserta(savedNama);
             setTokenInput(savedToken);
             setTemplateJudul(res.templateJudul || '');
+            if (res.game === 'makan_kerupuk') {
+              setGameType('makan_kerupuk');
+              setKerupukState(res.peserta);
+              setKerupukLeaderboard(res.leaderboard || []);
+            } else {
+              setGameType('tarik_tambang');
+            }
             if (res.tim) setTim(res.tim);
             setTaliPosition(res.taliPosition ?? 0);
             setSkorMerah(res.skorMerah ?? 0);
@@ -326,6 +337,15 @@ export default function MainSiswa() {
         setPesertaId(res.pesertaId!);
         setNamaPeserta(cleanNama);
         setTemplateJudul(res.templateJudul || '');
+
+        if ((res as any).game === 'makan_kerupuk') {
+          setGameType('makan_kerupuk');
+          setKerupukState((res as any).peserta);
+          setKerupukLeaderboard((res as any).leaderboard || []);
+        } else {
+          setGameType('tarik_tambang');
+        }
+
         if (res.tim) setTim(res.tim);
         setTaliPosition(res.taliPosition ?? 0);
         setSkorMerah(res.skorMerah ?? 0);
@@ -844,7 +864,27 @@ export default function MainSiswa() {
   }
 
   // ==========================================
-  // RENDER STAGE 2: LOBI MENUNGGU GURU
+  // RENDER MAKAN KERUPUK CHALLENGE (JIKA SESI ADALAH MAKAN KERUPUK)
+  // ==========================================
+  if (gameType === 'makan_kerupuk' && sessionId && pesertaId) {
+    return (
+      <MainKerupuk
+        token={tokenInput}
+        nama={namaPeserta}
+        sessionId={sessionId}
+        pesertaId={pesertaId}
+        templateJudul={templateJudul}
+        initialStatus={stage === 'PLAYING' ? 'jalan' : stage === 'SELESAI' ? 'selesai' : 'lobi'}
+        initialPesertaState={kerupukState}
+        initialLeaderboard={kerupukLeaderboard}
+        initialSoalAktif={soalAktif}
+        onKeluar={handleKeluar}
+      />
+    );
+  }
+
+  // ==========================================
+  // RENDER STAGE 2: LOBI MENUNGGU GURU (TARIK TAMBANG)
   // ==========================================
   if (stage === 'LOBBY') {
     return (
