@@ -23,7 +23,7 @@ export default function Landing() {
 
   // Scroll spy & sticky topbar
   useEffect(() => {
-    const sectionIds = ['beranda', 'apa', 'fitur', 'template', 'cara', 'demo'];
+    const sectionIds = ['beranda', 'tentang', 'fitur', 'template', 'cara-kerja', 'demo'];
 
     const handleScroll = () => {
       const scrollY = window.scrollY;
@@ -291,8 +291,8 @@ export default function Landing() {
               <li className={activeSection === 'beranda' ? 'on' : ''}>
                 <a href="#beranda">Beranda</a>
               </li>
-              <li className={activeSection === 'apa' ? 'on' : ''}>
-                <a href="#apa">Tentang</a>
+              <li className={activeSection === 'tentang' ? 'on' : ''}>
+                <a href="#tentang">Tentang</a>
               </li>
               <li className={activeSection === 'fitur' ? 'on' : ''}>
                 <a href="#fitur">Fitur</a>
@@ -300,8 +300,8 @@ export default function Landing() {
               <li className={activeSection === 'template' ? 'on' : ''}>
                 <a href="#template">Template</a>
               </li>
-              <li className={activeSection === 'cara' ? 'on' : ''}>
-                <a href="#cara">Cara Kerja</a>
+              <li className={activeSection === 'cara-kerja' ? 'on' : ''}>
+                <a href="#cara-kerja">Cara Kerja</a>
               </li>
               <li className={activeSection === 'demo' ? 'on' : ''}>
                 <a href="#demo">Demo</a>
@@ -361,8 +361,8 @@ export default function Landing() {
           />
         </svg>
         <svg
+          className="hero-books"
           viewBox="0 0 90 60"
-          style={{ position: 'absolute', left: 0, bottom: '60px', width: '110px', zIndex: 2 }}
           aria-hidden="true"
         >
           <rect x="2" y="38" width="82" height="14" rx="2" fill="#6d5a45" />
@@ -373,8 +373,8 @@ export default function Landing() {
       </header>
 
       <main>
-        {/* APA ITU DISCERE */}
-        <section className="wrap" id="apa">
+        {/* TENTANG DISCERE */}
+        <section className="wrap" id="tentang">
           <h2 className="sec hand">
             Apa Itu <u>Discere?</u>
           </h2>
@@ -643,8 +643,8 @@ export default function Landing() {
               <div className="gm">
                 <svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice">
                   <use href="#bg" width="200" height="200" />
-                  <path d="M8 142H192" stroke="#8a5a2b" strokeWidth="5" />
-                  <rect x="96" y="134" width="8" height="16" fill="#d33" />
+                  <path d="M8 116H192" stroke="#8a5a2b" strokeWidth="5" />
+                  <rect x="96" y="108" width="8" height="16" fill="#d33" />
                   <use
                     href="#kid"
                     x="6"
@@ -749,7 +749,7 @@ export default function Landing() {
         </section>
 
         {/* CARA KERJA */}
-        <section className="wrap" id="cara">
+        <section className="wrap" id="cara-kerja">
           <h2 className="sec hand" style={{ fontSize: '34px' }}>
             Cara Menggunakan <u>Discere</u>
           </h2>
@@ -1102,7 +1102,7 @@ export default function Landing() {
                   <a href="#beranda">Beranda</a>
                 </li>
                 <li>
-                  <a href="#apa">Tentang</a>
+                  <a href="#tentang">Tentang</a>
                 </li>
                 <li>
                   <a href="#fitur">Fitur</a>
@@ -1111,7 +1111,7 @@ export default function Landing() {
                   <a href="#template">Template</a>
                 </li>
                 <li>
-                  <a href="#cara">Cara Kerja</a>
+                  <a href="#cara-kerja">Cara Kerja</a>
                 </li>
                 <li>
                   <a href="#demo">Demo</a>
