@@ -827,6 +827,10 @@ export default function MasukDaftar({ initialView = 'log' }: MasukDaftarProps) {
           }
         }
 
+        .discere-masuk-wrapper .mobile-doodles {
+          display: none;
+        }
+
         @media(max-width: 819px) {
           .discere-masuk-wrapper {
             overflow: hidden !important;
@@ -836,9 +840,16 @@ export default function MasukDaftar({ initialView = 'log' }: MasukDaftarProps) {
             height: 100dvh;
             max-height: 100vh;
             overflow: hidden !important;
+            display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            padding: env(safe-area-inset-top, 8px) 12px env(safe-area-inset-bottom, 8px);
+            padding: env(safe-area-inset-top, 8px) 16px env(safe-area-inset-bottom, 8px);
+            background: radial-gradient(ellipse at 15% 12%, rgba(255, 255, 255, 0.14) 0%, transparent 45%),
+                        radial-gradient(ellipse at 85% 20%, rgba(255, 255, 255, 0.10) 0%, transparent 42%),
+                        radial-gradient(ellipse at 50% 85%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
+                        radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.38) 100%),
+                        linear-gradient(165deg, #244e39 0%, #1a3d2c 50%, #122c20 100%) !important;
           }
           .discere-masuk-wrapper .stage {
             height: 100%;
@@ -848,13 +859,31 @@ export default function MasukDaftar({ initialView = 'log' }: MasukDaftarProps) {
             align-items: center;
             padding: 0;
             overflow: hidden;
+            position: relative;
+          }
+          .discere-masuk-wrapper .brand {
+            left: 16px;
+            top: max(12px, env(safe-area-inset-top, 12px));
+            font-size: 26px;
+            gap: 8px;
+            z-index: 15;
+          }
+          .discere-masuk-wrapper .brand svg {
+            width: 28px;
+            height: 28px;
+          }
+          .discere-masuk-wrapper .flagr {
+            display: block !important;
+            right: 0;
+            top: max(8px, env(safe-area-inset-top, 8px));
+            width: 85px;
+            z-index: 15;
           }
           .discere-masuk-wrapper .floor,
           .discere-masuk-wrapper .ppl,
           .discere-masuk-wrapper .rope,
           .discere-masuk-wrapper .ring,
           .discere-masuk-wrapper .chalk,
-          .discere-masuk-wrapper .flagr,
           .discere-masuk-wrapper .under {
             display: none !important;
           }
@@ -877,27 +906,209 @@ export default function MasukDaftar({ initialView = 'log' }: MasukDaftarProps) {
             position: relative;
             left: auto;
             bottom: auto;
-            width: min(390px, 100%);
-            max-height: 96vh;
-            padding: 16px 20px;
-            overflow: hidden;
+            width: min(380px, calc(100vw - 32px));
+            max-height: calc(100dvh - 120px);
+            padding: 18px 20px;
+            overflow-y: auto;
+            scrollbar-width: none;
+            margin: auto 0;
+            z-index: 20;
+            box-shadow: 0 12px 36px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2);
+            border: 2px solid rgba(228, 215, 195, 0.7);
+            border-radius: 28px;
+          }
+          .discere-masuk-wrapper .card::-webkit-scrollbar {
+            display: none;
           }
           .discere-masuk-wrapper .pane {
-            gap: 7px;
+            gap: 8px;
           }
           .discere-masuk-wrapper .pane h1 {
             font-size: 28px;
+            line-height: 1.1;
+            margin-bottom: 0;
+          }
+          .discere-masuk-wrapper .sub {
+            font-size: 13px;
+            margin-bottom: 2px;
+          }
+          .discere-masuk-wrapper label {
+            font-size: 12.5px;
+            margin-top: 1px;
+            font-weight: 700;
           }
           .discere-masuk-wrapper input[type=text],
           .discere-masuk-wrapper input[type=email],
           .discere-masuk-wrapper input[type=password] {
-            padding: 8px 12px;
-            font-size: 13.5px;
+            padding: 9px 12px;
+            font-size: 14px;
+            border-radius: 12px;
+            border-width: 1.5px;
           }
-          .discere-masuk-wrapper .b1,
+          .discere-masuk-wrapper .pw button {
+            font-size: 12px;
+            padding: 4px 8px;
+          }
+          .discere-masuk-wrapper .row {
+            font-size: 12px;
+            margin: 2px 0;
+          }
+          .discere-masuk-wrapper .b1 {
+            padding: 11px;
+            font-size: 15px;
+            border-radius: 14px;
+            margin-top: 4px;
+          }
+          .discere-masuk-wrapper .or {
+            font-size: 12px;
+            margin: 3px 0 1px;
+          }
           .discere-masuk-wrapper .b2 {
             padding: 10px;
             font-size: 14px;
+            border-radius: 14px;
+          }
+          .discere-masuk-wrapper .demo-chips {
+            gap: 6px;
+            padding-top: 6px;
+            margin-top: 4px;
+          }
+          .discere-masuk-wrapper .demo-btn {
+            padding: 3px 10px;
+            font-size: 11.5px;
+            min-height: 26px;
+          }
+
+          /* Detail Hiasan & Doodle Mobile */
+          .discere-masuk-wrapper .mobile-doodles {
+            display: block;
+            pointer-events: none;
+          }
+          .discere-masuk-wrapper .doodle-bulb {
+            position: absolute;
+            right: 14px;
+            top: max(56px, calc(env(safe-area-inset-top, 12px) + 44px));
+            width: 58px;
+            height: 58px;
+            opacity: 0.85;
+            z-index: 2;
+          }
+          .discere-masuk-wrapper .doodle-plane {
+            position: absolute;
+            left: 12px;
+            top: max(58px, calc(env(safe-area-inset-top, 12px) + 46px));
+            width: 62px;
+            height: 62px;
+            opacity: 0.8;
+            z-index: 2;
+          }
+          .discere-masuk-wrapper .doodle-star {
+            position: absolute;
+            z-index: 2;
+          }
+          .discere-masuk-wrapper .doodle-star.star-1 {
+            left: 18px;
+            top: 42%;
+            width: 16px;
+            height: 16px;
+            opacity: 0.45;
+          }
+          .discere-masuk-wrapper .doodle-star.star-2 {
+            right: 16px;
+            top: 38%;
+            width: 18px;
+            height: 18px;
+            opacity: 0.65;
+          }
+          .discere-masuk-wrapper .doodle-star.star-3 {
+            right: 22px;
+            bottom: 60px;
+            width: 15px;
+            height: 15px;
+            opacity: 0.45;
+          }
+          .discere-masuk-wrapper .doodle-formula {
+            position: absolute;
+            font-family: 'Caveat', cursive;
+            font-size: 15px;
+            font-weight: 700;
+            color: rgba(244, 236, 216, 0.35);
+            z-index: 2;
+            display: none;
+          }
+          @media(min-width: 440px) {
+            .discere-masuk-wrapper .doodle-formula {
+              display: block;
+            }
+          }
+          .discere-masuk-wrapper .formula-left {
+            left: 14px;
+            bottom: 84px;
+            transform: rotate(-6deg);
+          }
+          .discere-masuk-wrapper .formula-right {
+            right: 16px;
+            bottom: 92px;
+            transform: rotate(5deg);
+          }
+          .discere-masuk-wrapper .mobile-motto {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: max(22px, calc(env(safe-area-inset-bottom, 8px) + 16px));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+            white-space: nowrap;
+          }
+          .discere-masuk-wrapper .motto-text {
+            font-family: 'Caveat', cursive;
+            font-size: 15px;
+            font-weight: 700;
+            color: rgba(244, 236, 216, 0.88);
+            text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+          }
+          .discere-masuk-wrapper .motto-curve {
+            width: 125px;
+            height: 8px;
+            margin-top: 1px;
+          }
+          .discere-masuk-wrapper .mobile-floor-bar {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 14px;
+            background: linear-gradient(#b99672 0 3px, #8b6a4a 3px);
+            z-index: 10;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            padding-right: 20px;
+            gap: 6px;
+          }
+          .discere-masuk-wrapper .chalk-stick {
+            width: 16px;
+            height: 6px;
+            border-radius: 2px 2px 0 0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.35);
+          }
+          .discere-masuk-wrapper .chalk-white {
+            background: #f4ecd8;
+          }
+          .discere-masuk-wrapper .chalk-red {
+            background: #c8362f;
+          }
+          .discere-masuk-wrapper .chalk-yellow {
+            background: #f2c230;
+          }
+          .discere-masuk-wrapper .chalk-eraser {
+            width: 28px;
+            height: 9px;
+            background: #5a422d;
+            border-radius: 2px 2px 0 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.45);
           }
         }
       `}</style>
@@ -932,6 +1143,79 @@ export default function MasukDaftar({ initialView = 'log' }: MasukDaftarProps) {
             <path d="M0 6C50 -6 90 30 140 20S200 10 230 30L230 62C200 42 160 56 130 62S50 40 0 54z" fill="#c8362f" />
             <path d="M0 54C50 40 90 62 130 62S200 42 230 62L230 92C200 74 160 86 130 92S50 70 0 86z" fill="#f6f1e6" />
           </svg>
+
+          {/* HIASAN & DOODLE PAPAN TULIS KHUSUS MODE MOBILE */}
+          <div className="mobile-doodles" aria-hidden="true">
+            {/* Bohlam Ide Menyala (Kanan Atas) */}
+            <svg className="doodle-bulb" viewBox="0 0 100 100" fill="none" stroke="#f4ecd8">
+              <path
+                d="M38 58 C 30 50, 28 38, 33 26 C 39 15, 61 15, 67 26 C 72 38, 70 50, 62 58 L 62 65 L 38 65 Z"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="rgba(244, 236, 216, 0.05)"
+              />
+              <path d="M41 70 H 59 M43 74 H 57 M46 78 H 54" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M45 44 C 45 37, 55 37, 55 44 L 50 51 Z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M50 8 V 3" strokeWidth="2.5" strokeLinecap="round" stroke="#f2c230" />
+              <path d="M26 17 L 20 11" strokeWidth="2.5" strokeLinecap="round" stroke="#f2c230" />
+              <path d="M74 17 L 80 11" strokeWidth="2.5" strokeLinecap="round" stroke="#f2c230" />
+              <path d="M14 36 L 7 36" strokeWidth="2.5" strokeLinecap="round" stroke="#f2c230" />
+              <path d="M86 36 L 93 36" strokeWidth="2.5" strokeLinecap="round" stroke="#f2c230" />
+            </svg>
+
+            {/* Pesawat Kertas Origami (Kiri Atas) */}
+            <svg className="doodle-plane" viewBox="0 0 120 120" fill="none" stroke="#f4ecd8">
+              <path
+                d="M10 100 C 18 65, 52 50, 40 25 C 28 10, 10 32, 34 52 C 58 66, 78 50, 95 34"
+                strokeWidth="2"
+                strokeDasharray="4 5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M95 34 L 115 16 L 78 42 L 86 54 L 95 34 Z"
+                strokeWidth="2"
+                strokeLinejoin="round"
+                fill="rgba(244, 236, 216, 0.07)"
+              />
+              <path d="M115 16 L 84 48" strokeWidth="1.6" />
+            </svg>
+
+            {/* Bintang-Bintang Kapur */}
+            <svg className="doodle-star star-1" viewBox="0 0 24 24" fill="none" stroke="#f4ecd8" strokeWidth="2">
+              <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
+            </svg>
+            <svg className="doodle-star star-2" viewBox="0 0 24 24" fill="none" stroke="#f2c230" strokeWidth="2">
+              <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
+            </svg>
+            <svg className="doodle-star star-3" viewBox="0 0 24 24" fill="none" stroke="#f4ecd8" strokeWidth="2">
+              <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
+            </svg>
+
+            {/* Coretan Rumus Matematika di Kiri & Kanan */}
+            <div className="doodle-formula formula-left">
+              <span>a² + b² = c²</span>
+            </div>
+            <div className="doodle-formula formula-right">
+              <span>E = mc²</span>
+            </div>
+
+            {/* Motto di Bawah Kartu */}
+            <div className="mobile-motto">
+              <span className="motto-text">Discere • Belajar Lebih Menyenangkan</span>
+              <svg className="motto-curve" viewBox="0 0 120 10" fill="none" stroke="#f2c230" strokeWidth="2.6" strokeLinecap="round">
+                <path d="M4 7 Q 60 2 116 6" />
+              </svg>
+            </div>
+
+            {/* Rak Kayu Bawah dengan Batang Kapur & Penghapus */}
+            <div className="mobile-floor-bar">
+              <div className="chalk-stick chalk-white" />
+              <div className="chalk-stick chalk-red" />
+              <div className="chalk-stick chalk-yellow" />
+              <div className="chalk-eraser" />
+            </div>
+          </div>
 
           {/* LANTAI KAYU MEJA */}
           <div className="floor" />

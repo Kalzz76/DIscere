@@ -361,8 +361,8 @@ export default function Landing() {
           />
         </svg>
         <svg
+          className="hero-books"
           viewBox="0 0 90 60"
-          style={{ position: 'absolute', left: 0, bottom: '60px', width: '110px', zIndex: 2 }}
           aria-hidden="true"
         >
           <rect x="2" y="38" width="82" height="14" rx="2" fill="#6d5a45" />
