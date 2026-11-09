@@ -108,10 +108,23 @@ export default function DashboardGuru() {
   const [rangeDropdownOpen, setRangeDropdownOpen] = useState(false);
   const rangeDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Dropdown filter riwayat
+  const [filterModeDropdownOpen, setFilterModeDropdownOpen] = useState(false);
+  const filterModeRef = useRef<HTMLDivElement>(null);
+
+  const [filterMenangDropdownOpen, setFilterMenangDropdownOpen] = useState(false);
+  const filterMenangRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (rangeDropdownRef.current && !rangeDropdownRef.current.contains(event.target as Node)) {
         setRangeDropdownOpen(false);
+      }
+      if (filterModeRef.current && !filterModeRef.current.contains(event.target as Node)) {
+        setFilterModeDropdownOpen(false);
+      }
+      if (filterMenangRef.current && !filterMenangRef.current.contains(event.target as Node)) {
+        setFilterMenangDropdownOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -128,12 +141,12 @@ export default function DashboardGuru() {
   const [subTabAside, setSubTabAside] = useState<'hist' | 'tpl'>('hist');
   const [pencarian, setPencarian] = useState('');
 
-  // Riwayat filter & pagination states
+  // Riwayat filter & pagination states (muat 5 sesi per tabel/kotak)
   const [riwayatHalaman, setRiwayatHalaman] = useState(1);
   const [riwayatCari, setRiwayatCari] = useState('');
   const [riwayatFilterMode, setRiwayatFilterMode] = useState<'semua' | 'multi' | 'solo'>('semua');
   const [riwayatFilterMenang, setRiwayatFilterMenang] = useState<'semua' | 'merah' | 'putih' | 'seri'>('semua');
-  const RIWAYAT_PER_HALAMAN = 8;
+  const RIWAYAT_PER_HALAMAN = 5;
 
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -355,25 +368,54 @@ export default function DashboardGuru() {
     chartLabels = MONTHS;
     chartCurrentIdx = currentMonthIdx;
     chartValues = Array(12).fill(0);
-    // Masukkan data ke bulan aktif
-    chartValues[currentMonthIdx] = totalSesi;
-    if (currentMonthIdx > 0) chartValues[currentMonthIdx - 1] = Math.max(0, Math.floor(totalSesi * 0.6));
-    if (currentMonthIdx > 1) chartValues[currentMonthIdx - 2] = Math.max(0, Math.floor(totalSesi * 0.3));
+    // Hitung sesi nyata dari riwayatList per bulan di tahun berjalan
+    riwayatList.forEach((r) => {
+      const d = new Date(r.tanggal);
+      if (d.getFullYear() === now.getFullYear()) {
+        const m = d.getMonth();
+        if (m >= 0 && m < 12) {
+          chartValues[m]++;
+        }
+      }
+    });
   } else if (rangeMode === 'Mingguan') {
     chartLabels = DAYS_OF_WEEK;
     chartCurrentIdx = currentDayOfWeekIdx;
     chartValues = Array(7).fill(0);
-    chartValues[currentDayOfWeekIdx] = totalSesi;
-    if (currentDayOfWeekIdx > 0) chartValues[currentDayOfWeekIdx - 1] = Math.max(0, Math.floor(totalSesi * 0.7));
+    // Hitung sesi nyata untuk minggu berjalan (Senin s/d Minggu)
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - currentDayOfWeekIdx);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 7);
+
+    riwayatList.forEach((r) => {
+      const d = new Date(r.tanggal);
+      if (d >= startOfWeek && d < endOfWeek) {
+        const dayIdx = (d.getDay() + 6) % 7;
+        chartValues[dayIdx]++;
+      }
+    });
   } else {
-    // Harian (7 hari terakhir)
+    // Harian (7 hari terakhir dari hari ini)
     chartLabels = [];
-    chartValues = [];
+    chartValues = Array(7).fill(0);
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
+      const slotIdx = 6 - i;
       chartLabels.push(`${d.getDate()} ${MONTHS[d.getMonth()]}`);
-      chartValues.push(i === 0 ? totalSesi : Math.max(0, Math.round(totalSesi * (0.8 - i * 0.1))));
+
+      const count = riwayatList.filter((r) => {
+        const rd = new Date(r.tanggal);
+        return (
+          rd.getDate() === d.getDate() &&
+          rd.getMonth() === d.getMonth() &&
+          rd.getFullYear() === d.getFullYear()
+        );
+      }).length;
+      chartValues[slotIdx] = count;
     }
     chartCurrentIdx = 6;
   }
@@ -741,10 +783,10 @@ export default function DashboardGuru() {
 
                     {/* 3 Template Cards Sesuai Gambar 1 (.pc .card) */}
                     <div className="portal-cards-grid">
-                      {ringkasan.templateTerbaru.slice(0, 3).map((tmpl, idx) => {
-                        const totalSesiInt = Math.max(1, ringkasan.totalSesi);
-                        const playedCount = idx === 0 ? Math.min(totalSesiInt, 2) : 1;
-                        const percentage = Math.round((playedCount / totalSesiInt) * 100);
+                      {ringkasan.templateTerbaru.slice(0, 3).map((tmpl) => {
+                        const playedCount = riwayatList.filter((r) => r.templateId === tmpl.id).length;
+                        const totalSesiInt = ringkasan.totalSesi;
+                        const percentage = totalSesiInt > 0 ? Math.round((playedCount / totalSesiInt) * 100) : 0;
 
                         return (
                           <div key={tmpl.id} className="portal-card portal-pc">
@@ -1087,36 +1129,122 @@ export default function DashboardGuru() {
                           />
                         </div>
 
-                        {/* Filter Mode & Hasil Pertandingan */}
+                        {/* Custom Dropdown: Filter Mode & Hasil Pertandingan */}
                         <div className="flex flex-wrap items-center gap-2">
-                          <select
-                            className="portal-sel"
-                            value={riwayatFilterMode}
-                            onChange={(e) => {
-                              setRiwayatFilterMode(e.target.value as any);
-                              setRiwayatHalaman(1);
-                            }}
-                            title="Filter mode game"
-                          >
-                            <option value="semua">Semua Mode</option>
-                            <option value="multi">Mode Multiplayer</option>
-                            <option value="solo">Mode Solo</option>
-                          </select>
+                          {/* Dropdown Filter Mode */}
+                          <div className="relative" ref={filterModeRef}>
+                            <button
+                              type="button"
+                              className="portal-sel"
+                              onClick={() => {
+                                setFilterModeDropdownOpen((p) => !p);
+                                setFilterMenangDropdownOpen(false);
+                              }}
+                              aria-haspopup="listbox"
+                              aria-expanded={filterModeDropdownOpen}
+                              title="Filter mode game"
+                            >
+                              <span>
+                                {riwayatFilterMode === 'semua'
+                                  ? 'Semua Mode'
+                                  : riwayatFilterMode === 'multi'
+                                  ? 'Multiplayer'
+                                  : 'Solo'}
+                              </span>
+                              <ChevronDown
+                                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                  filterModeDropdownOpen ? 'rotate-180' : ''
+                                }`}
+                              />
+                            </button>
 
-                          <select
-                            className="portal-sel"
-                            value={riwayatFilterMenang}
-                            onChange={(e) => {
-                              setRiwayatFilterMenang(e.target.value as any);
-                              setRiwayatHalaman(1);
-                            }}
-                            title="Filter hasil pertandingan"
-                          >
-                            <option value="semua">Semua Hasil</option>
-                            <option value="merah">🔴 Tim Merah</option>
-                            <option value="putih">⚪ Tim Putih</option>
-                            <option value="seri">🤝 Seri</option>
-                          </select>
+                            {filterModeDropdownOpen && (
+                              <div className="portal-dropdown-menu">
+                                {[
+                                  { val: 'semua', label: 'Semua Mode' },
+                                  { val: 'multi', label: 'Mode Multiplayer' },
+                                  { val: 'solo', label: 'Mode Solo' },
+                                ].map((item) => (
+                                  <button
+                                    key={item.val}
+                                    type="button"
+                                    onClick={() => {
+                                      setRiwayatFilterMode(item.val as any);
+                                      setRiwayatHalaman(1);
+                                      setFilterModeDropdownOpen(false);
+                                    }}
+                                    className={`portal-dropdown-item ${
+                                      riwayatFilterMode === item.val ? 'active' : ''
+                                    }`}
+                                  >
+                                    <span>{item.label}</span>
+                                    {riwayatFilterMode === item.val && (
+                                      <Check className="w-3.5 h-3.5 text-[#f2c230]" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Dropdown Filter Hasil Pertandingan */}
+                          <div className="relative" ref={filterMenangRef}>
+                            <button
+                              type="button"
+                              className="portal-sel"
+                              onClick={() => {
+                                setFilterMenangDropdownOpen((p) => !p);
+                                setFilterModeDropdownOpen(false);
+                              }}
+                              aria-haspopup="listbox"
+                              aria-expanded={filterMenangDropdownOpen}
+                              title="Filter hasil pertandingan"
+                            >
+                              <span>
+                                {riwayatFilterMenang === 'semua'
+                                  ? 'Semua Hasil'
+                                  : riwayatFilterMenang === 'merah'
+                                  ? '🔴 Tim Merah'
+                                  : riwayatFilterMenang === 'putih'
+                                  ? '⚪ Tim Putih'
+                                  : '🤝 Seri'}
+                              </span>
+                              <ChevronDown
+                                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                  filterMenangDropdownOpen ? 'rotate-180' : ''
+                                }`}
+                              />
+                            </button>
+
+                            {filterMenangDropdownOpen && (
+                              <div className="portal-dropdown-menu">
+                                {[
+                                  { val: 'semua', label: 'Semua Hasil' },
+                                  { val: 'merah', label: '🔴 Tim Merah Menang' },
+                                  { val: 'putih', label: '⚪ Tim Putih Menang' },
+                                  { val: 'seri', label: '🤝 Seri' },
+                                ].map((item) => (
+                                  <button
+                                    key={item.val}
+                                    type="button"
+                                    onClick={() => {
+                                      setRiwayatFilterMenang(item.val as any);
+                                      setRiwayatHalaman(1);
+                                      setFilterMenangDropdownOpen(false);
+                                    }}
+                                    className={`portal-dropdown-item ${
+                                      riwayatFilterMenang === item.val ? 'active' : ''
+                                    }`}
+                                  >
+                                    <span>{item.label}</span>
+                                    {riwayatFilterMenang === item.val && (
+                                      <Check className="w-3.5 h-3.5 text-[#f2c230]" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 

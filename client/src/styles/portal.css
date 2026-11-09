@@ -418,12 +418,17 @@
   color: #fff;
 }
 
+select.portal-sel,
+select.portal-select {
+  color-scheme: dark;
+}
+
 /* DROPDOWN MENU */
 .portal-dropdown-menu {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  min-width: 140px;
+  min-width: 160px;
   background: #163a2b;
   border: 1.5px solid rgba(244, 236, 216, 0.25);
   border-radius: 14px;
@@ -435,6 +440,7 @@
   gap: 2px;
   backdrop-filter: blur(8px);
   animation: portal-pop 0.15s ease-out;
+  white-space: nowrap;
 }
 
 @keyframes portal-pop {
