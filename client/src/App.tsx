@@ -9,10 +9,11 @@ import Dokumentasi from './pages/publik/Dokumentasi';
 import Privasi from './pages/publik/Privasi';
 import Daftar from './pages/publik/Daftar';
 import Masuk from './pages/publik/Masuk';
+import MainSiswa from './pages/siswa/Main';
 
 import DashboardGuru from './pages/guru/Dashboard';
 import TemplateForm from './pages/guru/TemplateForm';
-import LayarHostSolo from './pages/game/LayarHostSolo';
+import LayarHost from './pages/game/LayarHost';
 import HasilSolo from './pages/game/HasilSolo';
 import DashboardAdmin from './pages/admin/Statistik';
 import NotFound from './pages/NotFound';
@@ -31,13 +32,14 @@ export default function App() {
             <Route path="/privasi" element={<Privasi />} />
             <Route path="/daftar" element={<Daftar />} />
             <Route path="/masuk" element={<Masuk />} />
+            <Route path="/main" element={<MainSiswa />} />
 
             {/* Rute Terlindungi Guru */}
             <Route element={<RequireRole allowedRole="guru" />}>
               <Route path="/guru" element={<DashboardGuru />} />
               <Route path="/guru/template/baru" element={<TemplateForm />} />
               <Route path="/guru/template/:id/ubah" element={<TemplateForm />} />
-              <Route path="/guru/sesi/:id" element={<LayarHostSolo />} />
+              <Route path="/guru/sesi/:id" element={<LayarHost />} />
               <Route path="/guru/sesi/:id/hasil" element={<HasilSolo />} />
             </Route>
 
