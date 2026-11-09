@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import express, { Router, Response } from 'express';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
@@ -12,6 +12,9 @@ import {
 import { config } from '../config.js';
 
 export const aiRouter = Router();
+
+// Batas body JSON khusus rute AI: 6 MB
+aiRouter.use(express.json({ limit: '6mb' }));
 
 // Rate limiter khusus endpoint AI: maksimal 25 request per 5 menit per IP
 const aiLimiter = rateLimit({
@@ -88,34 +91,40 @@ aiRouter.post('/soal', async (req: AuthRequest, res: Response) => {
 
 // Skema validasi POST /api/ai/jawab
 const jawabPapanSchema = z.object({
-  imageBase64: z.string().min(10, 'Gambar area soal wajib disertakan.'),
-  pertanyaan: z.string().optional(),
+  gambar: z.string().min(10, 'Gambar area soal wajib disertakan.').optional(),
+  imageBase64: z.string().min(10).optional(),
+  pertanyaan: z.string().max(500, 'Pertanyaan maksimal 500 karakter.').optional(),
+}).refine((data) => data.gambar || data.imageBase64, {
+  message: 'Gambar area soal wajib disertakan.',
 });
 
 // POST /api/ai/jawab - Jawab soal yang dilingkari guru di papan tulis
 aiRouter.post('/jawab', async (req: AuthRequest, res: Response) => {
   try {
     const parsed = jawabPapanSchema.parse(req.body);
+    const gambarData = parsed.gambar || parsed.imageBase64 || '';
 
-    // 1. Periksa batas kuota harian
+    // 1. Periksa batas kuota harian per guru
     const kuotaCheck = await periksaDanPakaiKuota(req.user!.id);
     if (!kuotaCheck.bisaPakai) {
       return res.status(429).json({
-        pesan: `Batas kuota harian AI Anda (${kuotaCheck.batasHarian} request/hari) telah tercapai. Kuota akan direset besok hari.`,
+        pesan: `Batas kuota harian Tanya AI (${kuotaCheck.batasHarian} request/hari) telah tercapai. Kuota akan direset besok.`,
         kuota: kuotaCheck,
       });
     }
 
-    // 2. Panggil analisis soal
+    // 2. Panggil analisis soal dari potongan kanvas
     const { hasil, dariCache } = await solveQuestionFromBoard({
-      imageBase64: parsed.imageBase64,
+      imageBase64: gambarData,
       pertanyaan: parsed.pertanyaan,
     });
 
     return res.json({
-      pesan: 'Berhasil menganalisis dan menjawab soal di kanvas.',
-      hasil,
+      jawaban: hasil.jawaban,
+      rumus: hasil.rumus || '-',
+      langkah: hasil.langkah,
       dariCache,
+      hasil,
       kuota: {
         sisaKuota: kuotaCheck.sisaKuota,
         totalTerpakai: kuotaCheck.totalTerpakai,
@@ -126,6 +135,6 @@ aiRouter.post('/jawab', async (req: AuthRequest, res: Response) => {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ pesan: err.issues[0]?.message || 'Data gambar tidak valid.' });
     }
-    return res.status(500).json({ pesan: err.message || 'Gagal memproses Tanya AI dari kanvas.' });
+    return res.status(500).json({ pesan: 'Gagal memproses Tanya AI dari kanvas. Silakan coba kembali.' });
   }
 });

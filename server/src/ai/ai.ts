@@ -298,6 +298,67 @@ ${materi}`;
 }
 
 /**
+ * Parse teks balasan AI sesuai format yang diminta:
+ * "Jawaban: ...", "Rumus: ...", "Langkah: ..."
+ */
+function parseAiAnswerFormat(rawText: string): { jawaban: string; rumus: string; langkah: string } {
+  const clean = rawText.replace(/\*\*/g, '').replace(/###?/g, '').trim();
+
+  // Coba parse JSON terlebih dahulu
+  if (clean.startsWith('{') && clean.endsWith('}')) {
+    try {
+      const j = JSON.parse(clean);
+      if (j.jawaban) {
+        return {
+          jawaban: String(j.jawaban).trim(),
+          rumus: j.rumus ? String(j.rumus).trim() : '-',
+          langkah: j.langkah ? String(j.langkah).trim() : '-',
+        };
+      }
+    } catch {
+      // lanjut ke text parsing
+    }
+  }
+
+  let jawaban = '';
+  let rumus = '-';
+  let langkah = '';
+  let currentSection: 'jawaban' | 'rumus' | 'langkah' | '' = '';
+
+  const lines = clean.split('\n');
+  for (const line of lines) {
+    const l = line.trim();
+    if (/^Jawaban\s*:/i.test(l)) {
+      jawaban = l.replace(/^Jawaban\s*:/i, '').trim();
+      currentSection = 'jawaban';
+    } else if (/^Rumus\s*:/i.test(l)) {
+      const val = l.replace(/^Rumus\s*:/i, '').trim();
+      rumus = val || '-';
+      currentSection = 'rumus';
+    } else if (/^Langkah\s*:/i.test(l)) {
+      langkah = l.replace(/^Langkah\s*:/i, '').trim();
+      currentSection = 'langkah';
+    } else if (l) {
+      if (currentSection === 'jawaban' && !langkah && rumus === '-') {
+        jawaban += '\n' + l;
+      } else if (currentSection === 'rumus') {
+        rumus += '\n' + l;
+      } else if (currentSection === 'langkah') {
+        langkah += (langkah ? '\n' : '') + l;
+      } else if (!jawaban) {
+        jawaban = l;
+      }
+    }
+  }
+
+  return {
+    jawaban: jawaban || clean || 'Tidak dapat membaca gambar dengan jelas.',
+    rumus: rumus || '-',
+    langkah: langkah || '-',
+  };
+}
+
+/**
  * Panggil AI untuk Menjawab Soal yang Dilingkari di Papan Tulis (Tanya AI)
  */
 export async function solveQuestionFromBoard(params: {
@@ -305,12 +366,12 @@ export async function solveQuestionFromBoard(params: {
   pertanyaan?: string;
 }): Promise<{ hasil: AiSolveBoardResult; dariCache: boolean }> {
   const { imageBase64, pertanyaan } = params;
-  const hash = generateAiHash(imageBase64.slice(0, 2000), {
+  const hash = generateAiHash(imageBase64.slice(0, 4000), {
     pertanyaan: pertanyaan?.trim() || '',
     jenis: 'jawab',
   });
 
-  // 1. Cek Cache
+  // 1. Cek Cache di tabel ai_cache
   const cached = await prisma.aiCache.findUnique({
     where: { hash },
   });
@@ -325,27 +386,34 @@ export async function solveQuestionFromBoard(params: {
     }
   }
 
+  // Jika API Key tidak ada, kembalikan pesan ramah tanpa melempar error
+  if (!config.aiApiKey) {
+    return {
+      hasil: {
+        jawaban: 'Kunci AI_API_KEY belum dikonfigurasi di server (.env).',
+        rumus: '-',
+        langkah: 'Silakan atur variabel AI_API_KEY dan AI_MODEL di .env agar asisten AI dapat menganalisis gambar papan tulis.',
+        dibuatAi: true,
+      },
+      dariCache: false,
+    };
+  }
+
   let hasilJawaban: AiSolveBoardResult | null = null;
 
-  // 2. Panggil API Vision AI jika API Key tersedia
-  if (config.aiApiKey) {
-    try {
-      const model = config.aiModel || 'gemini-1.5-flash';
-      const prompt = `Anda adalah asisten guru pintar untuk papan tulis digital Discere.
-Periksa soal matematika/sains/umum pada gambar kanvas yang dilingkari guru ini.
-Pertanyaan tambahan guru: ${pertanyaan || 'Tolong selesaikan soal ini dengan langkah-langkah jelas.'}
-Format jawaban WAJIB teks biasa yang mudah dibaca langsung oleh siswa di kanvas tanpa format markdown dan tanpa LaTeX.
-Berikan JSON murni dengan properti:
-{
-  "jawaban": "Tuliskan hasil akhir atau kesimpulan jawaban di sini secara ringkas dan lugas.",
-  "rumus": "Tuliskan rumus atau konsep dasar yang dipakai (jika ada, jika tidak tulis '-').",
-  "langkah": "Tuliskan langkah-langkah pengerjaan nomor per nomor (contoh: 1. Langkah satu... 2. Langkah dua...).",
-  "dibuatAi": true
-}`;
+  // 2. Panggil API AI memakai fetch dari server (tanpa library tambahan)
+  try {
+    const model = config.aiModel || 'gemini-1.5-flash';
+    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
-      // Bersihkan prefix data URL jika ada
-      const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const promptTeks = `Kamu asisten guru; gambar adalah potongan papan tulis berisi soal atau materi; jawab singkat; format persis:
+Jawaban: ...
+Rumus: ... (tulis dengan simbol biasa, tanpa LaTeX)
+Langkah: ...
+tanpa markdown; kalau bukan soal hitungan, bagian Rumus boleh dilewati; kalau gambar tidak terbaca, katakan terus terang.${pertanyaan ? `\nPermintaan khusus guru: ${pertanyaan}` : ''}`;
 
+    // A. Dukung Google Generative AI (Gemini)
+    if (!model.includes('claude') && !model.includes('anthropic')) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.aiApiKey}`;
       const response = await fetch(url, {
         method: 'POST',
@@ -354,7 +422,7 @@ Berikan JSON murni dengan properti:
           contents: [
             {
               parts: [
-                { text: prompt },
+                { text: promptTeks },
                 {
                   inlineData: {
                     mimeType: 'image/png',
@@ -364,37 +432,85 @@ Berikan JSON murni dengan properti:
               ],
             },
           ],
-          generationConfig: {
-            responseMimeType: 'application/json',
-          },
         }),
       });
 
       if (response.ok) {
         const data = (await response.json()) as any;
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (rawText) {
-          const parsed = JSON.parse(rawText);
-          hasilJawaban = aiSolveBoardSchema.parse(parsed);
+        const textOut = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (textOut) {
+          const parsed = parseAiAnswerFormat(textOut);
+          hasilJawaban = {
+            jawaban: parsed.jawaban,
+            rumus: parsed.rumus,
+            langkah: parsed.langkah,
+            dibuatAi: true,
+          };
         }
       }
-    } catch (err) {
-      console.warn('Panggilan Tanya AI Vision gagal, beralih ke generator terstruktur:', err);
+    } else {
+      // B. Dukung Anthropic (Claude) jika dikonfigurasi
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': config.aiApiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 1200,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  source: {
+                    type: 'base64',
+                    media_type: 'image/png',
+                    data: cleanBase64,
+                  },
+                },
+                {
+                  type: 'text',
+                  text: promptTeks,
+                },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        const textOut = (data.content || []).map((c: any) => c.text || '').join('');
+        if (textOut) {
+          const parsed = parseAiAnswerFormat(textOut);
+          hasilJawaban = {
+            jawaban: parsed.jawaban,
+            rumus: parsed.rumus,
+            langkah: parsed.langkah,
+            dibuatAi: true,
+          };
+        }
+      }
     }
+  } catch (err) {
+    console.warn('Panggilan Tanya AI Vision gagal:', err);
   }
 
-  // 3. Fallback cerdas jika API Key tidak disetel atau koneksi gagal
+  // Fallback jika pemanggilan gagal atau gambar tidak terbaca
   if (!hasilJawaban) {
-    const qText = pertanyaan?.trim() || 'soal materi kanvas';
     hasilJawaban = {
-      jawaban: `Solusi terverifikasi untuk ${qText}`,
-      rumus: `Konsep Dasar: Hubungan proporsional dan substitusi nilai variabel.`,
-      langkah: `1. Identifikasi data yang diketahui dari soal di kanvas.\n2. Terapkan prinsip perumusan bertahap.\n3. Hitung penyelesaian secara berurutan dan periksa kembali hasil akhir.`,
+      jawaban: 'Maaf, gambar soal pada kanvas belum terbaca dengan jelas.',
+      rumus: '-',
+      langkah: 'Pastikan coretan soal atau tulisan di papan terlihat jelas dan lingkari kembali dengan rapi.',
       dibuatAi: true,
     };
   }
 
-  // 4. Simpan ke Cache
+  // 3. Simpan ke Cache ai_cache
   try {
     await prisma.aiCache.upsert({
       where: { hash },
