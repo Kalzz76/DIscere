@@ -396,8 +396,10 @@ npx tsx tests/test-full-suite.ts
 # 3. Uji Spesifik per Modul
 npx tsx tests/test-solo.ts         # Game Solo Tarik Tambang
 npx tsx tests/test-e2e-multi.ts     # Game Multiplayer Socket.IO
-npx tsx tests/test-e2e-papan.ts     # Papan Tulis Fabric.js & Kolaborasi
-npx tsx tests/test-e2e-ai-admin.ts  # Fitur AI, Caching, Kuota, & Dashboard Admin
+npx tsx tests/test-papan-engine-dan-api.ts       # Papan Tulis Canvas 2D Engine & API
+npx tsx tests/test-kolaborasi-papan-realtime.ts   # Kolaborasi Real-Time Papan Tulis
+npx tsx tests/test-tanya-ai-papan.ts             # Fitur Tanya AI Papan Tulis & Caching
+npx tsx tests/test-e2e-ai-admin.ts               # Generator Soal AI & Dashboard Admin
 ```
 
 ---
@@ -410,7 +412,7 @@ Sesuai aturan kompetisi LOGICODIX 2026, rekaman video demonstrasi berdurasi 3 hi
 | :---: | :--- | :--- | :--- |
 | **00:00 - 00:35** | **Beranda & Login Guru** | Buka `http://localhost:3000/`, gulir sekilas ke Hero, Masalah, & Fitur. Klik **Masuk**, masukkan akun demo `guru@discere.local`. | *"Discere: Papan Tulis Interaktif & Game Lomba Edukatif 17-an"*<br>*"Login cepat guru dan dashboard ringkasan materi"* |
 | **00:35 - 01:15** | **Pembuat Soal Otomatis dengan AI** | Masuk ke menu **Template Baru**, klik **Buat Soal dengan AI**. Tempel materi ekosistem, pilih 5 soal SD. Tinjau soal berlabel *"Dibuat AI"*, lalu simpan. | *"Generator Soal AI dari teks materi (tervalidasi Zod)"*<br>*"Guru meninjau & mengedit sebelum disimpan"* |
-| **01:15 - 02:15** | **Papan Tulis Digital & Tanya AI** | Buka Papan Tulis. Tulis materi/rumus menggunakan pena, buat bentuk geometri, buka **Kalkulator Melayang**, lalu gunakan tool **Tanya AI** melingkari soal di kanvas. Muncul kartu solusi. Klik **Unduh Gambar (PNG)**. | *"Kanvas tak terbatas Fabric.js, autosave & kalkulator melayang"*<br>*"Tanya AI: Lingkari soal untuk solusi langkah demi langkah"*<br>*"Ekspor catatan PNG instan untuk siswa"* |
+| **01:15 - 02:15** | **Papan Tulis Digital & Tanya AI** | Buka Papan Tulis. Tulis materi/rumus menggunakan pena, buat bentuk geometri, lalu gunakan tool **Tanya AI** melingkari soal di kanvas. Muncul popup dan kartu solusi di samping soal dengan badge *"Dibuat AI"*. Klik **Unduh Gambar (PNG)**. | *"Kanvas 2D tak terbatas, autosave & render performa tinggi"*<br>*"Tanya AI: Lingkari soal untuk kartu solusi langkah demi langkah"*<br>*"Ekspor catatan PNG instan untuk siswa"* |
 | **02:15 - 03:00** | **Lomba Tarik Tambang Mode Solo** | Buka drawer **Template Game** di papan tulis, pilih Mode Solo. Tampil proyektor kelas tarik tambang. Sentuh jawaban Tim Merah & Tim Putih secara bergantian. Tali bergeser dengan efek suara. Selesai dan lihat layar hasil. | *"Mode Solo: 1 proyektor bersama di kelas tanpa butuh HP"*<br>*"Jawaban benar menggeser tali secara real-time"* |
 | **03:00 - 04:00** | **Lomba Tarik Tambang Multiplayer** | Luncurkan template dengan Mode Multiplayer. Layar host menampilkan PIN & QR code. Buka 2 tab/jendela baru di `/main`, masukkan PIN dan nama siswa. Guru klik **Mulai Lomba**. Siswa menjawab dari HP. Tali bergerak live via Socket.IO. Layar selebrasi juara. | *"Mode Multiplayer: Siswa bergabung dengan PIN tanpa akun"*<br>*"Pembagian tim seimbang otomatis & sinkronisasi Socket.IO"*<br>*"Privasi aman: nama siswa tidak dicatat ke database"* |
 | **04:00 - 04:30** | **Dashboard Admin & Isolasi Privasi** | Keluar, login akun `admin@discere.local`. Tunjukkan statistik agregat platform, manajemen akun guru, audit trail log, dan penegasan isolasi privasi (admin diblokir 403 mengintip papan guru). | *"Dashboard Admin: Pengawasan platform transparan"*<br>*"Isolasi privasi mutlak: admin tidak bisa mengintip dokumen guru"* |
@@ -443,6 +445,7 @@ Sesuai ketentuan transparansi kompetisi LOGICODIX 2026:
    - Seluruh kode divalidasi dengan pengujian ketat, audit keamanan otentikasi/otorisasi, dan verifikasi tipe TypeScript (`strict: true`).
 2. **AI sebagai Fitur Aplikasi:**
    - **Pembuat Soal dari Teks Materi (`POST /api/ai/soal`):** Guru menginput materi, AI merespons dalam JSON terstruktur yang divalidasi dengan skema Zod (tepat 3 pilihan jawaban, 1 kunci jawaban, dan penjelasan materi).
-   - **Tanya AI Papan Tulis (`POST /api/ai/jawab`):** Guru melingkari soal/rumus di kanvas Fabric.js, potongan gambar dianalisis untuk menghasilkan kartu solusi terstruktur (*Jawaban, Rumus, Langkah*) dalam teks polos tanpa markdown atau LaTeX.
-   - **Caching Cerdas & Kuota Harian:** Setiap input di-hash dengan algoritma SHA-256 dan disimpan di tabel `ai_cache` agar tidak memanggil AI berulang kali untuk materi yang sama. Penggunaan dibatasi secara aman pada 30 permintaan per guru per hari melalui tabel `ai_usage` dan rate limiter Express.
+   - **Tanya AI Papan Tulis (`POST /api/ai/jawab`):** Guru melingkari soal/rumus di kanvas dengan alat Tanya AI (lasso putus-putus kuning, pintasan A). Potongan area objek kanvas dirender ulang berlatar putih dengan resolusi optimal melalui `potongArea()` (PNG base64 maks 6 MB body limit), dianalisis server secara aman tanpa mengekspos kunci API ke browser. Solusi disajikan sebagai kartu teks kanvas berlatar kuning lembut lengkap dengan badge *"Dibuat AI"* di sudutnya. Kartu memuat format terstruktur (*Jawaban, Rumus, Langkah*) dalam teks polos tanpa markdown atau LaTeX yang terbungkus rapi (~38 karakter per baris), dapat dipindah/diedit/dihapus seperti objek lain, dan masuk dalam riwayat undo kanvas.
+   - **Keamanan Kunci API & Tanpa Library Tambahan:** Klien browser tidak pernah menyimpan API key di `localStorage` atau memanggil Claude/Gemini langsung. Seluruh panggilan diorkestrasi oleh backend Discere via fungsi `fetch` standar Node.js.
+   - **Caching Cerdas & Kuota Harian:** Setiap input gambar dan pertanyaan di-hash dengan algoritma SHA-256 dan disimpan di tabel `ai_cache` agar tidak memanggil AI berulang kali untuk materi yang sama. Penggunaan dibatasi secara aman pada 30 permintaan per guru per hari melalui tabel `ai_usage` dan rate limiter Express. Jika kuota habis atau konfigurasi kunci belum diisi, sistem menyajikan pesan ramah dalam Bahasa Indonesia tanpa error teknis.
    - **Pemberitahuan Etika & Privasi:** Sesuai prinsip UU PDP No. 27 Tahun 2022, data siswa dilarang keras diikutsertakan dalam materi prompt AI, dan seluruh soal hasil AI wajib ditinjau serta dapat disunting oleh guru sebelum disimpan ke database.

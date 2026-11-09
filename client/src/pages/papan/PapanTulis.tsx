@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/auth';
 import { Board } from './engine/board';
 import { CanvasObj, BoardState, BoardView, TextEditorState, ToolType, PenStyle, UbahEventPayload } from './engine/types';
 import { COL, LCOL } from './engine/color';
-import { downloadPng, downloadJson, toJson } from './engine/export';
+import { downloadPng, downloadJson, toJson, potongArea } from './engine/export';
 import {
   TopLeftBar,
   ToolRail,
@@ -21,6 +21,9 @@ import {
   Toast,
   ShareModal,
   PesertaItem,
+  AiPopup,
+  computeLassoBounds,
+  formatAiResponseForCanvas,
 } from './components';
 
 export default function PapanTulis() {
@@ -42,6 +45,17 @@ export default function PapanTulis() {
   // Kolaborasi Real-time & Share Modal
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [pesertaList, setPesertaList] = useState<PesertaItem[]>([]);
+
+  // Tanya AI State
+  const [activeLasso, setActiveLasso] = useState<any[] | null>(null);
+  const [isAiPopupOpen, setIsAiPopupOpen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<{
+    jawaban: string;
+    rumus?: string;
+    langkah: string;
+  } | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   // State UI Kanvas
   const [boardState, setBoardState] = useState<BoardState>({
@@ -300,6 +314,17 @@ export default function PapanTulis() {
       onCloseTextEditor: () => {
         setTextEditor(null);
       },
+      onLassoChange: (pts) => {
+        if (pts && pts.length >= 8) {
+          setActiveLasso(pts);
+          setIsAiPopupOpen(true);
+          setAiResult(null);
+          setAiError(null);
+        } else {
+          setActiveLasso(null);
+          setIsAiPopupOpen(false);
+        }
+      },
       onToast: (m) => {
         showToast(m);
       },
@@ -316,6 +341,68 @@ export default function PapanTulis() {
       }
     };
   }, [loadedObjs, boardId, showToast]);
+
+  // Handler Tanya AI: Potong Area -> Kirim ke /api/ai/jawab -> Tempel Kartu di Kanvas
+  const handleAskAi = async (pertanyaan: string) => {
+    const board = boardRef.current;
+    if (!board || !activeLasso || activeLasso.length < 8) return;
+
+    const b = computeLassoBounds(activeLasso);
+    const dataUrl = potongArea(board.objs, b, 24);
+    if (!dataUrl) {
+      setAiError('Gagal memotong area kanvas.');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const res = await apiRequest<{
+        jawaban: string;
+        rumus?: string;
+        langkah: string;
+        dariCache?: boolean;
+      }>('/ai/jawab', {
+        method: 'POST',
+        body: JSON.stringify({
+          gambar: dataUrl,
+          pertanyaan: pertanyaan.trim() || undefined,
+        }),
+      });
+
+      setAiResult(res);
+
+      // Otomatis tempel kartu jawaban di kanvas di sebelah kanan area (atau kiri jika tidak muat)
+      const formattedText = formatAiResponseForCanvas(res);
+      const cardWidth = 340;
+      let targetX = b.x + b.w + 24;
+      // Jika di kanan terlalu jauh, taruh di kiri area
+      if (targetX + cardWidth > 6000) {
+        targetX = Math.max(-5000, b.x - cardWidth - 24);
+      }
+      const targetY = b.y;
+
+      const aiCard = board.addAiCard(formattedText, { x: targetX, y: targetY });
+      if (aiCard) {
+        showToast(res.dariCache ? 'Kartu jawaban AI dimuat dari cache!' : 'Kartu jawaban AI ditambahkan ke kanvas!');
+      }
+    } catch (err: any) {
+      setAiError(err.message || 'Gagal menghubungi asisten AI.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleCloseAiPopup = () => {
+    setIsAiPopupOpen(false);
+    setActiveLasso(null);
+    setAiResult(null);
+    setAiError(null);
+    if (boardRef.current) {
+      boardRef.current.closeLasso();
+      boardRef.current.setTool('select');
+    }
+  };
 
   // Handler Perubahan Judul (Disimpan via PUT ke server)
   const handleTitleChange = async (newTitle: string) => {
@@ -688,6 +775,18 @@ export default function PapanTulis() {
           </div>
         </div>
       )}
+
+      {/* Popup Tanya AI */}
+      <AiPopup
+        isOpen={isAiPopupOpen}
+        lasso={activeLasso}
+        view={view}
+        loading={aiLoading}
+        responseResult={aiResult}
+        errorMessage={aiError}
+        onAsk={handleAskAi}
+        onClose={handleCloseAiPopup}
+      />
 
       {/* Tombol Keluar Mode Presentasi */}
       <button

@@ -457,6 +457,7 @@ export default function KolaborasiPublik() {
       <ToolRail
         activeTool={boardState.tool}
         hanyaLihat={isHanyaLihat}
+        disableAi={true}
         onSelectTool={(tool) => {
           if (board) board.setTool(tool);
           else setBoardState((prev) => ({ ...prev, tool }));

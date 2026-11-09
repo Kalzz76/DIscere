@@ -5,14 +5,24 @@ import { TOOLS } from '../engine/shapes';
 export interface ToolRailProps {
   activeTool: ToolType;
   hanyaLihat?: boolean;
+  disableAi?: boolean;
   onSelectTool: (tool: ToolType, buttonEl: HTMLElement) => void;
 }
 
-export function ToolRail({ activeTool, hanyaLihat = false, onSelectTool }: ToolRailProps) {
+export function ToolRail({
+  activeTool,
+  hanyaLihat = false,
+  disableAi = false,
+  onSelectTool,
+}: ToolRailProps) {
   // Jika hanyaLihat, tampilkan hanya alat yang diizinkan (Tangan & Laser)
-  const availableTools = hanyaLihat
+  let availableTools = hanyaLihat
     ? TOOLS.filter(([id]) => id === 'hand' || id === 'laser')
     : TOOLS;
+
+  if (disableAi) {
+    availableTools = availableTools.filter(([id]) => id !== 'ai');
+  }
 
   return (
     <nav className="pn tool-rail" aria-label="Alat gambar">
@@ -25,16 +35,13 @@ export function ToolRail({ activeTool, hanyaLihat = false, onSelectTool }: ToolR
           <React.Fragment key={id}>
             {isUpload && <hr className="dv" />}
             <button
-              className={`t ${isOn ? 'on' : ''}`}
+              className={`t ${isOn ? 'on' : ''} ${isAi ? 'ai-tool-btn' : ''}`}
               data-t={id}
-              title={isAi ? 'Tanya AI (Segera)' : `${name} (${shortcut})`}
+              title={`${name} (${shortcut})`}
               aria-label={name}
-              disabled={isAi}
-              style={isAi ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              style={isAi ? { color: '#fbbf24' } : undefined}
               onClick={(e) => {
-                if (!isAi) {
-                  onSelectTool(id, e.currentTarget);
-                }
+                onSelectTool(id, e.currentTarget);
               }}
             >
               <svg

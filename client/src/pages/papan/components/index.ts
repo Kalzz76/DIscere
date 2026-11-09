@@ -9,4 +9,5 @@ export * from './TextEditor';
 export * from './MenuPopup';
 export * from './Toast';
 export * from './ShareModal';
+export * from './AiPopup';
 

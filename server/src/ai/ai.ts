@@ -386,118 +386,115 @@ export async function solveQuestionFromBoard(params: {
     }
   }
 
-  // Jika API Key tidak ada, kembalikan pesan ramah tanpa melempar error
-  if (!config.aiApiKey) {
-    return {
-      hasil: {
-        jawaban: 'Kunci AI_API_KEY belum dikonfigurasi di server (.env).',
-        rumus: '-',
-        langkah: 'Silakan atur variabel AI_API_KEY dan AI_MODEL di .env agar asisten AI dapat menganalisis gambar papan tulis.',
-        dibuatAi: true,
-      },
-      dariCache: false,
-    };
-  }
-
   let hasilJawaban: AiSolveBoardResult | null = null;
 
-  // 2. Panggil API AI memakai fetch dari server (tanpa library tambahan)
-  try {
-    const model = config.aiModel || 'gemini-1.5-flash';
-    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+  // Jika API Key tidak ada, berikan pesan ramah terstruktur tanpa error
+  if (!config.aiApiKey) {
+    hasilJawaban = {
+      jawaban: 'Kunci AI_API_KEY belum dikonfigurasi di server (.env).',
+      rumus: '-',
+      langkah: 'Silakan atur variabel AI_API_KEY dan AI_MODEL di .env agar asisten AI dapat menganalisis gambar papan tulis.',
+      dibuatAi: true,
+    };
+  } else {
+    // 2. Panggil API AI memakai fetch dari server (tanpa library tambahan)
+    try {
+      const model = config.aiModel || 'gemini-1.5-flash';
+      const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
-    const promptTeks = `Kamu asisten guru; gambar adalah potongan papan tulis berisi soal atau materi; jawab singkat; format persis:
+      const promptTeks = `Kamu asisten guru; gambar adalah potongan papan tulis berisi soal atau materi; jawab singkat; format persis:
 Jawaban: ...
 Rumus: ... (tulis dengan simbol biasa, tanpa LaTeX)
 Langkah: ...
 tanpa markdown; kalau bukan soal hitungan, bagian Rumus boleh dilewati; kalau gambar tidak terbaca, katakan terus terang.${pertanyaan ? `\nPermintaan khusus guru: ${pertanyaan}` : ''}`;
 
-    // A. Dukung Google Generative AI (Gemini)
-    if (!model.includes('claude') && !model.includes('anthropic')) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.aiApiKey}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: promptTeks },
-                {
-                  inlineData: {
-                    mimeType: 'image/png',
-                    data: cleanBase64,
+      // A. Dukung Google Generative AI (Gemini)
+      if (!model.includes('claude') && !model.includes('anthropic')) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.aiApiKey}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: promptTeks },
+                  {
+                    inlineData: {
+                      mimeType: 'image/png',
+                      data: cleanBase64,
+                    },
                   },
-                },
-              ],
-            },
-          ],
-        }),
-      });
+                ],
+              },
+            ],
+          }),
+        });
 
-      if (response.ok) {
-        const data = (await response.json()) as any;
-        const textOut = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (textOut) {
-          const parsed = parseAiAnswerFormat(textOut);
-          hasilJawaban = {
-            jawaban: parsed.jawaban,
-            rumus: parsed.rumus,
-            langkah: parsed.langkah,
-            dibuatAi: true,
-          };
+        if (response.ok) {
+          const data = (await response.json()) as any;
+          const textOut = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (textOut) {
+            const parsed = parseAiAnswerFormat(textOut);
+            hasilJawaban = {
+              jawaban: parsed.jawaban,
+              rumus: parsed.rumus,
+              langkah: parsed.langkah,
+              dibuatAi: true,
+            };
+          }
+        }
+      } else {
+        // B. Dukung Anthropic (Claude) jika dikonfigurasi
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': config.aiApiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 1200,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'image',
+                    source: {
+                      type: 'base64',
+                      media_type: 'image/png',
+                      data: cleanBase64,
+                    },
+                  },
+                  {
+                    type: 'text',
+                    text: promptTeks,
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+
+        if (response.ok) {
+          const data = (await response.json()) as any;
+          const textOut = (data.content || []).map((c: any) => c.text || '').join('');
+          if (textOut) {
+            const parsed = parseAiAnswerFormat(textOut);
+            hasilJawaban = {
+              jawaban: parsed.jawaban,
+              rumus: parsed.rumus,
+              langkah: parsed.langkah,
+              dibuatAi: true,
+            };
+          }
         }
       }
-    } else {
-      // B. Dukung Anthropic (Claude) jika dikonfigurasi
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': config.aiApiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 1200,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'image',
-                  source: {
-                    type: 'base64',
-                    media_type: 'image/png',
-                    data: cleanBase64,
-                  },
-                },
-                {
-                  type: 'text',
-                  text: promptTeks,
-                },
-              ],
-            },
-          ],
-        }),
-      });
-
-      if (response.ok) {
-        const data = (await response.json()) as any;
-        const textOut = (data.content || []).map((c: any) => c.text || '').join('');
-        if (textOut) {
-          const parsed = parseAiAnswerFormat(textOut);
-          hasilJawaban = {
-            jawaban: parsed.jawaban,
-            rumus: parsed.rumus,
-            langkah: parsed.langkah,
-            dibuatAi: true,
-          };
-        }
-      }
+    } catch (err) {
+      console.warn('Panggilan Tanya AI Vision gagal:', err);
     }
-  } catch (err) {
-    console.warn('Panggilan Tanya AI Vision gagal:', err);
   }
 
   // Fallback jika pemanggilan gagal atau gambar tidak terbaca

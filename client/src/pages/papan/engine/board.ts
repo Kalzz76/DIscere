@@ -368,6 +368,29 @@ export class Board {
     this.rd();
   }
 
+  public addAiCard(text: string, pos: Pt): TextObj | null {
+    if (this.hanyaLihat) return null;
+    const cleanText = text.slice(0, 5000);
+    const o: TextObj = {
+      id: crypto.randomUUID(),
+      type: 'text',
+      x: pos.x,
+      y: pos.y,
+      text: cleanText,
+      fs: 17,
+      fw: 600,
+      color: '#78350f',
+      fill: '#fef3c7',
+      size: 1,
+      ai: true,
+    };
+    this.objs.push(o);
+    this.setSelection(o.id);
+    this.history.commit({ tambah: [o] });
+    this.rd();
+    return o;
+  }
+
   public addText(kind: 'box' | 'h' | 's' | 'b'): void {
     if (this.hanyaLihat) return;
     const defs: Record<string, [string, number, number]> = {

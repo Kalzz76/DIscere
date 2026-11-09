@@ -114,21 +114,52 @@ export function drawObj0(
     }
   } else if (o.type === 'text') {
     const b = bounds(o);
-    if (o.fill) {
-      c.fillStyle = o.fill;
+    if (o.fill || o.ai) {
+      c.fillStyle = o.fill || (o.ai ? '#fef3c7' : '#ffffff');
       c.beginPath();
       if (typeof c.roundRect === 'function') {
-        c.roundRect(b.x, b.y, b.w, b.h, 10);
+        c.roundRect(b.x, b.y, b.w, b.h, o.ai ? 14 : 10);
       } else {
         c.rect(b.x, b.y, b.w, b.h);
       }
       c.fill();
+
+      // Border halus untuk kartu AI
+      if (o.ai) {
+        c.strokeStyle = '#f59e0b';
+        c.lineWidth = 1.5;
+        c.stroke();
+      }
     }
+
+    // Label "Dibuat AI" di pojok kartu
+    if (o.ai) {
+      c.save();
+      const badgeText = 'Dibuat AI';
+      c.font = '700 11px "Plus Jakarta Sans", sans-serif';
+      const tw = c.measureText(badgeText).width;
+      const bx = b.x + b.w - tw - 18;
+      const by = b.y + 8;
+      c.fillStyle = '#f59e0b';
+      if (typeof c.roundRect === 'function') {
+        c.beginPath();
+        c.roundRect(bx, by, tw + 10, 18, 5);
+        c.fill();
+      } else {
+        c.fillRect(bx, by, tw + 10, 18);
+      }
+      c.fillStyle = '#ffffff';
+      c.textBaseline = 'middle';
+      c.fillText(badgeText, bx + 5, by + 9);
+      c.restore();
+    }
+
     c.fillStyle = o.color;
     c.font = `${o.fw || 600} ${o.fs}px "Plus Jakarta Sans", sans-serif`;
     c.textBaseline = 'top';
     const L = lines(o);
-    L.forEach((line, i) => c.fillText(line, o.x + 12, o.y + 8 + i * o.fs * 1.3));
+    const topOffset = o.ai ? 32 : 8;
+    L.forEach((line, i) => c.fillText(line, o.x + 12, o.y + topOffset + i * o.fs * 1.3));
   } else if (o.type === 'table') {
     const b = bounds(o);
     if (o.fill) {

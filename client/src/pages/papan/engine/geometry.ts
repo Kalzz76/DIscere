@@ -43,7 +43,9 @@ export function bounds(o: CanvasObj): Bounds {
       return { x: o.x, y: o.y, w: cached.w, h: cached.h };
     }
 
-    let maxW = 40;
+    const minW = o.ai ? 240 : 40;
+    const badgeH = o.ai ? 28 : 0;
+    let maxW = minW;
     const L = lines(o);
     if (mc) {
       mc.font = `${o.fw || 600} ${o.fs}px "Plus Jakarta Sans", sans-serif`;
@@ -53,7 +55,7 @@ export function bounds(o: CanvasObj): Bounds {
       }
     }
     const w = maxW + 24;
-    const h = L.length * o.fs * 1.3 + 16;
+    const h = L.length * o.fs * 1.3 + 16 + badgeH;
     textBoundsCache.set(o, { text: o.text, fs: o.fs, fw: o.fw, w, h });
     return { x: o.x, y: o.y, w, h };
   }

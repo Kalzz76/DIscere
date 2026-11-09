@@ -1082,6 +1082,161 @@ body.pres .papan .btn-exit-pres {
   border: 1px solid #475569;
 }
 
+/* Popup Tanya AI (#ai) */
+.papan #ai,
+.papan .ai-popup {
+  position: fixed;
+  z-index: 55;
+  width: min(440px, calc(100vw - 24px));
+  background: #1b2338;
+  border: 2px solid #e57200;
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  color: #fff;
+}
+
+.papan .ah {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #4a2b0a;
+  margin-bottom: 12px;
+}
+
+.papan .at {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fbbf24;
+  font-weight: 800;
+  font-size: 17px;
+  flex: 1;
+}
+
+.papan .at svg {
+  stroke: #fbbf24;
+}
+
+.papan .bd {
+  background: #4a2406;
+  color: #fdba74;
+  border-radius: 10px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.papan #ai input,
+.papan .ai-popup input {
+  width: 100%;
+  background: #050711;
+  border: 1px solid var(--ln);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  outline: 0;
+  margin-top: 8px;
+  user-select: text;
+}
+
+.papan #ai input:focus,
+.papan .ai-popup input:focus {
+  border-color: #f59e0b;
+}
+
+.papan .al {
+  color: #9aa6c4;
+  font-weight: 700;
+  font-size: 13px;
+  display: block;
+}
+
+.papan #aia,
+.papan .ai-response-area {
+  white-space: pre-wrap;
+  user-select: text;
+  font-size: 13.5px;
+  line-height: 1.55;
+  max-height: 260px;
+  overflow: auto;
+  margin-top: 12px;
+  color: #dbe3f5;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+.papan .ai-error {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+.papan .ab {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.papan .ab #aic,
+.papan .ai-cancel-btn {
+  background: transparent;
+  border: 0;
+  color: #9aa6c4;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+.papan .ab #aic:hover,
+.papan .ai-cancel-btn:hover {
+  color: #fff;
+}
+
+.papan #aig,
+.papan .ai-submit-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #e57200;
+  color: #fff;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 14px;
+  border: 0;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+
+.papan #aig:hover,
+.papan .ai-submit-btn:hover {
+  background: #f59e0b;
+}
+
+.papan #aig:disabled,
+.papan .ai-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.papan #aig svg,
+.papan .ai-submit-btn svg {
+  stroke: #fff;
+}
+
 /* Status koneksi reconnecting */
 .papan .reconnect-badge {
   display: inline-flex;
