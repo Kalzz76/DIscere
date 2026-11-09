@@ -22,8 +22,12 @@ export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   databaseUrl: resolvedDbUrl,
   jwtSecret: process.env.JWT_SECRET || 'dev_secret_discere_key_2026',
-  aiApiKey: process.env.AI_API_KEY || '',
-  aiModel: process.env.AI_MODEL || '',
+  get aiApiKey() {
+    return process.env.AI_API_KEY || '';
+  },
+  get aiModel() {
+    return process.env.AI_MODEL || '';
+  },
   aiBatasHarian: parseInt(process.env.AI_BATAS_HARIAN || '30', 10),
   seedAdminEmail: process.env.SEED_ADMIN_EMAIL || 'admin@discere.local',
   seedAdminPassword: process.env.SEED_ADMIN_PASSWORD || 'AdminDiscere2026!',
