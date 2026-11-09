@@ -4,6 +4,7 @@ import { useAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
 import { Modal } from '../../components';
 import { RiwayatDetailModal } from './RiwayatDetailModal';
+import ModalKonfigurasiKerupuk, { KonfigurasiKerupukPayload } from './ModalKonfigurasiKerupuk';
 import {
   LogOut,
   LayoutDashboard,
@@ -136,6 +137,12 @@ export default function DashboardGuru() {
   const [modalHapusPapanId, setModalHapusPapanId] = useState<string | null>(null);
   const [modalGantiNamaPapan, setModalGantiNamaPapan] = useState<{ id: string; judul: string } | null>(null);
   const [inputGantiNama, setInputGantiNama] = useState('');
+  const [modalKerupukTemplate, setModalKerupukTemplate] = useState<{
+    id: string;
+    judul: string;
+    totalSoal: number;
+  } | null>(null);
+  const [kerupukCreating, setKerupukCreating] = useState(false);
 
   const fetchRingkasan = useCallback(async () => {
     try {
@@ -236,7 +243,20 @@ export default function DashboardGuru() {
   };
 
   // Handler: Mulai Game dari Template
-  const handleMulaiGame = async (templateId: string, mode?: string) => {
+  const handleMulaiGame = async (templateId: string, mode?: string, gameType?: string) => {
+    // Jika game adalah Makan Kerupuk Challenge, buka modal konfigurasi probabilitas terlebih dahulu
+    if (gameType === 'makan_kerupuk') {
+      const tmpl =
+        templates.find((t) => t.id === templateId) ||
+        pustakaResmi.find((t) => t.id === templateId);
+      setModalKerupukTemplate({
+        id: templateId,
+        judul: tmpl?.judul || 'Makan Kerupuk Challenge',
+        totalSoal: tmpl?._count?.questions || tmpl?.jumlahSoal || 0,
+      });
+      return;
+    }
+
     try {
       setActionLoadingId(templateId);
       const res = await apiRequest<{ session: { id: string } }>('/sesi', {
@@ -247,6 +267,32 @@ export default function DashboardGuru() {
     } catch (err: any) {
       alert(err.pesan || 'Gagal memulai sesi game.');
       setActionLoadingId(null);
+    }
+  };
+
+  // Handler: Konfirmasi & Mulai Sesi Makan Kerupuk dengan Konfigurasi
+  const handleKonfirmasiKerupuk = async (config: KonfigurasiKerupukPayload) => {
+    if (!modalKerupukTemplate) return;
+    try {
+      setKerupukCreating(true);
+      const res = await apiRequest<{ session: { id: string } }>('/sesi', {
+        method: 'POST',
+        body: JSON.stringify({
+          templateId: modalKerupukTemplate.id,
+          game: 'makan_kerupuk',
+          mode: 'multi',
+          probabilitas: config.probabilitas,
+          maxPeserta: config.maxPeserta,
+          durasiSoalDetik: config.durasiSoalDetik,
+          allowLateJoin: config.allowLateJoin,
+        }),
+      });
+      setModalKerupukTemplate(null);
+      navigate(`/guru/sesi/${res.session.id}`);
+    } catch (err: any) {
+      alert(err.pesan || 'Gagal membuat sesi Makan Kerupuk.');
+    } finally {
+      setKerupukCreating(false);
     }
   };
 
@@ -692,7 +738,7 @@ export default function DashboardGuru() {
                             <div>
                               <h4>{tmpl.judul}</h4>
                               <div style={{ fontSize: '12px', color: '#6b7d6c', marginTop: '4px' }}>
-                                {tmpl.jumlahSoal} Soal Tersedia • Tarik Tambang
+                                {tmpl.jumlahSoal} Soal Tersedia • {tmpl.game === 'makan_kerupuk' ? 'Makan Kerupuk' : 'Tarik Tambang'}
                               </div>
 
                               {/* Progress bar porsi sesi */}
@@ -710,10 +756,14 @@ export default function DashboardGuru() {
                               <span>{playedCount} dari {totalSesiInt} sesi</span>
                               <button
                                 type="button"
-                                onClick={() => handleMulaiGame(tmpl.id, tmpl.mode)}
+                                onClick={() => handleMulaiGame(tmpl.id, tmpl.mode, tmpl.game)}
                                 className="portal-chip"
                               >
-                                {tmpl.mode === 'multi' ? 'Mulai Lomba' : 'Mulai Game Solo'}
+                                {tmpl.game === 'makan_kerupuk'
+                                  ? 'Makan Kerupuk'
+                                  : tmpl.mode === 'multi'
+                                  ? 'Mulai Lomba'
+                                  : 'Mulai Game Solo'}
                               </button>
                             </div>
                           </div>
@@ -797,7 +847,7 @@ export default function DashboardGuru() {
                             </div>
                             <button
                               type="button"
-                              onClick={() => handleMulaiGame(t.id, t.mode)}
+                              onClick={() => handleMulaiGame(t.id, t.mode, t.game)}
                               className="portal-msg"
                               title="Mainkan template"
                             >
@@ -891,9 +941,15 @@ export default function DashboardGuru() {
                         >
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
-                              <span className="portal-tag red">Tarik Tambang</span>
+                              <span className={`portal-tag ${tmpl.game === 'makan_kerupuk' ? 'yellow font-bold' : 'red'}`}>
+                                {tmpl.game === 'makan_kerupuk' ? 'Makan Kerupuk' : 'Tarik Tambang'}
+                              </span>
                               <span className="portal-tag yellow">
-                                {tmpl.mode === 'multi' ? 'Mode Multiplayer' : 'Mode Solo'}
+                                {tmpl.game === 'makan_kerupuk'
+                                  ? 'Mode Individu'
+                                  : tmpl.mode === 'multi'
+                                  ? 'Mode Multiplayer'
+                                  : 'Mode Solo'}
                               </span>
                             </div>
                             <h3 className="portal-cv text-2xl text-[#1d3b2e] leading-snug">
@@ -909,11 +965,17 @@ export default function DashboardGuru() {
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => handleMulaiGame(tmpl.id, tmpl.mode)}
+                                  onClick={() => handleMulaiGame(tmpl.id, tmpl.mode, tmpl.game)}
                                   className="portal-btn red sm"
                                 >
                                   <Play className="w-3.5 h-3.5 fill-current" />
-                                  <span>{tmpl.mode === 'multi' ? 'Mulai Lomba' : 'Mulai Solo'}</span>
+                                  <span>
+                                    {tmpl.game === 'makan_kerupuk'
+                                      ? 'Makan Kerupuk'
+                                      : tmpl.mode === 'multi'
+                                      ? 'Mulai Lomba'
+                                      : 'Mulai Solo'}
+                                  </span>
                                 </button>
 
                                 <div className="inline-flex items-center gap-1.5">
@@ -1289,6 +1351,15 @@ export default function DashboardGuru() {
           </div>
         </div>
       </Modal>
+      {/* Modal Konfigurasi Sesi Makan Kerupuk Challenge */}
+      <ModalKonfigurasiKerupuk
+        isOpen={Boolean(modalKerupukTemplate)}
+        onClose={() => setModalKerupukTemplate(null)}
+        templateJudul={modalKerupukTemplate?.judul || ''}
+        totalSoal={modalKerupukTemplate?.totalSoal || 0}
+        onMulai={handleKonfirmasiKerupuk}
+        loading={kerupukCreating}
+      />
     </div>
   );
 }

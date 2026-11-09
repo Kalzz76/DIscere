@@ -335,13 +335,22 @@ export default function TemplateForm() {
                 </label>
                 <select
                   value={game}
-                  disabled
-                  className="portal-select opacity-75 cursor-not-allowed"
+                  onChange={(e) => {
+                    const newGame = e.target.value;
+                    setGame(newGame);
+                    if (newGame === 'makan_kerupuk') {
+                      setMode('multi');
+                    }
+                  }}
+                  className="portal-select"
                 >
-                  <option value="tarik_tambang">Tarik Tambang (Aktif)</option>
+                  <option value="tarik_tambang">Tarik Tambang Edukasi (Beregu / Solo)</option>
+                  <option value="makan_kerupuk">Makan Kerupuk Challenge (Individu 17 Agustus)</option>
                 </select>
                 <span className="text-[11px] text-[#6b7d6c] mt-1 block">
-                  Game lomba 17-an standar untuk Discere.
+                  {game === 'makan_kerupuk'
+                    ? 'Lomba makan kerupuk seru dengan gacha keberuntungan gigitan dan kuis interaktif.'
+                    : 'Game lomba tarik tambang klasik untuk Discere.'}
                 </span>
               </div>
 
@@ -354,11 +363,15 @@ export default function TemplateForm() {
                   onChange={(e) => setMode(e.target.value as 'solo' | 'multi')}
                   className="portal-select"
                 >
-                  <option value="solo">Mode Solo (Satu Layar Bersama)</option>
                   <option value="multi">Mode Multiplayer (HP Siswa Masing-Masing)</option>
+                  {game !== 'makan_kerupuk' && (
+                    <option value="solo">Mode Solo (Satu Layar Bersama)</option>
+                  )}
                 </select>
                 <span className="text-[11px] text-[#6b7d6c] mt-1 block">
-                  Pilih cara siswa berpartisipasi dalam sesi kelas.
+                  {game === 'makan_kerupuk'
+                    ? 'Setiap siswa bergabung menggunakan HP masing-masing dan bertanding secara individu.'
+                    : 'Pilih cara siswa berpartisipasi dalam sesi kelas.'}
                 </span>
               </div>
             </div>
