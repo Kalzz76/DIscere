@@ -532,7 +532,8 @@
   font-size: 14px;
 }
 
-body.pres .papan .pn {
+body.pres .papan .pn,
+body.pres .papan #cw {
   display: none !important;
 }
 

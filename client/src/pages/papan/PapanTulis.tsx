@@ -781,32 +781,28 @@ export default function PapanTulis() {
       />
 
       {/* Obrolan Asisten AI & Bar Prompt Bawah (#cw, #chat, #pr) */}
-      {!boardState.fs && (
-        <>
-          <ChatPanel
-            isOpen={isChatOpen}
-            pesan={obrolPesan}
-            lampiran={obrolLampiran}
-            busy={obrolBusy}
-            onClose={() => setIsChatOpen(false)}
-            onNewChat={obrolanBaru}
-            onCancelBusy={batalkanObrolan}
-            onRemoveAttachment={hapusLampiran}
-            onAddToBoard={handleAddToBoard}
-          />
+      <ChatPanel
+        isOpen={isChatOpen}
+        pesan={obrolPesan}
+        lampiran={obrolLampiran}
+        busy={obrolBusy}
+        onClose={() => setIsChatOpen(false)}
+        onNewChat={obrolanBaru}
+        onCancelBusy={batalkanObrolan}
+        onRemoveAttachment={hapusLampiran}
+        onAddToBoard={handleAddToBoard}
+      />
 
-          <PromptBar
-            inputTeks={obrolInputTeks}
-            onChangeInput={setObrolInputTeks}
-            onSend={() => kirimObrolan()}
-            onCancel={batalkanObrolan}
-            busy={obrolBusy}
-            onAddAttachment={tambahLampiran}
-            onSnapCanvas={handleSnapCurrentBoard}
-            onToast={showToast}
-          />
-        </>
-      )}
+      <PromptBar
+        inputTeks={obrolInputTeks}
+        onChangeInput={setObrolInputTeks}
+        onSend={() => kirimObrolan()}
+        onCancel={batalkanObrolan}
+        busy={obrolBusy}
+        onAddAttachment={tambahLampiran}
+        onSnapCanvas={handleSnapCurrentBoard}
+        onToast={showToast}
+      />
 
       {/* Flyout Subpanels (Pena, Bentuk, Teks, Tabel) */}
       <Flyouts
