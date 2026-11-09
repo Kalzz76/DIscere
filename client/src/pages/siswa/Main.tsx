@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   XCircle,
   Sparkles,
-  ArrowRight,
   LogOut,
   ShieldAlert,
   Loader2,
@@ -39,9 +38,12 @@ export default function MainSiswa() {
 
   // Form states
   const [tokenInput, setTokenInput] = useState(searchParams.get('token') || '');
-  const [namaInput, setNamaInput] = useState('');
+  const [namaInput, setNamaInput] = useState(searchParams.get('nama') || '');
   const [formError, setFormError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
+  const [joinStep, setJoinStep] = useState<'PIN' | 'NAMA'>(
+    searchParams.get('token') && searchParams.get('token')!.trim().length === 6 ? 'NAMA' : 'PIN'
+  );
 
   // Session states
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -257,7 +259,20 @@ export default function MainSiswa() {
     };
   }, [pesertaId, startCountdown]);
 
-  // Handler: Siswa Submit Form Gabung
+  // Handler: Siswa Submit PIN (Langkah 1)
+  const handleNextToName = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    const clean = tokenInput.trim().replace(/\D/g, '');
+    if (!clean || clean.length !== 6) {
+      setFormError('Kode PIN harus terdiri dari 6 angka.');
+      return;
+    }
+    setTokenInput(clean);
+    setJoinStep('NAMA');
+  };
+
+  // Handler: Siswa Submit Form Gabung (Langkah 2)
   const handleGabung = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -266,6 +281,7 @@ export default function MainSiswa() {
     const cleanNama = namaInput.trim();
 
     if (!cleanToken || cleanToken.length !== 6) {
+      setJoinStep('PIN');
       setFormError('Kode PIN harus terdiri dari 6 angka.');
       return;
     }
@@ -371,85 +387,445 @@ export default function MainSiswa() {
   };
 
   // ==========================================
-  // RENDER STAGE 1: FORM GABUNG
+  // RENDER STAGE 1: FORM GABUNG (DESAIN PAPAN TULIS FULL LAYAR MURNI CSS/SVG)
   // ==========================================
   if (stage === 'GABUNG') {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4">
-        <div className="w-full max-w-md">
-          {/* Logo Brand */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-500/25 mb-4">
-              <Trophy className="w-8 h-8 text-amber-300" />
-            </div>
-            <h1 className="text-3xl font-black tracking-tight text-white">DISCERE</h1>
-            <p className="text-slate-400 text-sm mt-1">Lomba Tarik Tambang Edukatif</p>
+      <div
+        className="relative min-h-screen w-full flex flex-col justify-between items-center overflow-hidden select-none"
+        style={{
+          backgroundColor: '#163a2b',
+          backgroundImage: `
+            radial-gradient(ellipse at 15% 15%, rgba(255, 255, 255, 0.12) 0%, transparent 45%),
+            radial-gradient(ellipse at 85% 25%, rgba(255, 255, 255, 0.09) 0%, transparent 42%),
+            radial-gradient(ellipse at 30% 70%, rgba(255, 255, 255, 0.11) 0%, transparent 50%),
+            radial-gradient(ellipse at 80% 80%, rgba(255, 255, 255, 0.10) 0%, transparent 46%),
+            radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.05) 0%, transparent 60%),
+            radial-gradient(ellipse at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.45) 100%),
+            linear-gradient(175deg, #2b5641 0%, #204634 50%, #173829 100%)
+          `,
+        }}
+      >
+        {/* ============================================================ */}
+        {/* DOODLE 1: PESAWAT KERTAS KAPUR (Kiri Atas)                   */}
+        {/* ============================================================ */}
+        <div className="absolute top-6 left-6 sm:top-10 sm:left-14 w-28 h-28 sm:w-36 sm:h-36 pointer-events-none z-10 text-[#f4ecd8]/85">
+          <svg viewBox="0 0 130 130" fill="none" className="w-full h-full" aria-hidden="true">
+            {/* Lintasan melengkung putus-putus */}
+            <path
+              d="M10 110 C 20 70, 60 55, 45 28 C 30 12, 10 38, 38 60 C 65 75, 88 56, 105 38"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeDasharray="4 6"
+              strokeLinecap="round"
+            />
+            {/* Badan pesawat kertas origami */}
+            <path
+              d="M105 38 L 126 18 L 84 48 L 94 62 L 105 38 Z"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinejoin="round"
+              fill="rgba(244, 236, 216, 0.08)"
+            />
+            <path d="M126 18 L 91 55" stroke="currentColor" strokeWidth="1.8" />
+          </svg>
+        </div>
+
+        {/* ============================================================ */}
+        {/* DOODLE 2: BOHLAM IDE MENYALA (Kanan Atas)                    */}
+        {/* ============================================================ */}
+        <div className="absolute top-6 right-8 sm:top-10 sm:right-20 w-28 h-28 sm:w-36 sm:h-36 pointer-events-none z-10 text-[#f4ecd8]/90">
+          <svg viewBox="0 0 110 110" fill="none" className="w-full h-full" aria-hidden="true">
+            {/* Kontur kaca bohlam */}
+            <path
+              d="M40 62 C 30 52, 28 40, 33 28 C 40 16, 70 16, 77 28 C 82 40, 80 52, 70 62 L 70 70 L 40 70 Z"
+              stroke="currentColor"
+              strokeWidth="2.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="rgba(244, 236, 216, 0.06)"
+            />
+            {/* Drat ulir bohlam */}
+            <path d="M43 75 H 67 M46 80 H 64 M50 85 H 60" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+            {/* Filamen di dalam bohlam */}
+            <path
+              d="M48 46 C 48 38, 62 38, 62 46 L 55 54 Z"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* 5 Pancaran sinar kapur */}
+            <path d="M55 8 V 2" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" />
+            <path d="M28 17 L 21 10" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" />
+            <path d="M82 17 L 89 10" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" />
+            <path d="M14 38 L 6 38" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" />
+            <path d="M96 38 L 104 38" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" />
+          </svg>
+        </div>
+
+        {/* ============================================================ */}
+        {/* DOODLE 3: BINTANG-BINTANG & CORETAK KAPUR SEKOLAH */}
+        {/* ============================================================ */}
+        {/* Bintang kiri atas */}
+        <svg className="absolute top-[32%] left-10 sm:left-24 w-7 h-7 text-[#f4ecd8]/60 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
+        </svg>
+        {/* Bintang kiri bawah */}
+        <svg className="absolute bottom-40 left-14 sm:left-44 w-8 h-8 text-[#f4ecd8]/55 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
+        </svg>
+        {/* Bintang kanan atas */}
+        <svg className="absolute top-[28%] right-12 sm:right-32 w-6 h-6 text-[#f4ecd8]/60 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
+        </svg>
+        {/* Coretan Rumus Kapur di Kanan (Dekorasi Papan Tulis) */}
+        <div className="absolute top-[48%] right-10 sm:right-28 text-[#f4ecd8]/45 pointer-events-none select-none hidden sm:flex flex-col items-center">
+          <span className="font-['Caveat',sans-serif] text-xl tracking-widest font-bold">a² + b² = c²</span>
+          <svg className="w-16 h-2 text-[#f4ecd8]/30 mt-0.5" viewBox="0 0 70 8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+            <path d="M2 5 Q 35 1 68 5" />
+          </svg>
+        </div>
+        {/* Bintang kanan bawah */}
+        <svg className="absolute bottom-44 right-16 sm:right-40 w-7 h-7 text-[#f4ecd8]/50 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
+        </svg>
+
+        {/* ============================================================ */}
+        {/* KONTEN UTAMA: LOGO, KARTU FORM, & TEKS MOTTO                 */}
+        {/* ============================================================ */}
+        <div className="relative z-30 w-full max-w-[430px] px-4 flex flex-col items-center my-auto pt-6 pb-28">
+          {/* LOGO DISCERE DENGAN PERCIKAN KAPUR KUNING */}
+          <div className="relative flex items-center justify-center gap-2.5 mb-6 select-none">
+            {/* Ikon Buku Terbuka */}
+            <svg
+              className="w-10 h-10 text-[#f4ecd8] drop-shadow-md"
+              viewBox="0 0 48 48"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M6 38c6 0 12-3 18-3s12 3 18 3V8c-6 0-12-3-18-3S12 8 6 8v30zM24 5v30" />
+            </svg>
+            {/* Tulisan Discere */}
+            <span
+              className="text-4xl sm:text-5xl font-black text-[#f4ecd8] tracking-wide font-['Caveat',sans-serif]"
+              style={{ textShadow: '0 2px 8px rgba(0,0,0,0.45)' }}
+            >
+              Discere
+            </span>
+            {/* 3 Percikan Kapur Kuning di Atas-Kanan Teks */}
+            <svg
+              className="w-8 h-8 text-[#f2c230] -mt-5 -ml-1 pointer-events-none"
+              viewBox="0 0 30 30"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M6 22 L 18 10 M14 26 L 24 18 M2 16 L 14 6" />
+            </svg>
+            {/* Coretan Lengkung Kuning di Bawah Logo */}
+            <svg
+              className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-44 h-3.5 text-[#f2c230] pointer-events-none"
+              viewBox="0 0 120 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M4 8 Q 60 2 116 7" />
+            </svg>
           </div>
 
-          <Card className="p-6 sm:p-8 bg-slate-800 border-slate-700 shadow-2xl">
-            <h2 className="text-xl font-bold text-white text-center mb-6">
-              Gabung Permainan
-            </h2>
+          {/* KARTU FORMULIR KERTAS PARCHMENT (Paper Card) */}
+          <div className="relative w-full bg-[#f6efe2] rounded-[30px] p-6 sm:p-8 shadow-[0_12px_0_rgba(0,0,0,0.18),0_25px_50px_rgba(0,0,0,0.45)] border-2 border-[#e4d7c3] text-center">
+            {/* Percikan Kapur Kuning di Samping Kiri Kartu */}
+            <svg
+              className="absolute -left-6 sm:-left-8 top-12 w-6 h-10 text-[#f2c230] pointer-events-none select-none"
+              viewBox="0 0 24 36"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M22 6 L 8 12 M20 18 L 4 20 M22 30 L 8 26" />
+            </svg>
 
+            {/* Pesan Error */}
             {formError && (
-              <div className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-rose-400 text-sm">
-                <ShieldAlert className="w-5 h-5 shrink-0" />
+              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold flex items-center justify-center gap-2 animate-bounce">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
                 <span>{formError}</span>
               </div>
             )}
 
-            <form onSubmit={handleGabung} className="space-y-5">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                  Kode PIN 6 Angka
-                </label>
+            {/* Pembatas Garis dengan Teks PIN / NICKNAME di Tengah */}
+            <div className="flex items-center gap-3 mb-5 px-1 select-none">
+              <div className="flex-1 h-[1.5px] bg-[#beb4a0]" />
+              <span className="text-sm font-black uppercase tracking-widest text-[#2c3d31]">
+                {joinStep === 'PIN' ? 'PIN' : 'NICKNAME'}
+              </span>
+              <div className="flex-1 h-[1.5px] bg-[#beb4a0]" />
+            </div>
+
+            {joinStep === 'PIN' ? (
+              <form onSubmit={handleNextToName} className="space-y-4">
                 <input
                   type="text"
+                  inputMode="numeric"
                   maxLength={6}
-                  placeholder="Contoh: 849201"
+                  placeholder="Enter PIN"
                   value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value.replace(/\D/g, ''))}
-                  className="w-full px-4 py-3.5 text-center text-2xl font-black tracking-widest text-white bg-slate-900 border-2 border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500 transition-colors"
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    setTokenInput(val);
+                    if (formError) setFormError(null);
+                  }}
+                  autoFocus
+                  className="w-full py-3.5 px-4 text-center text-2xl font-black tracking-widest text-[#163a2b] bg-[#ece4d5] border-2 border-[#243e2f] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#163a2b]/30 transition-all placeholder:text-[#9e9688] placeholder:font-bold placeholder:text-lg placeholder:tracking-normal"
                   required
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                  Nama Panggilan Kamu
-                </label>
+                <button
+                  type="submit"
+                  disabled={!tokenInput.trim() || tokenInput.trim().length !== 6}
+                  className="w-full py-3.5 px-4 text-xl font-bold text-white bg-[#173b2b] hover:bg-[#102c20] active:scale-[0.99] rounded-2xl shadow-md transition-all cursor-pointer font-['Caveat',sans-serif] tracking-wider disabled:opacity-50"
+                >
+                  Join
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleGabung} className="space-y-4">
                 <input
                   type="text"
                   maxLength={20}
-                  placeholder="Contoh: Budi, Siti, Reza"
+                  placeholder="Enter Name"
                   value={namaInput}
-                  onChange={(e) => setNamaInput(e.target.value)}
-                  className="w-full px-4 py-3 text-base text-white bg-slate-900 border-2 border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500 transition-colors"
+                  onChange={(e) => {
+                    setNamaInput(e.target.value);
+                    if (formError) setFormError(null);
+                  }}
+                  autoFocus
+                  className="w-full py-3.5 px-4 text-center text-xl font-bold text-[#163a2b] bg-[#ece4d5] border-2 border-[#243e2f] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#163a2b]/30 transition-all placeholder:text-[#9e9688] placeholder:font-bold"
                   required
                 />
-              </div>
+                <button
+                  type="submit"
+                  disabled={isJoining || !namaInput.trim()}
+                  className="w-full py-3.5 px-4 text-xl font-bold text-white bg-[#173b2b] hover:bg-[#102c20] disabled:opacity-60 active:scale-[0.99] rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer font-['Caveat',sans-serif] tracking-wider"
+                >
+                  {isJoining ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Menghubungkan...
+                    </>
+                  ) : (
+                    'Mulai!'
+                  )}
+                </button>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJoinStep('PIN');
+                      setFormError(null);
+                    }}
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                  >
+                    ← Ganti PIN ({tokenInput || '......'})
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
 
-              <Button
-                type="submit"
-                variant="utama"
-                disabled={isJoining}
-                className="w-full py-4 text-base font-bold bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-lg shadow-indigo-600/30 flex justify-center items-center gap-2"
-              >
-                {isJoining ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Menghubungkan...
-                  </>
-                ) : (
-                  <>
-                    Gabung Lomba
-                    <ArrowRight className="w-5 h-5" />
-                  </>
-                )}
-              </Button>
-            </form>
-          </Card>
+          {/* TEKS MOTTO DI BAWAH KARTU DENGAN CORETAN KAPUR KUNING */}
+          <div className="mt-6 flex flex-col items-center select-none text-center">
+            <span
+              className="text-lg sm:text-xl font-bold text-[#f4ecd9] tracking-wide font-['Caveat',sans-serif]"
+              style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}
+            >
+              Discere • Belajar Lebih Menyenangkan
+            </span>
+            <svg
+              className="w-48 h-3.5 text-[#f2c230] mt-1 pointer-events-none"
+              viewBox="0 0 140 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.8"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M4 6 Q 35 1 70 6 T 136 5" />
+            </svg>
+          </div>
         </div>
+
+        {/* ============================================================ */}
+        {/* TUMPUKAN 3 BUKU CAT AIR KLASIK (Kiri Bawah di Atas Meja Kayu) */}
+        {/* ============================================================ */}
+        <div className="absolute bottom-12 sm:bottom-16 left-3 sm:left-12 w-32 sm:w-48 h-24 sm:h-36 pointer-events-none z-20">
+          <svg viewBox="0 0 150 110" fill="none" className="w-full h-full drop-shadow-[0_8px_12px_rgba(0,0,0,0.5)]" aria-hidden="true">
+            {/* Bayangan di atas dudukan kayu */}
+            <ellipse cx="75" cy="98" rx="65" ry="6" fill="rgba(0,0,0,0.4)" />
+
+            {/* BUKU BAWAH (Kulit Cokelat Tua / Marun) */}
+            <path d="M12 72 L 140 72 L 142 94 L 14 94 Z" fill="#4a2c16" />
+            <path d="M24 76 L 138 76 L 138 90 L 24 90 Z" fill="#f4ecd8" />
+            <path d="M10 70 C 8 70, 6 74, 6 83 C 6 92, 8 96, 10 96 L 24 96 L 24 70 Z" fill="#351d0d" />
+            {/* Garis emas tulang buku bawah */}
+            <line x1="12" y1="76" x2="22" y2="76" stroke="#c59a5f" strokeWidth="1.5" />
+            <line x1="12" y1="90" x2="22" y2="90" stroke="#c59a5f" strokeWidth="1.5" />
+
+            {/* BUKU TENGAH (Cover Hitam-Arang / Navy Gelap) */}
+            <path d="M20 50 L 130 50 L 132 70 L 22 70 Z" fill="#24292e" />
+            <path d="M30 54 L 128 54 L 128 66 L 30 66 Z" fill="#f4ecd8" />
+            <path d="M18 48 C 16 48, 14 52, 14 60 C 14 68, 16 72, 18 72 L 30 72 L 30 48 Z" fill="#161a1e" />
+            {/* Garis emas tulang buku tengah */}
+            <line x1="18" y1="54" x2="28" y2="54" stroke="#d4af37" strokeWidth="1.5" />
+            <line x1="18" y1="66" x2="28" y2="66" stroke="#d4af37" strokeWidth="1.5" />
+
+            {/* BUKU ATAS (Hijau Hutan Antik) */}
+            <path d="M12 28 L 118 28 L 120 48 L 14 48 Z" fill="#1b422e" />
+            <path d="M22 32 L 116 32 L 116 44 L 22 44 Z" fill="#f4ecd8" />
+            <path d="M10 26 C 8 26, 6 30, 6 38 C 6 46, 8 50, 10 50 L 22 50 L 22 26 Z" fill="#112d1f" />
+            {/* Garis emas tulang buku atas */}
+            <line x1="10" y1="32" x2="20" y2="32" stroke="#c59a5f" strokeWidth="1.5" />
+            <line x1="10" y1="44" x2="20" y2="44" stroke="#c59a5f" strokeWidth="1.5" />
+
+            {/* Pita Pembatas Buku Merah Menjuntai */}
+            <path d="M85 45 C 90 55, 80 65, 88 78 C 92 84, 86 92, 90 98 L 94 94 L 97 99 C 94 92, 98 84, 94 78 C 86 65, 96 55, 90 45 Z" fill="#c82b24" opacity="0.9" />
+          </svg>
+        </div>
+
+        {/* ============================================================ */}
+        {/* AKSESORIS RAK KAYU: BATANG KAPUR & PENGHAPUS PAPAN TULIS     */}
+        {/* ============================================================ */}
+        <div className="absolute bottom-16 sm:bottom-20 left-0 right-0 w-full pointer-events-none z-20 px-6 sm:px-16 flex justify-end items-end">
+          <div className="hidden sm:flex items-end gap-3.5 mb-0.5 opacity-95 drop-shadow-[0_4px_6px_rgba(0,0,0,0.45)]">
+            {/* Batang Kapur Putih */}
+            <div className="w-11 h-2.5 rounded-full bg-[#f8fafc] shadow-sm transform -rotate-3 border border-slate-300/40 relative">
+              <div className="absolute -top-1 -right-2 w-4 h-3 bg-white/30 blur-sm rounded-full" />
+            </div>
+            {/* Batang Kapur Kuning */}
+            <div className="w-9 h-2.5 rounded-full bg-[#f2c230] shadow-sm transform rotate-2 border border-amber-400/40" />
+            {/* Penghapus Papan Tulis Kayu Klasik */}
+            <div className="w-20 h-6 rounded-sm bg-gradient-to-b from-[#9e6936] to-[#71441c] border-t border-[#d8a368] shadow-md flex flex-col justify-end overflow-hidden ml-2.5">
+              {/* Spon felt hitam penghapus */}
+              <div className="w-full h-2.5 bg-[#252525] border-t border-black/40 flex items-center justify-center">
+                <div className="w-full h-0.5 bg-white/20 blur-[0.5px]" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ============================================================ */}
+        {/* DUDUKAN MEJA & RAK PAPAN TULIS KAYU KLASIK (FULL LEBAR)      */}
+        {/* ============================================================ */}
+        <div className="absolute bottom-0 left-0 right-0 w-full pointer-events-none z-10">
+          {/* LIS ATAS RAK KAYU / BEVEL KILAU EMAS */}
+          <div className="w-full h-1.5 bg-gradient-to-r from-[#b07f4a] via-[#e2b07a] to-[#b07f4a] shadow-sm" />
+
+          {/* ALUR TEMPAT KAPUR (CHALK TRAY GROOVE) */}
+          <div className="w-full h-3.5 bg-gradient-to-b from-[#2e1708] via-[#45230c] to-[#321808] relative overflow-hidden border-b border-[#241005]">
+            {/* Debu kapur halus yang mengendap di alur */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          </div>
+
+          {/* PAPAN MEJA KAYU JATI/MAHONI BERTEKSTUR */}
+          <div
+            className="w-full h-16 sm:h-20 relative overflow-hidden"
+            style={{
+              background: 'linear-gradient(180deg, #784821 0%, #633816 25%, #502b0f 60%, #3a1c07 100%)',
+              boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.18), 0 -6px 16px rgba(0,0,0,0.5)',
+            }}
+          >
+            {/* Serat kayu halus (Wood Grain Lines) */}
+            <div
+              className="absolute inset-0 opacity-25"
+              style={{
+                backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.35) 3px, rgba(0,0,0,0.35) 5px), repeating-linear-gradient(90deg, transparent, transparent 110px, rgba(255,255,255,0.05) 110px, rgba(255,255,255,0.05) 113px)`,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* ============================================================ */}
+        {/* PITA SATIN INDONESIA BERGELOMBANG (MERAH PUTIH MURNI SVG)    */}
+        {/* ============================================================ */}
+        <svg
+          className="absolute bottom-0 left-0 w-full h-24 sm:h-32 pointer-events-none z-25 overflow-visible"
+          viewBox="0 0 1440 120"
+          preserveAspectRatio="none"
+          fill="none"
+          aria-hidden="true"
+        >
+          <defs>
+            {/* Gradien Pita Merah Satin Mengkilap */}
+            <linearGradient id="redSatinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#ab1b14" />
+              <stop offset="25%" stopColor="#e32c24" />
+              <stop offset="50%" stopColor="#ff5950" />
+              <stop offset="75%" stopColor="#db261e" />
+              <stop offset="100%" stopColor="#96130d" />
+            </linearGradient>
+
+            {/* Gradien Pita Putih Satin Mengkilap */}
+            <linearGradient id="whiteSatinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#e8decb" />
+              <stop offset="25%" stopColor="#ffffff" />
+              <stop offset="50%" stopColor="#fdfaf3" />
+              <stop offset="75%" stopColor="#ded3be" />
+              <stop offset="100%" stopColor="#c5b79e" />
+            </linearGradient>
+
+            {/* Filter Drop Shadow Alami untuk Pita */}
+            <filter id="ribbonDropShadow" x="-5%" y="-10%" width="110%" height="150%">
+              <feDropShadow dx="0" dy="5" stdDeviation="4" floodColor="#000000" floodOpacity="0.45" />
+            </filter>
+          </defs>
+
+          {/* GROUP PITA DENGAN BAYANGAN */}
+          <g filter="url(#ribbonDropShadow)">
+            {/* 1. JALUR PITA PUTIH (BAGIAN BAWAH PITA MERAH PUTIH) */}
+            <path
+              d="M -10 68 C 220 38, 460 102, 700 82 C 940 62, 1180 102, 1450 58 L 1450 78 C 1180 122, 940 82, 700 102 C 460 122, 220 58, -10 88 Z"
+              fill="url(#whiteSatinGrad)"
+            />
+
+            {/* 2. JALUR PITA MERAH (BAGIAN ATAS PITA MERAH PUTIH) */}
+            <path
+              d="M -10 48 C 220 18, 460 82, 700 62 C 940 42, 1180 82, 1450 38 L 1450 58 C 1180 102, 940 62, 700 82 C 460 102, 220 38, -10 68 Z"
+              fill="url(#redSatinGrad)"
+            />
+
+            {/* Kilap Pantulan Cahaya Atas Pita Merah */}
+            <path
+              d="M -10 48 C 220 18, 460 82, 700 62 C 940 42, 1180 82, 1450 38 L 1450 43 C 1180 87, 940 47, 700 67 C 460 87, 220 23, -10 53 Z"
+              fill="#ffffff"
+              opacity="0.35"
+            />
+
+            {/* Lipatan & Lekukan Pita Kanan (Ujung Berkibar) */}
+            <path
+              d="M 1340 50 C 1370 25, 1410 32, 1445 42 L 1450 68 C 1415 58, 1375 52, 1345 74 Z"
+              fill="#85120d"
+              opacity="0.5"
+            />
+            {/* Lipatan & Lekukan Pita Kiri (Di Bawah Buku) */}
+            <path
+              d="M -10 70 C 40 45, 110 50, 160 85 L 145 92 C 100 62, 35 56, -10 78 Z"
+              fill="#85120d"
+              opacity="0.4"
+            />
+          </g>
+        </svg>
       </div>
     );
   }
