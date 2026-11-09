@@ -8,6 +8,9 @@ import os from 'os';
 import cookieParser from 'cookie-parser';
 import { config } from './config.js';
 import { authRouter } from './routes/auth.js';
+import { templateRouter } from './routes/template.js';
+import { sesiRouter } from './routes/sesi.js';
+import { guruRouter } from './routes/guru.js';
 import { errorHandler } from './middleware/error.js';
 
 const app = express();
@@ -29,6 +32,9 @@ app.get('/api/health', (_req, res) => {
 
 // Rute API Auth
 app.use('/api/auth', authRouter);
+app.use('/api/template', templateRouter);
+app.use('/api/sesi', sesiRouter);
+app.use('/api/guru', guruRouter);
 
 // Socket.IO event handler dasar
 io.on('connection', (socket) => {

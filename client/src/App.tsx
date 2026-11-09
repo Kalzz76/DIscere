@@ -11,6 +11,9 @@ import Daftar from './pages/publik/Daftar';
 import Masuk from './pages/publik/Masuk';
 
 import DashboardGuru from './pages/guru/Dashboard';
+import TemplateForm from './pages/guru/TemplateForm';
+import LayarHostSolo from './pages/game/LayarHostSolo';
+import HasilSolo from './pages/game/HasilSolo';
 import DashboardAdmin from './pages/admin/Statistik';
 import NotFound from './pages/NotFound';
 
@@ -32,6 +35,10 @@ export default function App() {
             {/* Rute Terlindungi Guru */}
             <Route element={<RequireRole allowedRole="guru" />}>
               <Route path="/guru" element={<DashboardGuru />} />
+              <Route path="/guru/template/baru" element={<TemplateForm />} />
+              <Route path="/guru/template/:id/ubah" element={<TemplateForm />} />
+              <Route path="/guru/sesi/:id" element={<LayarHostSolo />} />
+              <Route path="/guru/sesi/:id/hasil" element={<HasilSolo />} />
             </Route>
 
             {/* Rute Terlindungi Admin */}

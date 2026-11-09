@@ -1,0 +1,694 @@
+import { Router, Response } from 'express';
+import { z } from 'zod';
+import { prisma } from '../db.js';
+import { authMiddleware, AuthRequest } from '../middleware/auth.js';
+import { roleMiddleware } from '../middleware/role.js';
+import { soloManager } from '../games/soloManager.js';
+
+export const sesiRouter = Router();
+
+// Seluruh rute sesi membutuhkan login sebagai guru
+sesiRouter.use(authMiddleware);
+sesiRouter.use(roleMiddleware('guru'));
+
+// 1. GET /api/sesi/riwayat - Daftar riwayat sesi milik guru
+sesiRouter.get('/riwayat', async (req: AuthRequest, res: Response) => {
+  try {
+    const sessions = await prisma.session.findMany({
+      where: {
+        hostId: req.user!.id,
+        status: 'selesai',
+      },
+      orderBy: { selesaiPada: 'desc' },
+      include: {
+        template: {
+          select: {
+            id: true,
+            judul: true,
+            game: true,
+            mode: true,
+          },
+        },
+        result: true,
+        _count: {
+          select: {
+            questionStats: true,
+          },
+        },
+      },
+    });
+
+    const riwayat = sessions.map((s) => ({
+      id: s.id,
+      templateId: s.templateId,
+      templateJudul: s.template.judul,
+      game: s.template.game,
+      mode: s.mode.toUpperCase(),
+      status: s.status,
+      tanggal: s.selesaiPada || s.createdAt,
+      timMenang: s.result?.timMenang || 'seri',
+      posisiAkhir: s.result?.posisiAkhir ?? 0,
+      skorMerah: s.result?.skorMerah ?? 0,
+      skorPutih: s.result?.skorPutih ?? 0,
+      totalSoal: s._count.questionStats,
+    }));
+
+    return res.json({ riwayat });
+  } catch (err: any) {
+    return res.status(500).json({ pesan: err.message || 'Gagal memuat riwayat permainan.' });
+  }
+});
+
+// 2. GET /api/sesi/riwayat/:id - Detail spesifik riwayat guru termasuk analisis soal paling sering salah
+sesiRouter.get('/riwayat/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const session = await prisma.session.findUnique({
+      where: { id },
+      include: {
+        template: {
+          include: {
+            questions: { orderBy: { urutan: 'asc' } },
+          },
+        },
+        result: true,
+        questionStats: {
+          include: {
+            question: true,
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      return res.status(404).json({ pesan: 'Sesi riwayat tidak ditemukan.' });
+    }
+
+    if (session.hostId !== req.user!.id) {
+      return res.status(403).json({ pesan: 'Anda tidak dapat melihat riwayat milik guru lain.' });
+    }
+
+    // Hitung total benar dan salah dari question stats
+    let totalBenar = 0;
+    let totalSalah = 0;
+    let soalPalingSeringSalah: any = null;
+    let maxSalah = -1;
+
+    const statsPerSoal = session.questionStats.map((qs) => {
+      totalBenar += qs.jumlahBenar;
+      totalSalah += qs.jumlahSalah;
+
+      if (qs.jumlahSalah > maxSalah) {
+        maxSalah = qs.jumlahSalah;
+        soalPalingSeringSalah = {
+          questionId: qs.questionId,
+          urutan: qs.question.urutan,
+          teks: qs.question.teks,
+          jumlahSalah: qs.jumlahSalah,
+          jumlahBenar: qs.jumlahBenar,
+          penjelasan: qs.question.penjelasan,
+        };
+      }
+
+      return {
+        questionId: qs.questionId,
+        urutan: qs.question.urutan,
+        teks: qs.question.teks,
+        opsiA: qs.question.opsiA,
+        opsiB: qs.question.opsiB,
+        opsiC: qs.question.opsiC,
+        jawabanBenar: qs.question.jawabanBenar,
+        penjelasan: qs.question.penjelasan,
+        jumlahBenar: qs.jumlahBenar,
+        jumlahSalah: qs.jumlahSalah,
+      };
+    });
+
+    // Jika tidak ada yang salah sama sekali
+    if (maxSalah <= 0) {
+      soalPalingSeringSalah = null;
+    }
+
+    return res.json({
+      detail: {
+        sessionId: session.id,
+        templateJudul: session.template.judul,
+        mode: session.mode.toUpperCase(),
+        tanggal: session.selesaiPada || session.createdAt,
+        timMenang: session.result?.timMenang || 'seri',
+        posisiAkhir: session.result?.posisiAkhir ?? 0,
+        skorMerah: session.result?.skorMerah ?? 0,
+        skorPutih: session.result?.skorPutih ?? 0,
+        totalBenar,
+        totalSalah,
+        totalSoalDimainkan: session.questionStats.length,
+        statsPerSoal,
+        soalPalingSeringSalah,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ pesan: err.message || 'Gagal memuat detail riwayat.' });
+  }
+});
+
+// 3. POST /api/sesi - Buat sesi Solo baru dari template
+const buatSesiSchema = z.object({
+  templateId: z.string().min(1, 'ID template wajib disertakan.'),
+});
+
+sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
+  try {
+    const { templateId } = buatSesiSchema.parse(req.body);
+
+    const template = await prisma.template.findUnique({
+      where: { id: templateId },
+      include: {
+        questions: { orderBy: { urutan: 'asc' } },
+      },
+    });
+
+    if (!template) {
+      return res.status(404).json({ pesan: 'Template tidak ditemukan.' });
+    }
+
+    // Pastikan template memiliki soal
+    if (!template.questions || template.questions.length === 0) {
+      return res.status(400).json({
+        pesan: 'Template ini belum memiliki soal. Silakan tambahkan soal terlebih dahulu.',
+      });
+    }
+
+    // Buat record session di database
+    const session = await prisma.session.create({
+      data: {
+        templateId: template.id,
+        hostId: req.user!.id,
+        mode: 'solo',
+        status: 'lobi',
+      },
+    });
+
+    // Inisialisasi state sesi solo di memori server
+    const activeSession = soloManager.inisialisasiSesi(
+      session.id,
+      req.user!.id,
+      { id: template.id, judul: template.judul },
+      template.questions.map((q) => ({
+        id: q.id,
+        urutan: q.urutan,
+        teks: q.teks,
+        opsiA: q.opsiA,
+        opsiB: q.opsiB,
+        opsiC: q.opsiC,
+        jawabanBenar: q.jawabanBenar,
+        penjelasan: q.penjelasan,
+      }))
+    );
+
+    return res.status(201).json({
+      pesan: 'Sesi Solo berhasil dibuat.',
+      session: {
+        id: session.id,
+        templateId: template.id,
+        templateJudul: template.judul,
+        state: activeSession.state,
+        totalSoal: activeSession.totalSoal,
+      },
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ pesan: err.issues[0]?.message || 'Input tidak valid.' });
+    }
+    return res.status(500).json({ pesan: err.message || 'Gagal membuat sesi permainan.' });
+  }
+});
+
+// 4. GET /api/sesi/:id - Ambil detail sesi Solo aktif
+sesiRouter.get('/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+
+    // Periksa apakah ada di in-memory active solo manager
+    let activeSession = soloManager.dapatkanSesi(id, req.user!.id);
+
+    // Jika belum ada di memori (misal guru me-refresh browser), pulihkan dari database
+    if (!activeSession) {
+      const sessionDb = await prisma.session.findUnique({
+        where: { id },
+        include: {
+          template: {
+            include: { questions: { orderBy: { urutan: 'asc' } } },
+          },
+          result: true,
+        },
+      });
+
+      if (!sessionDb) {
+        return res.status(404).json({ pesan: 'Sesi permainan tidak ditemukan.' });
+      }
+
+      if (sessionDb.hostId !== req.user!.id) {
+        return res.status(403).json({ pesan: 'Anda tidak memiliki hak akses ke sesi ini.' });
+      }
+
+      // Jika sesi sudah selesai di database
+      if (sessionDb.status === 'selesai') {
+        return res.json({
+          session: {
+            sessionId: sessionDb.id,
+            templateId: sessionDb.templateId,
+            templateJudul: sessionDb.template.judul,
+            hostId: sessionDb.hostId,
+            state: 'FINISHED',
+            taliPosition: sessionDb.result?.posisiAkhir ?? 0,
+            skorMerah: sessionDb.result?.skorMerah ?? 0,
+            skorPutih: sessionDb.result?.skorPutih ?? 0,
+            totalSoal: sessionDb.template.questions.length,
+            isFinished: true,
+          },
+        });
+      }
+
+      // Inisialisasi ulang ke memori jika sesi masih aktif
+      activeSession = soloManager.inisialisasiSesi(
+        sessionDb.id,
+        req.user!.id,
+        { id: sessionDb.template.id, judul: sessionDb.template.judul },
+        sessionDb.template.questions.map((q) => ({
+          id: q.id,
+          urutan: q.urutan,
+          teks: q.teks,
+          opsiA: q.opsiA,
+          opsiB: q.opsiB,
+          opsiC: q.opsiC,
+          jawabanBenar: q.jawabanBenar,
+          penjelasan: q.penjelasan,
+        }))
+      );
+    }
+
+    // Format data untuk host screen
+    const soalSaatIni = activeSession.questions[activeSession.currentQuestionIndex] || null;
+
+    return res.json({
+      session: {
+        sessionId: activeSession.sessionId,
+        templateId: activeSession.templateId,
+        templateJudul: activeSession.templateJudul,
+        state: activeSession.state,
+        currentQuestionIndex: activeSession.currentQuestionIndex,
+        totalSoal: activeSession.totalSoal,
+        currentTurn: activeSession.currentTurn,
+        taliPosition: activeSession.taliPosition,
+        skorMerah: activeSession.skorMerah,
+        skorPutih: activeSession.skorPutih,
+        soalSaatIni: soalSaatIni
+          ? {
+              id: soalSaatIni.id,
+              urutan: soalSaatIni.urutan,
+              nomorSoal: activeSession.currentQuestionIndex + 1,
+              teks: soalSaatIni.teks,
+              opsiA: soalSaatIni.opsiA,
+              opsiB: soalSaatIni.opsiB,
+              opsiC: soalSaatIni.opsiC,
+              // JANGAN kirim jawabanBenar ke frontend sebelum dijawab!
+            }
+          : null,
+        logJawaban: activeSession.logJawaban,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ pesan: err.message || 'Gagal memuat detail sesi.' });
+  }
+});
+
+// 5. POST /api/sesi/:id/mulai - Mulai permainan Solo
+sesiRouter.post('/:id/mulai', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    let activeSession = soloManager.dapatkanSesi(id, req.user!.id);
+
+    if (!activeSession) {
+      // Coba pulihkan dari DB
+      const sessionDb = await prisma.session.findUnique({
+        where: { id },
+        include: {
+          template: { include: { questions: { orderBy: { urutan: 'asc' } } } },
+        },
+      });
+
+      if (!sessionDb || sessionDb.hostId !== req.user!.id) {
+        return res.status(404).json({ pesan: 'Sesi permainan tidak ditemukan.' });
+      }
+
+      activeSession = soloManager.inisialisasiSesi(
+        sessionDb.id,
+        req.user!.id,
+        { id: sessionDb.template.id, judul: sessionDb.template.judul },
+        sessionDb.template.questions.map((q) => ({
+          id: q.id,
+          urutan: q.urutan,
+          teks: q.teks,
+          opsiA: q.opsiA,
+          opsiB: q.opsiB,
+          opsiC: q.opsiC,
+          jawabanBenar: q.jawabanBenar,
+          penjelasan: q.penjelasan,
+        }))
+      );
+    }
+
+    const sesi = soloManager.mulaiSesi(id, req.user!.id);
+
+    // Update status di DB menjadi 'jalan'
+    await prisma.session.update({
+      where: { id },
+      data: {
+        status: 'jalan',
+        mulaiPada: new Date(),
+      },
+    });
+
+    const soalAktif = sesi.questions[sesi.currentQuestionIndex];
+
+    return res.json({
+      pesan: 'Permainan Solo dimulai.',
+      session: {
+        sessionId: sesi.sessionId,
+        state: sesi.state,
+        currentTurn: sesi.currentTurn,
+        taliPosition: sesi.taliPosition,
+        currentQuestionIndex: sesi.currentQuestionIndex,
+        totalSoal: sesi.totalSoal,
+        soalSaatIni: {
+          id: soalAktif.id,
+          urutan: soalAktif.urutan,
+          nomorSoal: 1,
+          teks: soalAktif.teks,
+          opsiA: soalAktif.opsiA,
+          opsiB: soalAktif.opsiB,
+          opsiC: soalAktif.opsiC,
+        },
+      },
+    });
+  } catch (err: any) {
+    return res.status(400).json({ pesan: err.message || 'Gagal memulai permainan.' });
+  }
+});
+
+// 6. POST /api/sesi/:id/state - Pause / Resume permainan
+const stateSchema = z.object({
+  state: z.enum(['PLAYING', 'PAUSED']),
+});
+
+sesiRouter.post('/:id/state', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { state } = stateSchema.parse(req.body);
+
+    const sesi = soloManager.ubahStateSesi(id, req.user!.id, state);
+
+    return res.json({
+      pesan: `Permainan berhasil di-${state === 'PAUSED' ? 'jeda' : 'lanjutkan'}.`,
+      state: sesi.state,
+    });
+  } catch (err: any) {
+    return res.status(400).json({ pesan: err.message || 'Gagal mengubah status permainan.' });
+  }
+});
+
+// 7. POST /api/sesi/:id/jawab - Kirim jawaban dari tim yang sedang giliran
+const jawabSchema = z.object({
+  questionId: z.string().min(1),
+  tim: z.enum(['merah', 'putih']),
+  jawabanDipilih: z.enum(['A', 'B', 'C', 'a', 'b', 'c']),
+});
+
+sesiRouter.post('/:id/jawab', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const input = jawabSchema.parse(req.body);
+
+    const hasilProses = soloManager.prosesJawaban(id, req.user!.id, {
+      questionId: input.questionId,
+      tim: input.tim,
+      jawabanDipilih: input.jawabanDipilih.toUpperCase(),
+    });
+
+    const { sesi, benar, jawabanBenar, penjelasan, selesai } = hasilProses;
+
+    // Jika permainan otomatis selesai karena tali mencapai batas atau soal habis
+    if (selesai) {
+      await simpanHasilSesiKeDatabase(sesi);
+    }
+
+    const soalBerikutnya =
+      !selesai && sesi.currentQuestionIndex < sesi.totalSoal
+        ? sesi.questions[sesi.currentQuestionIndex]
+        : null;
+
+    return res.json({
+      benar,
+      jawabanBenar,
+      penjelasan,
+      taliPosition: sesi.taliPosition,
+      skorMerah: sesi.skorMerah,
+      skorPutih: sesi.skorPutih,
+      nextTurn: sesi.currentTurn,
+      nextQuestionIndex: sesi.currentQuestionIndex,
+      isFinished: selesai,
+      winner: sesi.hasil?.timMenang || null,
+      soalBerikutnya: soalBerikutnya
+        ? {
+            id: soalBerikutnya.id,
+            urutan: soalBerikutnya.urutan,
+            nomorSoal: sesi.currentQuestionIndex + 1,
+            teks: soalBerikutnya.teks,
+            opsiA: soalBerikutnya.opsiA,
+            opsiB: soalBerikutnya.opsiB,
+            opsiC: soalBerikutnya.opsiC,
+          }
+        : null,
+    });
+  } catch (err: any) {
+    return res.status(400).json({ pesan: err.message || 'Gagal memproses jawaban.' });
+  }
+});
+
+// 8. POST /api/sesi/:id/selesai - Akhiri permainan secara manual oleh guru
+sesiRouter.post('/:id/selesai', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const sesi = soloManager.selesaikanSesi(id, req.user!.id);
+
+    await simpanHasilSesiKeDatabase(sesi);
+
+    return res.json({
+      pesan: 'Permainan berhasil diakhiri.',
+      hasil: sesi.hasil,
+    });
+  } catch (err: any) {
+    return res.status(400).json({ pesan: err.message || 'Gagal mengakhiri permainan.' });
+  }
+});
+
+// 9. GET /api/sesi/:id/hasil - Ambil hasil permainan Solo yang telah selesai
+sesiRouter.get('/:id/hasil', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+
+    // Cek di memori dulu
+    const activeSession = soloManager.dapatkanSesi(id, req.user!.id);
+    if (activeSession && activeSession.state === 'FINISHED' && activeSession.hasil) {
+      return res.json({
+        hasil: {
+          sessionId: activeSession.sessionId,
+          templateJudul: activeSession.templateJudul,
+          templateId: activeSession.templateId,
+          timMenang: activeSession.hasil.timMenang,
+          posisiAkhir: activeSession.hasil.posisiAkhir,
+          skorMerah: activeSession.hasil.skorMerah,
+          skorPutih: activeSession.hasil.skorPutih,
+          totalSoal: activeSession.totalSoal,
+          totalBenar: activeSession.hasil.totalBenar,
+          totalSalah: activeSession.hasil.totalSalah,
+          logJawaban: activeSession.logJawaban,
+        },
+      });
+    }
+
+    // Ambil dari database jika di memori sudah tidak ada
+    const sessionDb = await prisma.session.findUnique({
+      where: { id },
+      include: {
+        template: {
+          include: { questions: { orderBy: { urutan: 'asc' } } },
+        },
+        result: true,
+        questionStats: {
+          include: { question: true },
+        },
+      },
+    });
+
+    if (!sessionDb) {
+      return res.status(404).json({ pesan: 'Sesi permainan tidak ditemukan.' });
+    }
+
+    if (sessionDb.hostId !== req.user!.id) {
+      return res.status(403).json({ pesan: 'Anda tidak memiliki hak akses ke sesi ini.' });
+    }
+
+    if (sessionDb.status !== 'selesai' || !sessionDb.result) {
+      return res.status(400).json({ pesan: 'Sesi ini belum memiliki hasil akhir.' });
+    }
+
+    const totalBenar = sessionDb.questionStats.reduce((acc, q) => acc + q.jumlahBenar, 0);
+    const totalSalah = sessionDb.questionStats.reduce((acc, q) => acc + q.jumlahSalah, 0);
+
+    return res.json({
+      hasil: {
+        sessionId: sessionDb.id,
+        templateJudul: sessionDb.template.judul,
+        templateId: sessionDb.templateId,
+        timMenang: sessionDb.result.timMenang,
+        posisiAkhir: sessionDb.result.posisiAkhir,
+        skorMerah: sessionDb.result.skorMerah,
+        skorPutih: sessionDb.result.skorPutih,
+        totalSoal: sessionDb.template.questions.length,
+        totalBenar,
+        totalSalah,
+        questionStats: sessionDb.questionStats.map((qs) => ({
+          nomorSoal: qs.question.urutan,
+          teksSoal: qs.question.teks,
+          benar: qs.jumlahBenar > 0,
+        })),
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ pesan: err.message || 'Gagal memuat hasil permainan.' });
+  }
+});
+
+// 10. POST /api/sesi/:id/main-lagi - Buat sesi baru dari template yang sama
+sesiRouter.post('/:id/main-lagi', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const sessionLama = await prisma.session.findUnique({
+      where: { id },
+      include: {
+        template: {
+          include: { questions: { orderBy: { urutan: 'asc' } } },
+        },
+      },
+    });
+
+    if (!sessionLama) {
+      return res.status(404).json({ pesan: 'Sesi lama tidak ditemukan.' });
+    }
+
+    if (sessionLama.hostId !== req.user!.id) {
+      return res.status(403).json({ pesan: 'Anda tidak berwenang atas sesi ini.' });
+    }
+
+    // Buat sesi baru
+    const sessionBaru = await prisma.session.create({
+      data: {
+        templateId: sessionLama.templateId,
+        hostId: req.user!.id,
+        mode: 'solo',
+        status: 'lobi',
+      },
+    });
+
+    // Inisialisasi state bersih di memori
+    soloManager.inisialisasiSesi(
+      sessionBaru.id,
+      req.user!.id,
+      { id: sessionLama.template.id, judul: sessionLama.template.judul },
+      sessionLama.template.questions.map((q) => ({
+        id: q.id,
+        urutan: q.urutan,
+        teks: q.teks,
+        opsiA: q.opsiA,
+        opsiB: q.opsiB,
+        opsiC: q.opsiC,
+        jawabanBenar: q.jawabanBenar,
+        penjelasan: q.penjelasan,
+      }))
+    );
+
+    return res.status(201).json({
+      pesan: 'Sesi baru berhasil dibuat.',
+      sessionId: sessionBaru.id,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ pesan: err.message || 'Gagal membuat sesi main lagi.' });
+  }
+});
+
+/**
+ * Fungsi utilitas untuk menyimpan hasil permainan ke database menggunakan transaksi Prisma
+ */
+async function simpanHasilSesiKeDatabase(sesi: any) {
+  if (!sesi.hasil) return;
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Update status sesi
+    await tx.session.update({
+      where: { id: sesi.sessionId },
+      data: {
+        status: 'selesai',
+        selesaiPada: new Date(),
+      },
+    });
+
+    // 2. Simpan atau perbarui SessionResult
+    await tx.sessionResult.upsert({
+      where: { sessionId: sesi.sessionId },
+      update: {
+        timMenang: sesi.hasil.timMenang,
+        posisiAkhir: sesi.hasil.posisiAkhir,
+        skorMerah: sesi.hasil.skorMerah,
+        skorPutih: sesi.hasil.skorPutih,
+      },
+      create: {
+        sessionId: sesi.sessionId,
+        timMenang: sesi.hasil.timMenang,
+        posisiAkhir: sesi.hasil.posisiAkhir,
+        skorMerah: sesi.hasil.skorMerah,
+        skorPutih: sesi.hasil.skorPutih,
+      },
+    });
+
+    // 3. Simpan question_stats per soal
+    // Hitung aggregat dari logJawaban
+    const statMap = new Map<string, { jumlahBenar: number; jumlahSalah: number }>();
+
+    for (const log of sesi.logJawaban) {
+      const existing = statMap.get(log.questionId) || { jumlahBenar: 0, jumlahSalah: 0 };
+      if (log.benar) {
+        existing.jumlahBenar += 1;
+      } else {
+        existing.jumlahSalah += 1;
+      }
+      statMap.set(log.questionId, existing);
+    }
+
+    // Hapus stat lama jika ada (idempotent)
+    await tx.questionStat.deleteMany({
+      where: { sessionId: sesi.sessionId },
+    });
+
+    for (const [questionId, stat] of statMap.entries()) {
+      await tx.questionStat.create({
+        data: {
+          sessionId: sesi.sessionId,
+          questionId,
+          jumlahBenar: stat.jumlahBenar,
+          jumlahSalah: stat.jumlahSalah,
+        },
+      });
+    }
+  });
+}
