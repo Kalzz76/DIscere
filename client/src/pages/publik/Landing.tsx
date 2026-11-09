@@ -1051,7 +1051,7 @@ export default function Landing() {
                 pemiliknya.
               </p>
             </details>
-            <details className="reveal stagger-1">
+            <details className="reveal stagger-5">
               <summary>Bagaimana kalau siswa tidak punya HP?</summary>
               <p>
                 Pakai Mode Solo. Perwakilan tim maju dan menyentuh jawaban di layar guru.
