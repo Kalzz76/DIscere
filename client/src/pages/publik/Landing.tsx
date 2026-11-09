@@ -47,6 +47,47 @@ export default function Landing() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Smooth scroll handler untuk navigasi anchor menu
+  const handleScrollTo = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    e.preventDefault();
+    const el = document.getElementById(targetId);
+    if (el) {
+      const topbarHeight = 72;
+      const elementPosition = el.getBoundingClientRect().top + window.scrollY;
+      const offsetPosition = elementPosition - topbarHeight;
+
+      window.scrollTo({
+        top: Math.max(0, offsetPosition),
+        behavior: 'smooth',
+      });
+      window.history.pushState(null, '', `#${targetId}`);
+      setActiveSection(targetId);
+    }
+  };
+
+  // Animasi Scroll Reveal (IntersectionObserver)
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('in-view');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      {
+        threshold: 0.15,
+        rootMargin: '0px 0px -12% 0px',
+      }
+    );
+
+    const elements = document.querySelectorAll('.landing-page .reveal');
+    elements.forEach((el) => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, []);
+
   // Blackboard Canvas auto-fit & resize
   const fitCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -281,7 +322,7 @@ export default function Landing() {
       <div className={`topbar ${isStuck ? 'stuck' : ''}`} id="topbar">
         <div className="wrap">
           <nav>
-            <a className="logo" href="#beranda">
+            <a className="logo" href="#beranda" onClick={(e) => handleScrollTo(e, 'beranda')}>
               <svg width="40" height="40" style={{ color: 'var(--chalk)' }}>
                 <use href="#ic-book" />
               </svg>
@@ -289,22 +330,22 @@ export default function Landing() {
             </a>
             <ul>
               <li className={activeSection === 'beranda' ? 'on' : ''}>
-                <a href="#beranda">Beranda</a>
+                <a href="#beranda" onClick={(e) => handleScrollTo(e, 'beranda')}>Beranda</a>
               </li>
               <li className={activeSection === 'tentang' ? 'on' : ''}>
-                <a href="#tentang">Tentang</a>
+                <a href="#tentang" onClick={(e) => handleScrollTo(e, 'tentang')}>Tentang</a>
               </li>
               <li className={activeSection === 'fitur' ? 'on' : ''}>
-                <a href="#fitur">Fitur</a>
+                <a href="#fitur" onClick={(e) => handleScrollTo(e, 'fitur')}>Fitur</a>
               </li>
               <li className={activeSection === 'template' ? 'on' : ''}>
-                <a href="#template">Template</a>
+                <a href="#template" onClick={(e) => handleScrollTo(e, 'template')}>Template</a>
               </li>
               <li className={activeSection === 'cara-kerja' ? 'on' : ''}>
-                <a href="#cara-kerja">Cara Kerja</a>
+                <a href="#cara-kerja" onClick={(e) => handleScrollTo(e, 'cara-kerja')}>Cara Kerja</a>
               </li>
               <li className={activeSection === 'demo' ? 'on' : ''}>
-                <a href="#demo">Demo</a>
+                <a href="#demo" onClick={(e) => handleScrollTo(e, 'demo')}>Demo</a>
               </li>
             </ul>
             <div className="acts">
@@ -375,24 +416,24 @@ export default function Landing() {
       <main>
         {/* TENTANG DISCERE */}
         <section className="wrap" id="tentang">
-          <h2 className="sec hand">
+          <h2 className="sec hand reveal">
             Apa Itu <u>Discere?</u>
           </h2>
           <div className="what">
-            <div className="dict">
+            <div className="dict reveal slide-left">
               <small>kata kerja, bahasa Latin</small>
               <div className="hand w">Discere</div>
               <div className="pr">/dis·ke·re/</div>
               <div className="hand df">belajar.</div>
             </div>
             <div>
-              <p>
+              <p className="reveal">
                 Discere adalah platform kelas interaktif untuk guru. Jelaskan materi di papan tulis
                 digital, lalu uji pemahaman siswa lewat game lomba 17 Agustusan yang soalnya berasal
                 dari materi itu sendiri.
               </p>
               <ul className="pil">
-                <li>
+                <li className="reveal stagger-1">
                   <svg className="ico" viewBox="0 0 48 48">
                     <use href="#ic-tv" />
                   </svg>
@@ -401,7 +442,7 @@ export default function Landing() {
                     <span>Tak terbatas, bisa ditulis, digambar, dan dibagikan lewat tautan.</span>
                   </div>
                 </li>
-                <li>
+                <li className="reveal stagger-2">
                   <svg className="ico" viewBox="0 0 48 48">
                     <use href="#ic-pad" />
                   </svg>
@@ -410,7 +451,7 @@ export default function Landing() {
                     <span>Tarik tambang, balap karung, dan lainnya, dengan soal dari materimu.</span>
                   </div>
                 </li>
-                <li>
+                <li className="reveal stagger-3">
                   <svg className="ico" viewBox="0 0 48 48">
                     <use href="#ic-book" />
                   </svg>
@@ -426,11 +467,11 @@ export default function Landing() {
 
         {/* FITUR UTAMA */}
         <section className="wrap" id="fitur">
-          <h2 className="sec hand">
+          <h2 className="sec hand reveal">
             Fitur <u>Utama Discere</u>
           </h2>
           <div className="feat">
-            <article className="card">
+            <article className="card reveal scale-up stagger-1">
               <div>
                 <svg className="ico" viewBox="0 0 48 48">
                   <use href="#ic-tv" />
@@ -506,14 +547,14 @@ export default function Landing() {
               </div>
             </article>
 
-            <article className="card">
+            <article className="card reveal scale-up stagger-2">
               <div>
                 <svg className="ico" viewBox="0 0 48 48">
                   <use href="#ic-pad" />
                 </svg>
                 <h3>Template Permainan</h3>
                 <p>Berbagai permainan edukatif untuk membuat kelas lebih hidup dan aktif.</p>
-                <a className="btn sm dark" href="#template">
+                <a className="btn sm dark" href="#template" onClick={(e) => handleScrollTo(e, 'template')}>
                   Lihat Template →
                 </a>
               </div>
@@ -599,14 +640,14 @@ export default function Landing() {
             <path d="M30 4v14M26 18h8l-1 30H27zM22 48h16M20 52h20l-4 8H24zM27 60l-3 50M33 60l3 50M14 110h32M8 118h44M4 126h52" />
           </svg>
           <div className="wrap">
-            <h2 className="hand">
+            <h2 className="hand reveal">
               Belajar Serius, <span>Bermain Gembira!</span>
             </h2>
-            <p className="sub">
+            <p className="sub reveal">
               Coba berbagai template permainan bertema 17 Agustus yang seru dan edukatif!
             </p>
             <div className="games">
-              <div className="gm">
+              <div className="gm reveal scale-up stagger-1">
                 <svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice">
                   <use href="#bg" width="200" height="200" />
                   <use
@@ -640,7 +681,7 @@ export default function Landing() {
                 <span className="tag">Balap Karung</span>
                 <span className="lbl">Balap Karung</span>
               </div>
-              <div className="gm">
+              <div className="gm reveal scale-up stagger-2">
                 <svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice">
                   <use href="#bg" width="200" height="200" />
                   <path d="M8 116H192" stroke="#8a5a2b" strokeWidth="5" />
@@ -681,7 +722,7 @@ export default function Landing() {
                 <span className="tag">Tarik Tambang</span>
                 <span className="lbl">Tarik Tambang</span>
               </div>
-              <div className="gm">
+              <div className="gm reveal scale-up stagger-3">
                 <svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice">
                   <use href="#bg" width="200" height="200" />
                   <path d="M100 24V84" stroke="#444" strokeWidth="2" />
@@ -706,7 +747,7 @@ export default function Landing() {
                 <span className="tag">Makan Kerupuk</span>
                 <span className="lbl">Makan Kerupuk</span>
               </div>
-              <div className="gm">
+              <div className="gm reveal scale-up stagger-4">
                 <svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice">
                   <use href="#bg" width="200" height="200" />
                   <rect x="95" y="40" width="10" height="140" fill="#8a5a2b" />
@@ -750,11 +791,11 @@ export default function Landing() {
 
         {/* CARA KERJA */}
         <section className="wrap" id="cara-kerja">
-          <h2 className="sec hand" style={{ fontSize: '34px' }}>
+          <h2 className="sec hand reveal" style={{ fontSize: '34px' }}>
             Cara Menggunakan <u>Discere</u>
           </h2>
           <ol className="steps">
-            <li>
+            <li className="reveal stagger-1">
               <span className="n">1</span>
               <svg viewBox="0 0 48 48">
                 <use href="#ic-book" />
@@ -762,7 +803,7 @@ export default function Landing() {
               <h4>Pilih Materi Pembelajaran</h4>
               <p>Guru menyiapkan materi yang akan diajarkan.</p>
             </li>
-            <li>
+            <li className="reveal stagger-2">
               <span className="n">2</span>
               <svg viewBox="0 0 48 48">
                 <use href="#ic-tv" />
@@ -770,7 +811,7 @@ export default function Landing() {
               <h4>Mulai Mengajar</h4>
               <p>Gunakan papan tulis digital untuk menjelaskan materi.</p>
             </li>
-            <li>
+            <li className="reveal stagger-3">
               <span className="n">3</span>
               <svg viewBox="0 0 48 48">
                 <use href="#ic-pad" />
@@ -778,7 +819,7 @@ export default function Landing() {
               <h4>Pilih Permainan</h4>
               <p>Gunakan template permainan untuk menguji pemahaman siswa.</p>
             </li>
-            <li>
+            <li className="reveal stagger-4">
               <span className="n">4</span>
               <svg viewBox="0 0 48 48">
                 <use href="#ic-cup" />
@@ -822,12 +863,12 @@ export default function Landing() {
             <path d="M1347 15L1381 15L1364 51Z" fill="#f6f1e6" />
           </svg>
           <div className="wrap">
-            <h2 className="hand">
+            <h2 className="hand reveal">
               Kenapa Harus <span>Discere?</span>
             </h2>
-            <p className="sub">Enam alasan Discere cocok untuk kelasmu.</p>
+            <p className="sub reveal">Enam alasan Discere cocok untuk kelasmu.</p>
             <div className="cmp">
-              <div className="bad">
+              <div className="bad reveal slide-left">
                 <h3 className="hand">Kelas biasa</h3>
                 <ul>
                   <li>Slide di satu aplikasi, kuis di aplikasi lain</li>
@@ -837,7 +878,7 @@ export default function Landing() {
                   <li>Sulit tahu siapa yang belum paham</li>
                 </ul>
               </div>
-              <div className="good">
+              <div className="good reveal slide-right">
                 <h3 className="hand">Kelas dengan Discere</h3>
                 <ul>
                   <li>Menjelaskan dan menguji di satu layar</li>
@@ -849,7 +890,7 @@ export default function Landing() {
               </div>
             </div>
             <div className="perks">
-              <div className="perk">
+              <div className="perk reveal stagger-1">
                 <svg className="ico" viewBox="0 0 48 48">
                   <use href="#ic-tv" />
                 </svg>
@@ -859,7 +900,7 @@ export default function Landing() {
                   Tidak perlu berpindah aplikasi.
                 </p>
               </div>
-              <div className="perk">
+              <div className="perk reveal stagger-2">
                 <svg className="ico" viewBox="0 0 48 48">
                   <use href="#ic-spark" />
                 </svg>
@@ -869,7 +910,7 @@ export default function Landing() {
                   berlabel “Dibuat AI” dan kamu yang meninjau sebelum dipakai.
                 </p>
               </div>
-              <div className="perk">
+              <div className="perk reveal stagger-3">
                 <svg className="ico" viewBox="0 0 48 48">
                   <use href="#ic-pad" />
                 </svg>
@@ -879,7 +920,7 @@ export default function Landing() {
                   pendiam pun ikut berkontribusi.
                 </p>
               </div>
-              <div className="perk">
+              <div className="perk reveal stagger-1">
                 <svg className="ico" viewBox="0 0 48 48">
                   <use href="#ic-phone" />
                 </svg>
@@ -889,7 +930,7 @@ export default function Landing() {
                   cocok untuk kelas yang tidak boleh membawa HP.
                 </p>
               </div>
-              <div className="perk">
+              <div className="perk reveal stagger-2">
                 <svg className="ico" viewBox="0 0 48 48">
                   <use href="#ic-chart" />
                 </svg>
@@ -899,7 +940,7 @@ export default function Landing() {
                   bagian mana yang perlu diulang.
                 </p>
               </div>
-              <div className="perk">
+              <div className="perk reveal stagger-3">
                 <svg className="ico" viewBox="0 0 48 48">
                   <use href="#ic-lock" />
                 </svg>
@@ -924,12 +965,12 @@ export default function Landing() {
 
         {/* DEMO INTERAKTIF */}
         <section className="wrap" id="demo">
-          <h2 className="sec hand">
+          <h2 className="sec hand reveal">
             Lihat <u>Discere</u> Bekerja
           </h2>
           <div className="dm">
             <div>
-              <div className="bd" id="bd" ref={boardRef}>
+              <div className="bd reveal slide-left" id="bd" ref={boardRef}>
                 <div className="hand nt">Papan tulis kelas 5</div>
                 <div className="hand q" id="q" ref={questionRef}>
                   12 × 15 = ?
@@ -970,7 +1011,7 @@ export default function Landing() {
                 </button>
               </p>
             </div>
-            <div>
+            <div className="reveal slide-right">
               <p>
                 Di Discere, guru cukup <b>melingkari soal</b> di papan tulis. Jawaban, rumus, dan
                 langkahnya langsung muncul di samping soal.
@@ -985,32 +1026,32 @@ export default function Landing() {
 
         {/* FAQ */}
         <section className="wrap" id="faq">
-          <h2 className="sec hand">
+          <h2 className="sec hand reveal">
             Pertanyaan <u>yang Sering Muncul</u>
           </h2>
           <div className="faq">
-            <details>
+            <details className="reveal stagger-1">
               <summary>Apakah Discere gratis?</summary>
               <p>Versi ini gratis dipakai guru.</p>
             </details>
-            <details>
+            <details className="reveal stagger-2">
               <summary>Apakah perlu internet?</summary>
               <p>
                 Kelas dan game berjalan di jaringan lokal. Hanya fitur AI yang butuh internet.
               </p>
             </details>
-            <details>
+            <details className="reveal stagger-3">
               <summary>Apakah siswa harus punya akun?</summary>
               <p>Tidak. Siswa masuk dengan token dari guru dan nama panggilan.</p>
             </details>
-            <details>
+            <details className="reveal stagger-4">
               <summary>Apakah data kami aman?</summary>
               <p>
                 Admin hanya melihat angka total. Papan, soal, dan hasil sesi hanya bisa dibuka guru
                 pemiliknya.
               </p>
             </details>
-            <details>
+            <details className="reveal stagger-5">
               <summary>Bagaimana kalau siswa tidak punya HP?</summary>
               <p>
                 Pakai Mode Solo. Perwakilan tim maju dan menyentuh jawaban di layar guru.
@@ -1042,7 +1083,7 @@ export default function Landing() {
             />
           </svg>
           <div className="wrap">
-            <div className="cta" id="mulai">
+            <div className="cta reveal scale-up" id="mulai">
               <svg
                 className="plane"
                 viewBox="0 0 110 50"
@@ -1084,7 +1125,7 @@ export default function Landing() {
         <div className="wrap">
           <div className="ftg">
             <div>
-              <a className="logo" href="#beranda">
+              <a className="logo" href="#beranda" onClick={(e) => handleScrollTo(e, 'beranda')}>
                 <svg width="36" height="36" style={{ color: 'var(--chalk)' }}>
                   <use href="#ic-book" />
                 </svg>
@@ -1099,22 +1140,22 @@ export default function Landing() {
               <h5>Jelajahi</h5>
               <ul>
                 <li>
-                  <a href="#beranda">Beranda</a>
+                  <a href="#beranda" onClick={(e) => handleScrollTo(e, 'beranda')}>Beranda</a>
                 </li>
                 <li>
-                  <a href="#tentang">Tentang</a>
+                  <a href="#tentang" onClick={(e) => handleScrollTo(e, 'tentang')}>Tentang</a>
                 </li>
                 <li>
-                  <a href="#fitur">Fitur</a>
+                  <a href="#fitur" onClick={(e) => handleScrollTo(e, 'fitur')}>Fitur</a>
                 </li>
                 <li>
-                  <a href="#template">Template</a>
+                  <a href="#template" onClick={(e) => handleScrollTo(e, 'template')}>Template</a>
                 </li>
                 <li>
-                  <a href="#cara-kerja">Cara Kerja</a>
+                  <a href="#cara-kerja" onClick={(e) => handleScrollTo(e, 'cara-kerja')}>Cara Kerja</a>
                 </li>
                 <li>
-                  <a href="#demo">Demo</a>
+                  <a href="#demo" onClick={(e) => handleScrollTo(e, 'demo')}>Demo</a>
                 </li>
               </ul>
             </div>
@@ -1128,7 +1169,7 @@ export default function Landing() {
                   <Link to="/masuk">Masuk</Link>
                 </li>
                 <li>
-                  <a href="#faq">Pertanyaan umum</a>
+                  <a href="#faq" onClick={(e) => handleScrollTo(e, 'faq')}>Pertanyaan umum</a>
                 </li>
               </ul>
             </div>

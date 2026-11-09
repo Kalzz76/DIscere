@@ -34,6 +34,23 @@ Tagline: *"Belajar seru, tarik kemenangan bersama."*
   - **Layar Host Proyektor Interaktif:** Menampilkan kode PIN raksasa yang terbaca dari baris belakang kelas, QR code jelas, daftar peserta live, visualisasi tali gerak mulus, dan kartu skor live.
   - **Privasi Terjamin:** Sesuai prinsip *privacy by design*, nama siswa hanya ada di memori RAM server selama sesi berlangsung dan tidak pernah disimpan permanen ke database SQLite.
   - **Dukungan Reconnect Tangguh:** Pemain yang terputus atau me-refresh peramban dapat langsung bergabung kembali ke tim dan soal aktifnya melalui kredensial sesi lokal (`sessionStorage`).
+- **Game Multiplayer Makan Kerupuk Challenge (Individu 17 Agustus):**
+  - **Konsep Permainan Tradisional Digital:** Setiap siswa mendapatkan 1 kerupuk virtual (kondisi awal 100%) yang tergantung pada tali rafia. Siswa menjawab soal kuis dan setiap jawaban benar memberikan kesempatan menggigit kerupuk virtual.
+  - **Sistem Gacha Keberuntungan di Backend (Crypto-Safe):** Besaran gigitan ditentukan secara acak murni di server menggunakan `crypto.randomInt` berdasarkan konfigurasi probabilitas guru:
+    - *Gigitan Besar:* Kerupuk berkurang 40%, Skor +40 pt
+    - *Gigitan Sedang:* Kerupuk berkurang 25%, Skor +25 pt
+    - *Gigitan Kecil:* Kerupuk berkurang 10%, Skor +10 pt
+    - *Gigitan Sangat Kecil:* Kerupuk berkurang 5%, Skor +5 pt
+    - *Tidak Kena (Zonk):* Kerupuk berkurang 0%, Skor +0 pt
+  - **Sistem Skoring Adil & Bertingkat:** Jawaban benar memberikan poin dasar +100 pt, bonus streak +50 pt setiap kelipatan 3 jawaban benar (3, 6, 9, dst.), dan bonus penyelesaian +100 pt saat kerupuk pertama kali habis (0%).
+  - **Aturan Batas Kerupuk:** Kerupuk tersisa di-clamp pada batas minimum 0% (tidak pernah minus).
+  - **Leaderboard 4 Kriteria Penentu Urutan:**
+    1. Total Skor Tertinggi
+    2. Jumlah Jawaban Benar Terbanyak
+    3. Persentase Kerupuk Tersisa Paling Sedikit
+    4. Waktu Penyelesaian Paling Cepat
+  - **Fleksibilitas Konfigurasi Guru:** Guru dapat memilih preset resmi (Normal: 15/25/35/20/5, Mudah: 35/30/20/12/3, Sulit: 5/15/30/35/15) atau mengatur slider kustom dengan validasi ketat total tepat 100%. Dilengkapi opsi kapasitas peserta (10-100), durasi per soal (10-30 detik), dan izin siswa susulan (*late join*).
+  - **Layar Host Proyektor & Visual Siswa Mobile:** Menampilkan animasi interaktif kerupuk bergoyang, efek remahan renyah, sound effects Web Audio API (*crunch* dan *zonk*), live activity feed, serta podium juara 1, 2, 3 dengan rekapitulasi poin kelas lengkap.
 - **Hasil Pertandingan & Evaluasi Materi Guru:**
   - **Layar Hasil (`/guru/sesi/:id/hasil`):** Banner perayaan pemenang (Merah, Putih, atau Seri), skor akhir, log perjalanan soal, dan tombol *Main Lagi* (membuat sesi baru dari template sama dengan kondisi awal bersih).
   - **Riwayat & Analisis Kelemahan Siswa:** Penyimpanan otomatis ke basis data via transaksi Prisma, dilengkapi modal detail evaluasi yang menyorot **soal yang paling sering dijawab salah** agar guru mengetahui topik yang perlu dibahas ulang.
@@ -198,6 +215,49 @@ flowchart TD
         MULTI_MGR -->|Skor & Pemenang| DB_RES
         MULTI_MGR -->|Statistik Agregat Per Soal| DB_STAT
     end
+```
+
+---
+
+## Diagram Arsitektur Game Makan Kerupuk Challenge
+
+```mermaid
+flowchart TD
+    subgraph Klien_Guru [Layar Host Proyektor Guru]
+        HOST["LayarHostKerupuk (/guru/sesi/:id)"]
+        CONF["ModalKonfigurasiKerupuk (Preset & Validasi 100%)"]
+    end
+
+    subgraph Klien_Siswa [Perangkat Siswa / Ponsel Pintar]
+        SISWA["MainKerupuk (/main)"]
+        VIRTUAL["KerupukVirtual (SVG, Tali Goyang & Chomp)"]
+    end
+
+    subgraph Server_Backend [Server Node.js & Socket.IO]
+        WS_GATEWAY["Socket.IO Real-Time Gateway"]
+        KERUPUK_MGR["KerupukManager (In-Memory State Store)"]
+        GACHA_ENGINE["MakanKerupuk Rules & Crypto-Safe Gacha"]
+    end
+
+    subgraph Database_Store [Database SQLite Prisma]
+        DB_SESS[(sessions)]
+        DB_RES[(session_results)]
+        DB_STAT[(question_stats)]
+    end
+
+    CONF -->|POST /api/sesi config| KERUPUK_MGR
+    HOST -->|sesi:host_join| WS_GATEWAY
+    SISWA -->|sesi:gabung PIN & Nama| WS_GATEWAY
+    SISWA -->|jawab:kirim A/B/C| WS_GATEWAY
+    WS_GATEWAY -->|Hitung Skor & Gacha| GACHA_ENGINE
+    GACHA_ENGINE -->|Update Peserta State| KERUPUK_MGR
+    KERUPUK_MGR -->|Broadcast kerupuk:update & leaderboard| WS_GATEWAY
+    WS_GATEWAY -->|Live Leaderboard & Ticker| HOST
+    WS_GATEWAY -->|Feedback, Sisa Kerupuk & Gacha Card| SISWA
+    SISWA -->|Render Kerupuk Tersisa| VIRTUAL
+    KERUPUK_MGR -->|Selesai: Simpan Transaksi| DB_SESS
+    KERUPUK_MGR -->|Podium & Juara| DB_RES
+    KERUPUK_MGR -->|Statistik Jawaban| DB_STAT
 ```
 
 ---

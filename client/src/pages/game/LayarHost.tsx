@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router';
 import { apiRequest } from '../../lib/api';
 import LayarHostSolo from './LayarHostSolo';
 import LayarHostMulti from './LayarHostMulti';
+import LayarHostKerupuk from './LayarHostKerupuk';
 import { Loader2 } from 'lucide-react';
 import { Card, Button } from '../../components';
 
@@ -10,6 +11,7 @@ export default function LayarHost() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [mode, setMode] = useState<'solo' | 'multi' | null>(null);
+  const [game, setGame] = useState<'tarik_tambang' | 'makan_kerupuk'>('tarik_tambang');
   const [loading, setLoading] = useState(true);
   const [errorPesan, setErrorPesan] = useState<string | null>(null);
 
@@ -17,8 +19,11 @@ export default function LayarHost() {
     async function checkSessionMode() {
       if (!id) return;
       try {
-        const res = await apiRequest<{ session: { mode: 'solo' | 'multi' } }>(`/sesi/${id}`);
+        const res = await apiRequest<{ session: { mode: 'solo' | 'multi'; game?: 'tarik_tambang' | 'makan_kerupuk' } }>(`/sesi/${id}`);
         setMode(res.session.mode || 'solo');
+        if (res.session.game === 'makan_kerupuk') {
+          setGame('makan_kerupuk');
+        }
       } catch (err: any) {
         setErrorPesan(err.pesan || 'Gagal memeriksa sesi permainan.');
       } finally {
@@ -48,6 +53,10 @@ export default function LayarHost() {
         </Card>
       </div>
     );
+  }
+
+  if (game === 'makan_kerupuk') {
+    return <LayarHostKerupuk />;
   }
 
   if (mode === 'multi') {
