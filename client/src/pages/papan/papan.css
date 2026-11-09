@@ -358,17 +358,21 @@
   height: 44px;
   min-width: 44px;
   min-height: 44px;
-  background: #eef1fa;
-  color: #1e2538;
+  background: transparent;
+  color: var(--mu);
   border-radius: 12px;
   margin: 0 6px 0 2px;
+  transition: 0.15s;
 }
 .papan #gm:hover {
-  background: #fff;
-  color: #111;
+  background: var(--p2);
+  color: var(--tx);
 }
+.papan #gm.active,
 .papan #gm.on {
-  box-shadow: 0 0 0 2px var(--pu);
+  background: var(--pu);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(155, 23, 245, 0.4);
 }
 
 .papan #av {
