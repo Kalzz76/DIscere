@@ -387,35 +387,217 @@ export default function MainSiswa() {
   };
 
   // ==========================================
-  // RENDER STAGE 1: FORM GABUNG (KAHOOT / QUIZIZZ STYLE)
+  // RENDER STAGE 1: FORM GABUNG (DESAIN KHUSUS JOIN TANPA MANUSIA)
   // ==========================================
   if (stage === 'GABUNG') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#183a2c] via-[#143226] to-[#0c1f17] flex flex-col justify-between items-center p-4 py-8">
-        <div className="w-full max-w-sm flex flex-col items-center my-auto">
-          {/* Logo Brand */}
-          <div className="flex items-center gap-2.5 mb-7 text-white">
+      <div className="relative min-h-screen bg-[#1a3c2b] text-white flex flex-col justify-center items-center p-4 overflow-hidden select-none">
+        {/* Latar Tekstur Papan Tulis */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-30"
+          style={{
+            backgroundImage:
+              'radial-gradient(ellipse at 50% 40%, rgba(255,255,255,0.12) 0%, transparent 70%)',
+          }}
+        />
+
+        {/* DOODLE 1: Pesawat Kertas (Kiri Atas) */}
+        <svg
+          className="absolute top-8 left-6 sm:left-14 w-28 h-28 text-white/80 pointer-events-none"
+          viewBox="0 0 110 110"
+          fill="none"
+          aria-hidden="true"
+        >
+          {/* Garis lintasan putus-putus */}
+          <path
+            d="M8 92 C 15 55, 52 42, 34 22 C 22 10, 6 32, 28 50 C 50 62, 70 46, 84 32"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeDasharray="3 4"
+            strokeLinecap="round"
+          />
+          {/* Pesawat kertas lipat */}
+          <path
+            d="M84 32 L 104 14 L 68 40 L 76 52 L 84 32 Z"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            fill="none"
+          />
+          <path d="M104 14 L 74 46" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+
+        {/* DOODLE 2: Lampu Ide / Bohlam Kapur (Kanan Atas) */}
+        <svg
+          className="absolute top-6 right-6 sm:right-16 w-28 h-28 text-white/85 pointer-events-none"
+          viewBox="0 0 100 100"
+          fill="none"
+          aria-hidden="true"
+        >
+          {/* Kontur bohlam */}
+          <path
+            d="M38 56 C 30 48, 28 38, 32 27 C 38 16, 62 16, 68 27 C 72 38, 70 48, 62 56 L 62 64 L 38 64 Z"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {/* Drat ulir bohlam */}
+          <path d="M41 68 H 59 M43 72 H 57 M46 76 H 54" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+          {/* Filamen di dalam */}
+          <path
+            d="M44 42 C 44 34, 56 34, 56 42 L 50 49 Z"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {/* Pancaran sinar kapur */}
+          <path d="M50 8 V 2 M26 16 L 20 10 M74 16 L 80 10 M14 36 L 7 36 M86 36 L 93 36" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+
+        {/* DOODLE 3: Bintang Kapur (Kiri & Kanan) */}
+        <svg
+          className="absolute top-[45%] left-6 sm:left-20 w-8 h-8 text-white/70 pointer-events-none"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
+        </svg>
+        <svg
+          className="absolute top-[43%] right-8 sm:right-24 w-7 h-7 text-white/70 pointer-events-none"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
+        </svg>
+
+        {/* DOODLE 4: Tumpukan Buku (Kiri Bawah) */}
+        <svg
+          className="absolute bottom-8 sm:bottom-12 left-3 sm:left-10 w-32 sm:w-44 h-24 sm:h-32 pointer-events-none z-20"
+          viewBox="0 0 140 100"
+          fill="none"
+          aria-hidden="true"
+        >
+          {/* Buku Bawah (Cokelat terang) */}
+          <rect x="10" y="65" width="120" height="20" rx="3" fill="#6d4c28" />
+          <rect x="25" y="68" width="102" height="14" fill="#f4ecd9" />
+          <rect x="8" y="63" width="20" height="24" rx="3" fill="#54371a" />
+          {/* Buku Tengah (Cokelat gelap) */}
+          <rect x="18" y="45" width="105" height="18" rx="3" fill="#443525" />
+          <rect x="30" y="48" width="90" height="12" fill="#f4ecd9" />
+          <rect x="15" y="43" width="18" height="22" rx="3" fill="#2d2215" />
+          {/* Buku Atas (Hijau tua) */}
+          <rect x="8" y="25" width="95" height="18" rx="3" fill="#2a5840" />
+          <rect x="20" y="28" width="80" height="12" fill="#f4ecd9" />
+          <rect x="5" y="23" width="18" height="22" rx="3" fill="#1b3d2b" />
+        </svg>
+
+        {/* PITA GELOMBANG & TEPI KAYU (Bawah) */}
+        <div className="absolute bottom-0 left-0 right-0 pointer-events-none overflow-hidden h-20 sm:h-24 z-10">
+          <div className="absolute bottom-0 left-0 right-0 h-6 bg-[#4c3420] border-t-2 border-[#68472b]" />
+          <svg
+            className="absolute bottom-2 left-0 w-full h-16 sm:h-20"
+            viewBox="0 0 1440 90"
+            preserveAspectRatio="none"
+            fill="none"
+            aria-hidden="true"
+          >
+            {/* Kain Putih */}
+            <path
+              d="M0 45 C 180 15, 360 70, 540 40 C 720 10, 900 65, 1080 35 C 1260 10, 1380 40, 1440 50 V 90 H 0 Z"
+              fill="#f5ede0"
+            />
+            {/* Pita Merah */}
+            <path
+              d="M0 25 C 180 -5, 360 50, 540 20 C 720 -10, 900 45, 1080 15 C 1260 -10, 1380 20, 1440 30 L 1440 50 C 1380 40, 1260 10, 1080 35 C 900 65, 720 10, 540 40 C 360 70, 180 15, 0 45 Z"
+              fill="#c62828"
+            />
+            <path
+              d="M-10 60 C 60 20, 140 30, 220 80 L 170 90 C 100 45, 30 40, -10 75 Z"
+              fill="#9e2020"
+            />
+            <path
+              d="M1220 80 C 1300 30, 1380 20, 1450 60 L 1450 75 C 1380 40, 1300 45, 1220 90 Z"
+              fill="#9e2020"
+            />
+          </svg>
+        </div>
+
+        {/* KONTEN UTAMA KARTU JOIN */}
+        <div className="relative z-20 w-full max-w-[420px] flex flex-col items-center my-auto pb-10">
+          {/* Logo Discere & Percikan Kapur Kuning */}
+          <div className="relative flex items-center justify-center gap-2 mb-7 select-none">
+            {/* Ikon Buku */}
             <svg
-              className="w-9 h-9 text-[#f4ecd9]"
+              className="w-10 h-10 text-white drop-shadow-md"
               viewBox="0 0 48 48"
               fill="none"
               stroke="currentColor"
               strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"
+              aria-hidden="true"
             >
               <path d="M6 38c6 0 12-3 18-3s12 3 18 3V8c-6 0-12-3-18-3S12 8 6 8v30zM24 5v30" />
             </svg>
+            {/* Tulisan Discere */}
             <span
-              className="text-4xl font-extrabold tracking-tight font-['Caveat',sans-serif]"
-              style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}
+              className="text-4xl sm:text-5xl font-extrabold text-white tracking-wide font-['Caveat',sans-serif]"
+              style={{ textShadow: '0 2px 6px rgba(0,0,0,0.5)' }}
             >
               Discere
             </span>
+            {/* 3 Percikan Kapur Kuning di kanan logo */}
+            <svg
+              className="w-8 h-8 text-[#f0ba35] -mt-5 -ml-1 pointer-events-none"
+              viewBox="0 0 30 30"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M6 22 L 18 10 M14 26 L 24 18 M2 16 L 14 6" />
+            </svg>
+            {/* Coretan Lengkung Kuning di Bawah Logo */}
+            <svg
+              className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-40 h-3 text-[#f0ba35] pointer-events-none"
+              viewBox="0 0 120 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.8"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M4 8 Q 60 2 116 7" />
+            </svg>
           </div>
 
-          {/* Clean White Card (Kahoot / Quizizz style) */}
-          <div className="w-full bg-white rounded-2xl p-6 sm:p-7 shadow-2xl border border-slate-100 text-center">
+          {/* Kartu Formulir Kertas (Paper Card) */}
+          <div className="relative w-full bg-[#f6efe2] rounded-[28px] p-6 sm:p-8 shadow-[0_20px_45px_rgba(0,0,0,0.45)] border-2 border-[#e2d5c2] text-center">
+            {/* Percikan Kapur Kuning di Samping Kiri Kartu */}
+            <svg
+              className="absolute -left-6 sm:-left-8 top-12 w-6 h-10 text-[#f0ba35] pointer-events-none select-none"
+              viewBox="0 0 24 36"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M22 6 L 8 12 M20 18 L 4 20 M22 30 L 8 26" />
+            </svg>
+
+            {/* Pesan Error */}
             {formError && (
               <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs font-semibold flex items-center justify-center gap-2">
                 <ShieldAlert className="w-4 h-4 shrink-0" />
@@ -423,11 +605,17 @@ export default function MainSiswa() {
               </div>
             )}
 
+            {/* Pembatas Garis dengan Teks di Tengah */}
+            <div className="flex items-center gap-3 mb-5 px-1">
+              <div className="flex-1 h-[1.5px] bg-[#beb4a0]" />
+              <span className="text-sm font-black uppercase tracking-widest text-[#2c3d31]">
+                {joinStep === 'PIN' ? 'PIN' : 'NICKNAME'}
+              </span>
+              <div className="flex-1 h-[1.5px] bg-[#beb4a0]" />
+            </div>
+
             {joinStep === 'PIN' ? (
               <form onSubmit={handleNextToName} className="space-y-4">
-                <div className="text-xs font-black uppercase tracking-wider text-slate-600">
-                  PIN
-                </div>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -440,21 +628,18 @@ export default function MainSiswa() {
                     if (formError) setFormError(null);
                   }}
                   autoFocus
-                  className="w-full px-4 py-3.5 text-center text-2xl font-black tracking-widest text-slate-900 bg-white border-2 border-slate-300 rounded-xl focus:outline-none focus:border-slate-900 transition-colors placeholder:text-slate-300 placeholder:font-normal placeholder:tracking-normal placeholder:text-base"
+                  className="w-full py-3.5 px-4 text-center text-2xl font-black tracking-widest text-[#163a2b] bg-[#ece4d5] border-2 border-[#243e2f] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#163a2b]/30 transition-all placeholder:text-[#8e988f] placeholder:font-bold placeholder:text-lg placeholder:tracking-normal"
                   required
                 />
                 <button
                   type="submit"
-                  className="w-full py-3.5 text-base font-extrabold text-white bg-slate-900 hover:bg-slate-800 active:scale-[0.99] rounded-xl shadow-md transition-all cursor-pointer"
+                  className="w-full py-3.5 px-4 text-xl font-bold text-white bg-[#173b2b] hover:bg-[#102c20] active:scale-[0.99] rounded-2xl shadow-md transition-all cursor-pointer font-['Caveat',sans-serif] tracking-wider"
                 >
                   Join
                 </button>
               </form>
             ) : (
               <form onSubmit={handleGabung} className="space-y-4">
-                <div className="text-xs font-black uppercase tracking-wider text-slate-600">
-                  NICKNAME
-                </div>
                 <input
                   type="text"
                   maxLength={20}
@@ -465,18 +650,18 @@ export default function MainSiswa() {
                     if (formError) setFormError(null);
                   }}
                   autoFocus
-                  className="w-full px-4 py-3.5 text-center text-lg font-bold text-slate-900 bg-white border-2 border-slate-300 rounded-xl focus:outline-none focus:border-slate-900 transition-colors placeholder:text-slate-300 placeholder:font-normal"
+                  className="w-full py-3.5 px-4 text-center text-xl font-bold text-[#163a2b] bg-[#ece4d5] border-2 border-[#243e2f] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#163a2b]/30 transition-all placeholder:text-[#8e988f] placeholder:font-bold"
                   required
                 />
                 <button
                   type="submit"
                   disabled={isJoining}
-                  className="w-full py-3.5 text-base font-extrabold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-60 active:scale-[0.99] rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3.5 px-4 text-xl font-bold text-white bg-[#173b2b] hover:bg-[#102c20] disabled:opacity-60 active:scale-[0.99] rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer font-['Caveat',sans-serif] tracking-wider"
                 >
                   {isJoining ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Connecting...
+                      Menghubungkan...
                     </>
                   ) : (
                     'Join'
@@ -489,7 +674,7 @@ export default function MainSiswa() {
                       setJoinStep('PIN');
                       setFormError(null);
                     }}
-                    className="text-xs font-semibold text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                   >
                     ← Ganti PIN ({tokenInput || '......'})
                   </button>
@@ -497,11 +682,27 @@ export default function MainSiswa() {
               </form>
             )}
           </div>
-        </div>
 
-        {/* Clean Minimal Footer */}
-        <div className="text-center text-xs text-white/40 font-medium">
-          Discere • Belajar Lebih Menyenangkan
+          {/* Tulisan Halus di Bawah Kartu dengan Lengkungan Kuning */}
+          <div className="mt-6 flex flex-col items-center select-none">
+            <span
+              className="text-lg sm:text-xl font-bold text-[#f4ecd9] tracking-wide font-['Caveat',sans-serif]"
+              style={{ textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}
+            >
+              Discere • Belajar Lebih Menyenangkan
+            </span>
+            <svg
+              className="w-48 h-3 text-[#f0ba35] mt-1 pointer-events-none"
+              viewBox="0 0 140 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M4 6 Q 35 1 70 6 T 136 5" />
+            </svg>
+          </div>
         </div>
       </div>
     );
