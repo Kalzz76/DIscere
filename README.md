@@ -129,6 +129,16 @@ Tagline: *"Belajar seru, tarik kemenangan bersama."*
    ```bash
    cp .env.example .env
    ```
+
+   | Variabel .env | Deskripsi | Default / Contoh |
+   | ------------- | --------- | ---------------- |
+   | `PORT` | Port server backend | `3000` |
+   | `DATABASE_URL` | Koneksi SQLite lokal | `file:./dev.db` |
+   | `JWT_SECRET` | Kunci tanda tangan cookie sesi | Kunci acak aman |
+   | `AI_API_KEY` | Kunci API Gemini / Claude (opsional) | Kosong (fallback lokal) |
+   | `AI_MODEL` | Model AI yang digunakan | `gemini-1.5-flash` |
+   | `AI_BATAS_HARIAN` | Batas harian pembuatan soal & tanya AI per guru | `30` |
+   | `AI_BATAS_OBROL` | Batas harian obrolan AI papan tulis per guru | `40` |
 3. **Migrasi Database:**
    Jalankan migrasi Prisma untuk menyiapkan skema database SQLite lokal:
    ```bash
@@ -452,6 +462,7 @@ Sesuai ketentuan transparansi kompetisi LOGICODIX 2026:
 2. **AI sebagai Fitur Aplikasi:**
    - **Pembuat Soal dari Teks Materi (`POST /api/ai/soal`):** Guru menginput materi, AI merespons dalam JSON terstruktur yang divalidasi dengan skema Zod (tepat 3 pilihan jawaban, 1 kunci jawaban, dan penjelasan materi).
    - **Tanya AI Papan Tulis (`POST /api/ai/jawab`):** Guru melingkari soal/rumus di kanvas dengan alat Tanya AI (lasso putus-putus kuning, pintasan A). Potongan area objek kanvas dirender ulang berlatar putih dengan resolusi optimal melalui `potongArea()` (PNG base64 maks 6 MB body limit), dianalisis server secara aman tanpa mengekspos kunci API ke browser. Solusi disajikan sebagai kartu teks kanvas berlatar kuning lembut lengkap dengan badge *"Dibuat AI"* di sudutnya. Kartu memuat format terstruktur (*Jawaban, Rumus, Langkah*) dalam teks polos tanpa markdown atau LaTeX yang terbungkus rapi (~38 karakter per baris), dapat dipindah/diedit/dihapus seperti objek lain, dan masuk dalam riwayat undo kanvas.
+   - **Obrolan Asisten AI di Papan Tulis (`POST /api/ai/obrol`):** Bar prompt melayang di bagian bawah kanvas (`#pr`) dan panel obrolan di atasnya (`#chat`). Guru dapat bertanya seputar materi pelajaran saat mengajar, melampirkan gambar (diperkecil otomatis maks 1568 px JPEG 0.85), berkas PDF, file teks (.txt, .md, .csv, .json, kode sumber, dll), atau tangkapan papan saat ini. Jawaban AI dapat disalin langsung ke tengah kanvas sebagai catatan berlabel *"Dibuat AI"*. Riwayat obrolan hanya hidup di memori klien (hilang saat halaman dimuat ulang, tidak disimpan ke database) dan pesan serta lampiran tidak disimpan ke database. Dibatasi oleh kuota harian `AI_BATAS_OBROL` (default 40 per hari per guru).
    - **Keamanan Kunci API & Tanpa Library Tambahan:** Klien browser tidak pernah menyimpan API key di `localStorage` atau memanggil Claude/Gemini langsung. Seluruh panggilan diorkestrasi oleh backend Discere via fungsi `fetch` standar Node.js.
    - **Caching Cerdas & Kuota Harian:** Setiap input gambar dan pertanyaan di-hash dengan algoritma SHA-256 dan disimpan di tabel `ai_cache` agar tidak memanggil AI berulang kali untuk materi yang sama. Penggunaan dibatasi secara aman pada 30 permintaan per guru per hari melalui tabel `ai_usage` dan rate limiter Express. Jika kuota habis atau konfigurasi kunci belum diisi, sistem menyajikan pesan ramah dalam Bahasa Indonesia tanpa error teknis.
    - **Pemberitahuan Etika & Privasi:** Sesuai prinsip UU PDP No. 27 Tahun 2022, data siswa dilarang keras diikutsertakan dalam materi prompt AI, dan seluruh soal hasil AI wajib ditinjau serta dapat disunting oleh guru sebelum disimpan ke database.

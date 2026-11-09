@@ -314,6 +314,7 @@ Semua panggilan AI lewat **server**. Kunci API dan nama model dari `.env` (`AI_A
 1. **Buat soal dari materi** (`POST /api/ai/soal`): input teks materi, jumlah soal (5 sampai 15), tingkat (SD/SMP). AI diminta menjawab dalam **JSON terstruktur** berisi: teks soal, 3 opsi, jawaban benar, dan penjelasan singkat. Server **memvalidasi dengan Zod** (tepat 3 opsi, satu jawaban benar valid) dan menolak hasil yang tidak sesuai.
 2. **Jawab soal dari papan tulis** (`POST /api/ai/jawab`): lihat bagian Papan Tulis. Input berupa gambar area terpilih dan pertanyaan opsional.
 3. **Penjelasan jawaban salah** dibuat **saat soal dibuat** dan disimpan di soal, bukan saat bermain.
+4. **Obrolan AI di papan tulis** (`POST /api/ai/obrol`): guru berinteraksi dengan asisten AI melalui bar prompt dan panel obrolan di papan tulis, dapat menyertakan lampiran gambar, PDF, file teks, atau tangkapan papan saat ini. Riwayat obrolan hanya hidup di memori klien (hilang saat halaman dimuat ulang, tidak disimpan ke database). Setiap balasan AI berlabel "Dibuat AI" dan dapat ditambahkan ke papan sebagai kartu catatan. Dibatasi oleh batas harian `AI_BATAS_OBROL` (default 40 per hari per guru).
 
 **Etika dan efisiensi (dinilai juri):**
 - Hasil AI selalu berlabel **"Dibuat AI"**, dan soal dari AI **wajib ditinjau guru** sebelum disimpan.
@@ -370,7 +371,7 @@ Semua di bawah `/api`, body JSON, divalidasi Zod. Rute selain publik memakai mid
 | Template  | `GET/POST /template`, `GET/PUT/DELETE /template/:id`, `POST /template/:id/duplikat`, `GET /template/pustaka` |
 | Sesi      | `POST /sesi` (buat dari template), `GET /sesi/riwayat`, `GET /sesi/:id/statistik`              |
 | Papan     | `GET/POST /papan`, `GET/PUT/DELETE /papan/:id`, `POST /papan/:id/bagikan`, `DELETE /papan/bagi/:token` |
-| AI        | `POST /ai/soal`, `POST /ai/jawab`                                                              |
+| AI        | `POST /ai/soal`, `POST /ai/jawab`, `POST /ai/obrol`                                            |
 | Admin     | `GET /admin/statistik`, `GET /admin/guru`, `PATCH /admin/guru/:id`, `DELETE /admin/guru/:id`, `/admin/pustaka`, `GET /admin/ai`, `GET /admin/log` |
 
 ## Keamanan dan Privasi

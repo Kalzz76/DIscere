@@ -29,6 +29,7 @@ export const config = {
     return process.env.AI_MODEL || '';
   },
   aiBatasHarian: parseInt(process.env.AI_BATAS_HARIAN || '30', 10),
+  aiBatasObrol: parseInt(process.env.AI_BATAS_OBROL || '40', 10),
   seedAdminEmail: process.env.SEED_ADMIN_EMAIL || 'admin@discere.local',
   seedAdminPassword: process.env.SEED_ADMIN_PASSWORD || 'AdminDiscere2026!',
   seedGuruEmail: process.env.SEED_GURU_EMAIL || 'guru@discere.local',
