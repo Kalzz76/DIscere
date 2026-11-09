@@ -39,6 +39,15 @@ Tagline: *"Belajar seru, tarik kemenangan bersama."*
 - **Hasil Pertandingan & Evaluasi Materi Guru:**
   - **Layar Hasil (`/guru/sesi/:id/hasil`):** Banner perayaan pemenang (Merah, Putih, atau Seri), skor akhir, log perjalanan soal, dan tombol *Main Lagi* (membuat sesi baru dari template sama dengan kondisi awal bersih).
   - **Riwayat & Analisis Kelemahan Siswa:** Penyimpanan otomatis ke basis data via transaksi Prisma, dilengkapi modal detail evaluasi yang menyorot **soal yang paling sering dijawab salah** agar guru mengetahui topik yang perlu dibahas ulang.
+- **Papan Tulis Digital Interaktif & Kolaborasi (Fabric.js & Socket.IO):**
+  - **Kanvas Interaktif Tak Terbatas (`/papan/:id`):** Kanvas berbasis Fabric.js dengan dukungan pan & zoom (Alt/Space + geser atau roda tetikus), pena gambar bebas, penghapus objek instan, penambahan teks, bentuk bangun datar (persegi, lingkaran, segitiga, garis lurus, panah penunjuk), serta fitur unggah gambar materi.
+  - **Penyesuaian Gaya & Riwayat Lengkap:** Palet warna tematik Discere, pengaturan ketebalan goresan (2px, 4px, 8px, 14px), warna isian bentuk transparan/solid, transparansi objek (opacity slider 10%-100%), pemformatan teks tebal/miring, dan riwayat Undo/Redo tak terbatas (hingga 40 langkah).
+  - **Autosave Pintar & Pemulihan Sesi:** Penyimpanan otomatis dengan mekanisme debounce 1.5 detik ke database SQLite via Prisma ORM, indikator status live (*Menyimpan*, *Tersimpan*, *Gagal/Offline*), dan pemulihan seluruh objek kanvas secara utuh saat peramban dimuat ulang.
+  - **Integrasi Sidebar Game Tarik Tambang:** Menu laci samping pada kanvas yang memungkinkan guru membuka koleksi template soal, memilih mode (Solo Layar Bersama atau Multiplayer HP Siswa), dan langsung meluncurkan game kelas tanpa merusak atau mereset objek di kanvas.
+  - **Kolaborasi Multi-Pengguna Real-Time (`/b/:token`):** Guru dapat membagikan tautan ruang papan tulis ke siswa atau rekan pengajar dengan 2 tingkat izin:
+    - **Viewer (Hanya Baca):** Siswa melihat goresan dan anotasi guru secara live tanpa risiko merusak kanvas (keamanan digembok di level gateway server & HTTP).
+    - **Editor (Bisa Menggambar):** Kolaborator dapat bersama-sama menggambar materi dan menyiarkan objek baru secara instan.
+    - **Pencabutan Akses Real-Time:** Pemilik papan dapat mencabut tautan berbagi kapan saja; server seketika menonaktifkan token dan memutuskan hak akses peserta terkait secara real-time.
 - **Autentikasi & Keamanan:**
   - Pendaftaran guru (`/daftar`) dan Masuk (`/masuk`) divalidasi ganda dengan Zod (sisi klien dan server).
   - Sesi JWT aman tersimpan di cookie `httpOnly` dengan perlindungan rate limit `express-rate-limit`.
@@ -171,6 +180,77 @@ flowchart TD
         MULTI_MGR -->|Skor & Pemenang| DB_RES
         MULTI_MGR -->|Statistik Agregat Per Soal| DB_STAT
     end
+```
+
+---
+
+## Diagram Arsitektur Papan Tulis & Kolaborasi Real-Time
+
+```mermaid
+flowchart TD
+    subgraph Pengguna_Papan [Ruang Kolaborasi Kelas]
+        GURU["Guru (Pemilik Papan) /papan/:id"]
+        EDITOR["Rekan / Siswa Editor /b/:token"]
+        VIEWER["Siswa Penonton /b/:token (Read-Only)"]
+    end
+
+    subgraph Fabric_Kanvas [Fabric.js Engine di Peramban]
+        CANVAS["Canvas: Pan, Zoom, Gambar, Bentuk, Teks, Gambar Upload"]
+        AUTOSAVE["Debounced Autosave (1.5 Detik)"]
+        SIDEBAR["Drawer Template Game (Solo & Multi)"]
+        UNDO_REDO["Undo / Redo Stack (40 Aksi)"]
+        CANVAS <--> UNDO_REDO
+        CANVAS --> AUTOSAVE
+        CANVAS <--> SIDEBAR
+    end
+
+    subgraph Server_Kolaborasi [Server Node.js & Socket.IO Gateway]
+        BOARD_GATEWAY((Socket.IO: boardRooms))
+        PERM_CHECK{"Validasi Hak Akses (Owner / Editor / Viewer)"}
+        REST_PAPAN["REST API /api/papan & /api/papan/share"]
+        BOARD_GATEWAY --> PERM_CHECK
+        PERM_CHECK -->|Izin Sah| BROADCAST["Siarkan Objek ke Rekan (papan:ubah)"]
+        PERM_CHECK -->|Viewer Kirim Objek| REJECT["Tolak Transaksi (403 / Error Socket)"]
+    end
+
+    subgraph Database_Papan [Database SQLite Prisma]
+        TBL_BOARD[(boards: Data Kanvas JSON)]
+        TBL_SHARE[(board_shares: Token & Peran)]
+    end
+
+    GURU <-->|Interaksi Penuh + Kontrol Bagikan| CANVAS
+    EDITOR <-->|Menggambar Bersama| CANVAS
+    VIEWER <--|Menyimak Live Tanpa Alat Modifikasi| CANVAS
+
+    AUTOSAVE -->|PUT /api/papan/:id atau /api/papan/share/:token| REST_PAPAN
+    REST_PAPAN -->|Penyimpanan Terjadwal| TBL_BOARD
+    REST_PAPAN -->|Pembuatan & Pencabutan Token| TBL_SHARE
+
+    GURU <-->|papan:gabung & papan:ubah| BOARD_GATEWAY
+    EDITOR <-->|papan:gabung & papan:ubah| BOARD_GATEWAY
+    VIEWER <--|papan:gabung & pembaruan live| BOARD_GATEWAY
+
+    SIDEBAR -->|Luncurkan Sesi Tanpa Hilang Kanvas| GAME_MODAL["Game Solo / Multiplayer Sesi"]
+```
+
+---
+
+## Pengujian Otomatis (Testing Suite)
+
+Untuk menjalankan pengujian otomatis di seluruh modul yang telah selesai:
+
+```bash
+# 1. Pastikan server lokal aktif di terminal terpisah
+npm start
+
+# 2. Uji Game Solo (Tahap 4)
+npx tsx tests/test-solo.ts
+
+# 3. Uji Game Multiplayer Socket.IO (Tahap 5)
+npx tsx tests/test-e2e-multi.ts
+
+# 4. Uji Papan Tulis, Autosave, & Kolaborasi Real-Time (Tahap 6)
+npx tsx tests/test-e2e-papan.ts
 ```
 
 ---
