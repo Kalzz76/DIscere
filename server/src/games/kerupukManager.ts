@@ -78,6 +78,33 @@ export interface SesiKerupukActive {
 const sesiKerupukMap = new Map<string, SesiKerupukActive>(); // key: sessionId
 const tokenToSessionIdMap = new Map<string, string>(); // key: token (6 digit)
 
+/**
+ * Menyiapkan dan mengacak antrean ID soal untuk peserta (Fisher-Yates Shuffle).
+ * Memastikan soal pertama pada siklus baru tidak sama dengan soal terakhir pada siklus sebelumnya (jika bank soal > 1).
+ */
+export function siapkanAntreanSoal(questions: SoalKerupuk[], terakhirSoalId?: string): string[] {
+  if (!questions || questions.length === 0) return [];
+  const ids = questions.map((q) => q.id);
+
+  // Fisher-Yates shuffle
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = ids[i];
+    ids[i] = ids[j];
+    ids[j] = temp;
+  }
+
+  // Jika kumpulan soal > 1 dan elemen pertama sama dengan soal yang terakhir dijawab,
+  // tukar dengan elemen kedua agar tidak muncul berturut-turut
+  if (ids.length > 1 && ids[0] === terakhirSoalId) {
+    const temp = ids[0];
+    ids[0] = ids[1];
+    ids[1] = temp;
+  }
+
+  return ids;
+}
+
 export const kerupukManager = {
   /**
    * Menghasilkan token 6 digit unik yang tidak bertabrakan dengan sesi tarik tambang maupun makan kerupuk
@@ -248,6 +275,14 @@ export const kerupukManager = {
       totalBonusStreak: 0,
       selesaiKerupuk: false,
       waktuSelesaiMs: null,
+      totalWaktuJawabMs: 0,
+      jumlahJawab: 0,
+      rataRataWaktuJawabMs: 0,
+      antreanSoal: siapkanAntreanSoal(sesi.questions),
+      terakhirSoalId: undefined,
+      soalAktifId: undefined,
+      soalTampilTimestamp: undefined,
+      nomorSoalPemain: 0,
     };
 
     sesi.peserta.set(pesertaId, pesertaBaru);
@@ -270,7 +305,8 @@ export const kerupukManager = {
   },
 
   /**
-   * Memulai permainan Makan Kerupuk oleh Guru (Host)
+   * Memulai permainan Makan Kerupuk oleh Guru (Host).
+   * Menyiapkan antrean soal awal independen untuk setiap siswa yang ada di lobi.
    */
   mulaiPermainan(sessionId: string, hostId: string): SesiKerupukActive {
     const sesi = this.dapatkanSesi(sessionId);
@@ -289,11 +325,105 @@ export const kerupukManager = {
     sesi.status = 'jalan';
     sesi.currentQuestionIndex = 0;
 
+    // Inisialisasi antrean soal independen bagi setiap siswa yang telah bergabung
+    for (const peserta of sesi.peserta.values()) {
+      peserta.antreanSoal = siapkanAntreanSoal(sesi.questions);
+      peserta.nomorSoalPemain = 0;
+      peserta.terakhirSoalId = undefined;
+      peserta.soalAktifId = undefined;
+      peserta.totalWaktuJawabMs = 0;
+      peserta.jumlahJawab = 0;
+      peserta.rataRataWaktuJawabMs = 0;
+    }
+
     return sesi;
   },
 
   /**
-   * Menyiapkan timer soal aktif
+   * Mengambil soal berikutnya khusus untuk satu siswa secara independen.
+   * Jika seluruh kumpulan soal template telah dijawab, kumpulan soal diacak ulang
+   * tanpa menampilkan soal yang sama 2 kali berturut-turut.
+   */
+  ambilSoalBerikutnyaUntukPeserta(
+    sessionId: string,
+    pesertaId: string
+  ): {
+    soal: SoalKerupuk;
+    nomorSoalPemain: number;
+    totalSoalTemplate: number;
+  } | null {
+    const sesi = this.dapatkanSesi(sessionId);
+    if (!sesi || sesi.status !== 'jalan') return null;
+
+    const peserta = sesi.peserta.get(pesertaId);
+    if (!peserta) return null;
+
+    // Jika siswa sudah menghabiskan kerupuk (0%), hentikan distribusi soal
+    if (peserta.selesaiKerupuk || peserta.sisaKerupuk === 0) {
+      return null;
+    }
+
+    if (!sesi.questions || sesi.questions.length === 0) {
+      return null;
+    }
+
+    // Jika antrean soal habis, acak ulang seluruh kumpulan soal
+    if (!peserta.antreanSoal || peserta.antreanSoal.length === 0) {
+      peserta.antreanSoal = siapkanAntreanSoal(sesi.questions, peserta.terakhirSoalId);
+    }
+
+    const nextQuestionId = peserta.antreanSoal.shift();
+    if (!nextQuestionId) return null;
+
+    const soal = sesi.questions.find((q) => q.id === nextQuestionId);
+    if (!soal) return null;
+
+    peserta.terakhirSoalId = soal.id;
+    peserta.soalAktifId = soal.id;
+    peserta.soalTampilTimestamp = Date.now();
+    peserta.nomorSoalPemain = (peserta.nomorSoalPemain || 0) + 1;
+
+    return {
+      soal,
+      nomorSoalPemain: peserta.nomorSoalPemain,
+      totalSoalTemplate: sesi.totalSoal,
+    };
+  },
+
+  /**
+   * Mendapatkan soal aktif yang sedang dikerjakan siswa (misalnya saat reconnect).
+   */
+  dapatkanSoalAktifPeserta(
+    sessionId: string,
+    pesertaId: string
+  ): {
+    soal: SoalKerupuk;
+    nomorSoalPemain: number;
+    totalSoalTemplate: number;
+  } | null {
+    const sesi = this.dapatkanSesi(sessionId);
+    if (!sesi || sesi.status !== 'jalan') return null;
+
+    const peserta = sesi.peserta.get(pesertaId);
+    if (!peserta || peserta.selesaiKerupuk || peserta.sisaKerupuk === 0) return null;
+
+    if (peserta.soalAktifId) {
+      const soal = sesi.questions.find((q) => q.id === peserta.soalAktifId);
+      if (soal) {
+        return {
+          soal,
+          nomorSoalPemain: peserta.nomorSoalPemain || 1,
+          totalSoalTemplate: sesi.totalSoal,
+        };
+      }
+    }
+
+    // Jika belum ada soal aktif, ambil soal berikutnya
+    return this.ambilSoalBerikutnyaUntukPeserta(sessionId, pesertaId);
+  },
+
+  /**
+   * Menyiapkan timer soal aktif (dipertahankan untuk kompatibilitas)
    */
   mulaiTimerSoal(
     sessionId: string,
@@ -317,7 +447,8 @@ export const kerupukManager = {
   },
 
   /**
-   * Memproses jawaban dari siswa secara real-time
+   * Memproses jawaban dari siswa secara real-time dan independen.
+   * Mengukur kecepatan respon per soal dan menghitung rata-rata waktu menjawab.
    */
   prosesJawabanSiswa(
     sessionId: string,
@@ -329,6 +460,7 @@ export const kerupukManager = {
     leaderboard: PesertaKerupukState[];
     semuaSelesai: boolean;
     gameSelesaiSemuaHabis: boolean;
+    pemainSelesai: boolean;
   } {
     const sesi = this.dapatkanSesi(sessionId);
     if (!sesi) throw new Error('Sesi permainan tidak ditemukan.');
@@ -342,39 +474,41 @@ export const kerupukManager = {
       throw new Error('Peserta tidak terdaftar dalam sesi ini.');
     }
 
-    const soalAktif = sesi.questions[sesi.currentQuestionIndex];
-    if (!soalAktif) {
-      throw new Error('Tidak ada soal yang sedang aktif.');
+    // Cek apakah pemain sudah selesai (kerupuk 0%)
+    if (peserta.selesaiKerupuk || peserta.sisaKerupuk === 0) {
+      throw new Error('Kerupuk Anda sudah habis (0%). Anda sudah menyelesaikan lomba!');
     }
 
-    // Resolusi ID soal: toleransi jika client mengirimkan questionId/id kosong atau undefined
-    const resolvedQuestionId =
-      questionId && questionId !== 'undefined' && questionId !== 'null'
-        ? questionId
-        : soalAktif.id;
+    // Resolusi ID soal: prioritaskan soalAktifId siswa
+    const targetQId = peserta.soalAktifId || (questionId && questionId !== 'undefined' && questionId !== 'null' ? questionId : null);
+    if (!targetQId) {
+      throw new Error('Tidak ada soal yang sedang aktif untuk Anda.');
+    }
 
-    if (soalAktif.id !== resolvedQuestionId) {
+    // Cari data soal di bank template sesi
+    const soalAktif = sesi.questions.find((q) => q.id === targetQId);
+    if (!soalAktif) {
       throw new Error('Soal yang dijawab sudah tidak aktif.');
     }
 
-    // Validasi window waktu dengan toleransi 1 detik
-    if (sesi.soalBerakhirPada && Date.now() > sesi.soalBerakhirPada + 1000) {
-      throw new Error('Waktu untuk menjawab soal ini telah habis.');
+    // Jika siswa mengirimkan ID yang berbeda dengan soal aktif miliknya
+    if (peserta.soalAktifId && questionId && questionId !== 'undefined' && questionId !== 'null' && peserta.soalAktifId !== questionId) {
+      throw new Error('Soal yang dijawab sudah tidak aktif.');
     }
 
-    // Ambil atau buat Map jawaban untuk soal aktif
-    let mapJawaban = sesi.jawabanPerSoal.get(soalAktif.id);
-    if (!mapJawaban) {
-      mapJawaban = new Map();
-      sesi.jawabanPerSoal.set(soalAktif.id, mapJawaban);
-    }
+    // Hitung waktu respon siswa (milidetik sejak soal ditampilkan)
+    const now = Date.now();
+    const waktuJawabMs = peserta.soalTampilTimestamp
+      ? Math.max(50, now - peserta.soalTampilTimestamp)
+      : 1500;
 
-    // Cegah jawaban ganda
-    if (mapJawaban.has(pesertaId)) {
-      throw new Error('Anda sudah mengirimkan jawaban untuk soal ini.');
-    }
+    // Update metrik kecepatan menjawab siswa
+    peserta.totalWaktuJawabMs = (peserta.totalWaktuJawabMs || 0) + waktuJawabMs;
+    peserta.jumlahJawab = (peserta.jumlahJawab || 0) + 1;
+    peserta.rataRataWaktuJawabMs = Math.round(peserta.totalWaktuJawabMs / peserta.jumlahJawab);
 
-    const waktuJawabMs = Date.now() - (sesi.soalMulaiPada || Date.now());
+    // Reset soalAktifId agar siswa tidak dapat mengirim ulang jawaban pada soal yang sama
+    peserta.soalAktifId = undefined;
 
     // Hitung poin, gacha kerupuk, streak, dan finish bonus
     const hasilJawaban = prosesJawabanKerupuk({
@@ -385,30 +519,34 @@ export const kerupukManager = {
       opsiB: soalAktif.opsiB,
       opsiC: soalAktif.opsiC,
       probabilitasConfig: sesi.config.probabilitas,
-      waktuJawabTimestamp: Date.now(),
+      waktuJawabTimestamp: now,
     });
 
-    // Update state peserta
+    // Update state peserta dalam Map sesi
     sesi.peserta.set(pesertaId, hasilJawaban.pesertaUpdated);
 
-    // Catat log jawaban
-    mapJawaban.set(pesertaId, {
+    // Catat log jawaban dalam Map sesi
+    let mapJawaban = sesi.jawabanPerSoal.get(soalAktif.id);
+    if (!mapJawaban) {
+      mapJawaban = new Map();
+      sesi.jawabanPerSoal.set(soalAktif.id, mapJawaban);
+    }
+    mapJawaban.set(`${pesertaId}-${peserta.jumlahJawab}`, {
       pesertaId,
-      jawaban: jawabanDipilih.toUpperCase(),
+      jawaban: (jawabanDipilih || '').toUpperCase(),
       benar: hasilJawaban.benar,
       waktuJawabMs,
       gacha: hasilJawaban.gacha,
       poinDidapat: hasilJawaban.poinDidapat,
     });
 
-    // Cek apakah seluruh peserta yang terhubung sudah menjawab
+    // Cek apakah seluruh peserta aktif telah menghabiskan kerupuknya (0%)
     const pesertaAktif = Array.from(sesi.peserta.values()).filter((p) => p.connected);
-    const semuaSelesai = mapJawaban.size >= Math.max(1, pesertaAktif.length);
-
-    // Cek apakah SEMUA peserta telah menghabiskan kerupuknya
     const semuaKerupukHabis =
       pesertaAktif.length > 0 && pesertaAktif.every((p) => p.sisaKerupuk === 0);
 
+    const pemainSelesai = hasilJawaban.pesertaUpdated.selesaiKerupuk || hasilJawaban.pesertaUpdated.sisaKerupuk === 0;
+    const semuaSelesai = mapJawaban.size >= Math.max(1, pesertaAktif.length) || semuaKerupukHabis;
     const leaderboard = this.dapatkanLeaderboard(sessionId);
 
     return {
@@ -416,6 +554,7 @@ export const kerupukManager = {
       leaderboard,
       semuaSelesai,
       gameSelesaiSemuaHabis: semuaKerupukHabis,
+      pemainSelesai,
     };
   },
 

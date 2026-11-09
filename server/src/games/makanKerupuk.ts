@@ -34,6 +34,15 @@ export interface PesertaKerupukState {
   selesaiKerupuk: boolean;     // true jika kerupuk sudah mencapai 0%
   waktuSelesaiMs: number | null; // timestamp saat kerupuk mencapai 0%
   terakhirGigitan?: HasilGachaGigitan;
+  // Kriteria kecepatan menjawab & antrean soal independen
+  totalWaktuJawabMs: number;   // akumulasi milidetik waktu respons
+  jumlahJawab: number;         // total soal yang dijawab (benar + salah)
+  rataRataWaktuJawabMs: number;// totalWaktuJawabMs / jumlahJawab
+  antreanSoal?: string[];      // daftar ID soal yang belum ditampilkan dalam siklus ini
+  terakhirSoalId?: string;     // ID soal yang terakhir dijawab
+  soalAktifId?: string;        // ID soal yang saat ini sedang aktif dikerjakan siswa
+  soalTampilTimestamp?: number;// timestamp saat soal aktif ditampilkan ke siswa
+  nomorSoalPemain?: number;    // urutan soal personal bagi pemain ini (1, 2, 3, dst.)
 }
 
 // ---------------------------------------------------------------------------
@@ -206,6 +215,22 @@ export interface HasilProsesJawaban {
 
 export function prosesJawabanKerupuk(params: ProsesJawabanParams): HasilProsesJawaban {
   const { peserta, jawabanSiswa, kunciJawaban, probabilitasConfig, waktuJawabTimestamp } = params;
+
+  // Jika kerupuk pemain sudah habis (0%) atau berstatus selesai, jangan proses lagi
+  if (peserta.selesaiKerupuk || peserta.sisaKerupuk === 0) {
+    return {
+      benar: false,
+      poinDidapat: 0,
+      poinDasar: 0,
+      bonusStreak: 0,
+      bonusPenyelesaian: 0,
+      gacha: null,
+      sisaKerupukBaru: 0,
+      selesaiBaru: false,
+      pesertaUpdated: { ...peserta, sisaKerupuk: 0, selesaiKerupuk: true },
+    };
+  }
+
   const cleanJawaban = (jawabanSiswa || '').trim().toUpperCase();
   const cleanKunci = (kunciJawaban || '').trim().toUpperCase();
 
@@ -297,15 +322,15 @@ export function prosesJawabanKerupuk(params: ProsesJawabanParams): HasilProsesJa
 }
 
 // ---------------------------------------------------------------------------
-// 5. SISTEM PENENTUAN PERINGKAT & LEADERBOARD (4 URUTAN ATURAN)
+// 5. SISTEM PENENTUAN PERINGKAT & LEADERBOARD (5 KRITERIA RESMI)
 // ---------------------------------------------------------------------------
 /**
- * Urutan kriteria peringkat:
+ * Urutan kriteria penentuan peringkat baru:
  * 1. Total skor tertinggi (skorTotal desc)
  * 2. Jumlah jawaban benar terbanyak (totalBenar desc)
- * 3. Persentase kerupuk tersisa paling sedikit (sisaKerupuk asc)
- * 4. Waktu penyelesaian paling cepat (waktuSelesaiMs asc)
- * Catatan: Pemain yang berhasil menghabiskan kerupuk ditempatkan lebih atas jika kriteria sebelumnya sama.
+ * 3. Persentase kerupuk tersisa paling sedikit (sisaKerupuk asc, 0% paling unggul)
+ * 4. Rata-rata waktu menjawab paling cepat (rataRataWaktuJawabMs asc)
+ * 5. Tie-break konsisten: nama (alphabetical asc) lalu ID
  */
 export function urutkanLeaderboard(pesertaList: PesertaKerupukState[]): PesertaKerupukState[] {
   return [...pesertaList].sort((a, b) => {
@@ -319,23 +344,26 @@ export function urutkanLeaderboard(pesertaList: PesertaKerupukState[]): PesertaK
       return b.totalBenar - a.totalBenar;
     }
 
-    // Kriteria 3: Persentase Kerupuk Tersisa Paling Sedikit
+    // Kriteria 3: Persentase Kerupuk Tersisa Paling Sedikit (0% paling unggul)
     if (a.sisaKerupuk !== b.sisaKerupuk) {
       return a.sisaKerupuk - b.sisaKerupuk;
     }
 
-    // Pemain yang berhasil menghabiskan kerupuk diprioritaskan
-    if (a.selesaiKerupuk !== b.selesaiKerupuk) {
-      return a.selesaiKerupuk ? -1 : 1;
+    // Kriteria 4: Rata-rata Waktu Menjawab Paling Cepat
+    // Jika ada pemain yang belum menjawab (jumlahJawab === 0), beri penalti waktu maksimum
+    const waktuA = (a.jumlahJawab && a.jumlahJawab > 0) ? (a.rataRataWaktuJawabMs ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+    const waktuB = (b.jumlahJawab && b.jumlahJawab > 0) ? (b.rataRataWaktuJawabMs ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+    if (waktuA !== waktuB) {
+      return waktuA - waktuB;
     }
 
-    // Kriteria 4: Waktu Penyelesaian Paling Cepat
-    if (a.waktuSelesaiMs && b.waktuSelesaiMs && a.waktuSelesaiMs !== b.waktuSelesaiMs) {
-      return a.waktuSelesaiMs - b.waktuSelesaiMs;
+    // Kriteria 5: Tie-break konsisten (Nama secara alfabetis, lalu ID)
+    const cmpNama = a.nama.localeCompare(b.nama);
+    if (cmpNama !== 0) {
+      return cmpNama;
     }
 
-    // Fallback: Urutan nama
-    return a.nama.localeCompare(b.nama);
+    return a.id.localeCompare(b.id);
   });
 }
 
