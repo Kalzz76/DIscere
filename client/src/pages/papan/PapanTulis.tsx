@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/auth';
 import { Board } from './engine/board';
 import { CanvasObj, BoardState, BoardView, TextEditorState, ToolType, PenStyle, UbahEventPayload } from './engine/types';
 import { COL, LCOL } from './engine/color';
-import { downloadPng, downloadJson, toJson, potongArea } from './engine/export';
+import { downloadPng, downloadJson, toJson, potongArea, pngDataUrl } from './engine/export';
 import {
   TopLeftBar,
   ToolRail,
@@ -25,7 +25,11 @@ import {
   GameTemplatesPanel,
   computeLassoBounds,
   formatAiResponseForCanvas,
+  PromptBar,
+  ChatPanel,
 } from './components';
+import { wrap, LampiranObrolan } from './lib/obrol';
+import { useObrol } from './lib/useObrol';
 
 export default function PapanTulis() {
   const { id: boardId } = useParams<{ id: string }>();
@@ -406,6 +410,57 @@ export default function PapanTulis() {
     }
   };
 
+  // Hook Obrolan Asisten AI di Papan Tulis
+  const {
+    pesan: obrolPesan,
+    lampiran: obrolLampiran,
+    inputTeks: obrolInputTeks,
+    setInputTeks: setObrolInputTeks,
+    busy: obrolBusy,
+    isChatOpen,
+    setIsChatOpen,
+    tambahLampiran,
+    hapusLampiran,
+    kirimPesan: kirimObrolan,
+    batalkan: batalkanObrolan,
+    obrolanBaru,
+  } = useObrol(showToast);
+
+  // Handler "Papan saat ini" -> tangkap kanvas dan lampirkan ke obrolan
+  const handleSnapCurrentBoard = () => {
+    const board = boardRef.current;
+    if (!board || board.objs.length === 0) {
+      showToast('Papan masih kosong');
+      return;
+    }
+    const dataUrl = pngDataUrl(board.objs);
+    if (!dataUrl) {
+      showToast('Papan masih kosong');
+      return;
+    }
+    const base64Clean = dataUrl.split(',')[1] || '';
+    const lamp: LampiranObrolan = {
+      id: crypto.randomUUID(),
+      jenis: 'gambar',
+      nama: 'Papan saat ini.png',
+      mt: 'image/png',
+      data: base64Clean,
+      thumb: dataUrl,
+    };
+    tambahLampiran(lamp);
+    showToast('Papan saat ini berhasil dilampirkan!');
+  };
+
+  // Handler "＋ Tambah ke papan" -> tambahkan kartu catatan dari balasan AI
+  const handleAddToBoard = (teks: string) => {
+    const board = boardRef.current;
+    if (!board) return;
+    const cleanSlice = teks.slice(0, 700);
+    const wrappedText = wrap(cleanSlice, 38);
+    board.addNote(wrappedText, { ai: true, fill: '#fde68a', fs: 22 });
+    showToast('Ditambahkan ke papan');
+  };
+
   // Flush Simpan Otomatis Kanvas (Dipanggil sebelum beralih ke game)
   const handleFlushSave = async () => {
     const board = boardRef.current;
@@ -724,6 +779,34 @@ export default function PapanTulis() {
         onToggleGrid={() => board?.toggleGrid()}
         onCenterView={() => board?.centerView()}
       />
+
+      {/* Obrolan Asisten AI & Bar Prompt Bawah (#cw, #chat, #pr) */}
+      {!boardState.fs && (
+        <>
+          <ChatPanel
+            isOpen={isChatOpen}
+            pesan={obrolPesan}
+            lampiran={obrolLampiran}
+            busy={obrolBusy}
+            onClose={() => setIsChatOpen(false)}
+            onNewChat={obrolanBaru}
+            onCancelBusy={batalkanObrolan}
+            onRemoveAttachment={hapusLampiran}
+            onAddToBoard={handleAddToBoard}
+          />
+
+          <PromptBar
+            inputTeks={obrolInputTeks}
+            onChangeInput={setObrolInputTeks}
+            onSend={() => kirimObrolan()}
+            onCancel={batalkanObrolan}
+            busy={obrolBusy}
+            onAddAttachment={tambahLampiran}
+            onSnapCanvas={handleSnapCurrentBoard}
+            onToast={showToast}
+          />
+        </>
+      )}
 
       {/* Flyout Subpanels (Pena, Bentuk, Teks, Tabel) */}
       <Flyouts

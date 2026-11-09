@@ -353,25 +353,31 @@ export class Board {
     this.rd();
   }
 
-  public addNote(text: string): void {
-    if (this.hanyaLihat) return;
+  public addNote(
+    text: string,
+    options?: { ai?: boolean; fill?: string; fs?: number }
+  ): TextObj | null {
+    if (this.hanyaLihat) return null;
     const c = this.getCenter();
     const cleanText = text.slice(0, 5000);
+    const isAi = options?.ai ?? false;
     const o: TextObj = {
       id: crypto.randomUUID(),
       type: 'text',
       x: c.x - 80 + Math.random() * 40,
       y: c.y - 60 + Math.random() * 40,
       text: cleanText,
-      fs: 22,
+      fs: options?.fs ?? 22,
       color: '#111827',
-      fill: '#fde68a',
+      fill: options?.fill ?? (isAi ? '#fde68a' : '#fde68a'),
       size: 1,
+      ai: isAi,
     };
     this.objs.push(o);
     this.setSelection(o.id);
     this.history.commit({ tambah: [o] });
     this.rd();
+    return o;
   }
 
   public addAiCard(text: string, pos: Pt): TextObj | null {

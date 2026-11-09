@@ -1501,5 +1501,479 @@ body.pres .papan .btn-exit-pres {
   .papan .share-btn span {
     display: none;
   }
+  .papan #pr,
+  .papan .prompt-bar {
+    width: calc(100% - 140px);
+    left: calc(50% + 40px);
+  }
+  .papan #cw,
+  .papan .chat-wrapper {
+    width: calc(100% - 140px);
+    left: calc(50% + 40px);
+  }
 }
+
+@media (max-width: 600px) {
+  .papan #pr,
+  .papan .prompt-bar {
+    width: calc(100% - 24px);
+    left: 50%;
+    bottom: 16px;
+    height: 56px;
+    border-radius: 28px;
+  }
+  .papan #cw,
+  .papan .chat-wrapper {
+    width: calc(100% - 24px);
+    left: 50%;
+    bottom: 84px;
+  }
+  .papan #pr input {
+    font-size: 14px;
+  }
+}
+
+/* ==========================================================================
+   Bar Masukan Prompt Bawah (#pr) & Panel Obrolan Asisten AI (#chat, #cw, #att)
+   ========================================================================== */
+
+.papan #pr,
+.papan .prompt-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(700px, calc(100% - 260px));
+  height: 66px;
+  border-radius: 33px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 0 14px;
+  z-index: 6;
+  background: var(--p1);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--ln);
+  box-shadow: 0 12px 36px rgba(10, 15, 35, 0.4);
+}
+
+.papan #pr input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: 0;
+  font: 500 16px inherit;
+  font-family: inherit;
+  color: var(--tx);
+  user-select: text;
+}
+
+.papan #pr input::placeholder {
+  color: var(--mu);
+}
+
+.papan #snd {
+  background: var(--pu);
+  color: #fff;
+  transition: 0.15s;
+}
+
+.papan #snd:hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+}
+
+.papan .cancel-btn {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.papan .cancel-btn:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+/* Tombol Mikrofon & Animasi Berkedip Merekam */
+.papan #mic.rec {
+  animation: pulse-mic 1.2s infinite ease-in-out;
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.18) !important;
+}
+
+@keyframes pulse-mic {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+/* Popover Menu Lampiran */
+.papan .prompt-menu-popover {
+  position: fixed;
+  bottom: 98px;
+  left: max(20px, calc(50% - 340px));
+  background: var(--p1);
+  border: 1px solid var(--ln);
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(10, 15, 35, 0.5);
+  padding: 6px;
+  z-index: 10;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  backdrop-filter: blur(14px);
+}
+
+.papan .prompt-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  background: none;
+  color: var(--tx);
+  font: 600 14px inherit;
+  font-family: inherit;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: 0.15s;
+}
+
+.papan .prompt-menu-item:hover {
+  background: var(--p2);
+  color: #fff;
+}
+
+.papan .prompt-menu-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--mu);
+}
+
+.papan .prompt-menu-item:hover .prompt-menu-icon {
+  color: #fff;
+}
+
+.papan .prompt-menu-divider {
+  height: 1px;
+  background: var(--ln);
+  margin: 4px 6px;
+}
+
+/* Wadah Mengambang Chat & Lampiran (#cw) */
+.papan #cw,
+.papan .chat-wrapper {
+  position: fixed;
+  bottom: 104px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(700px, calc(100% - 260px));
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.papan #cw > * {
+  pointer-events: auto;
+}
+
+/* Panel Obrolan (#chat) */
+.papan #chat,
+.papan .chat-panel {
+  background: var(--p1);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--ln);
+  border-radius: 22px;
+  box-shadow: 0 14px 40px rgba(10, 15, 35, 0.45);
+  padding: 14px 16px;
+  max-height: min(54vh, 500px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.papan .chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ln);
+}
+
+.papan .chat-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: var(--tx);
+}
+
+.papan .ai-badge-header {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 8px;
+}
+
+.papan .chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.papan .chat-action-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 10px;
+}
+
+.papan .chat-privacy-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--mu);
+  padding: 0 4px;
+}
+
+/* Daftar Pesan (#cm) */
+.papan #cm,
+.papan .chat-messages {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 6px;
+  max-height: 360px;
+  scrollbar-width: thin;
+}
+
+.papan .chat-empty-state {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--mu);
+  font-size: 13px;
+}
+
+/* Balon Pesan (.m) */
+.papan .m {
+  max-width: 88%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  user-select: text;
+  -webkit-user-select: text;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.papan .m.u {
+  align-self: flex-end;
+  background: var(--pu);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.papan .m.a {
+  align-self: flex-start;
+  background: var(--p2);
+  color: var(--tx);
+  border-bottom-left-radius: 4px;
+  border: 1px solid var(--ln);
+}
+
+.papan .m.err {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.papan .msg-attachment-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* Kode & Pre dalam Balon Pesan */
+.papan .m pre.code-block {
+  background: #0d1222;
+  color: #e2e8f0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  overflow-x: auto;
+  margin: 6px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.papan .m code.inline-code {
+  background: #0d1222;
+  color: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+}
+
+/* Tombol "＋ Tambah ke papan" (.tl) */
+.papan .tl,
+.papan .add-to-board-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(155, 23, 245, 0.25);
+  border: 1px solid rgba(155, 23, 245, 0.45);
+  padding: 6px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.papan .tl:hover,
+.papan .add-to-board-btn:hover {
+  background: var(--pu);
+  transform: translateY(-1px);
+}
+
+/* Status Thinking Bubble */
+.papan .thinking-bubble {
+  padding: 10px 14px;
+}
+
+.papan .thinking-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--tx);
+}
+
+.papan .thinking-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--pu);
+  border-radius: 50%;
+  animation: spin-ai 0.8s linear infinite;
+}
+
+@keyframes spin-ai {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.papan .cancel-inline-btn {
+  margin-left: 10px;
+  background: none;
+  border: 0;
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+/* Baki Lampiran Aktif Sebelum Dikirim (#att) */
+.papan #att,
+.papan .attachment-tray {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.papan .ac,
+.papan .attachment-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--p1);
+  border: 1px solid var(--ln);
+  border-radius: 12px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  max-width: 240px;
+  box-shadow: 0 4px 14px rgba(10, 15, 35, 0.3);
+  backdrop-filter: blur(12px);
+}
+
+.papan .attachment-thumb {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.papan .attachment-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+}
+
+.papan .attachment-icon.pdf {
+  background: rgba(239, 68, 68, 0.18);
+  color: #ef4444;
+}
+
+.papan .attachment-icon.text {
+  background: rgba(59, 130, 246, 0.18);
+  color: #3b82f6;
+}
+
+.papan .attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tx);
+  font-size: 13px;
+}
+
+.papan .attachment-rm-btn {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: 6px;
+  color: var(--mu);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.papan .attachment-rm-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
 

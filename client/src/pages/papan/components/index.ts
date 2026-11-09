@@ -11,4 +11,6 @@ export * from './Toast';
 export * from './ShareModal';
 export * from './AiPopup';
 export * from './GameTemplatesPanel';
+export * from './PromptBar';
+export * from './ChatPanel';
 
