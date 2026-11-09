@@ -1066,6 +1066,66 @@
   font-weight: 700;
 }
 
+/* PAGINATION CONTROLS */
+.portal-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 22px;
+  background: var(--portal-card);
+  border-top: 2px dashed var(--portal-line);
+}
+
+.portal-pagination-info {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--portal-mute);
+}
+
+.portal-pagination-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.portal-page-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1.5px solid var(--portal-line);
+  background: #fff;
+  color: var(--portal-ink);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.portal-page-btn:hover:not(:disabled) {
+  border-color: var(--portal-board);
+  background: var(--portal-chalk);
+  transform: translateY(-1px);
+}
+
+.portal-page-btn.active {
+  background: var(--portal-board);
+  border-color: var(--portal-board);
+  color: var(--portal-chalk);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.portal-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* WOODEN CHALK LEDGE (100% FULL WIDTH EDGE TO EDGE) */
 .portal-ledge {
   height: 78px;

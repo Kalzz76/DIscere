@@ -127,6 +127,13 @@ export default function DashboardGuru() {
   const [subTabAside, setSubTabAside] = useState<'hist' | 'tpl'>('hist');
   const [pencarian, setPencarian] = useState('');
 
+  // Riwayat filter & pagination states
+  const [riwayatHalaman, setRiwayatHalaman] = useState(1);
+  const [riwayatCari, setRiwayatCari] = useState('');
+  const [riwayatFilterMode, setRiwayatFilterMode] = useState<'semua' | 'multi' | 'solo'>('semua');
+  const [riwayatFilterMenang, setRiwayatFilterMenang] = useState<'semua' | 'merah' | 'putih' | 'seri'>('semua');
+  const RIWAYAT_PER_HALAMAN = 8;
+
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
@@ -343,6 +350,17 @@ export default function DashboardGuru() {
   }
   const areaPath = `${curvePath} L ${pts[n - 1][0]} 130 L 0 130 Z`;
   const [curX, curY] = pts[chartCurrentIdx] || [360, 28];
+
+  // Riwayat filtering & pagination calculations
+  const riwayatTersaring = riwayatList.filter((r) => {
+    const cocokJudul = r.templateJudul.toLowerCase().includes(riwayatCari.toLowerCase().trim());
+    const cocokMode = riwayatFilterMode === 'semua' || r.mode === riwayatFilterMode;
+    const cocokMenang = riwayatFilterMenang === 'semua' || r.timMenang === riwayatFilterMenang;
+    return cocokJudul && cocokMode && cocokMenang;
+  });
+  const totalHalamanRiwayat = Math.max(1, Math.ceil(riwayatTersaring.length / RIWAYAT_PER_HALAMAN));
+  const indeksAwal = (riwayatHalaman - 1) * RIWAYAT_PER_HALAMAN;
+  const riwayatDitampilkan = riwayatTersaring.slice(indeksAwal, indeksAwal + RIWAYAT_PER_HALAMAN);
 
   return (
     <div className="portal-bg">
@@ -990,70 +1008,200 @@ export default function DashboardGuru() {
                       </button>
                     </div>
                   ) : (
-                    <div className="portal-card overflow-hidden">
-                      <div className="divide-y-2 divide-dashed divide-[#e0d5b8]">
-                        {riwayatList.map((r) => {
-                          const isRed = r.timMenang === 'merah';
-                          const isWhite = r.timMenang === 'putih';
+                    <>
+                      {/* Bar Pencarian & Filter Riwayat */}
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="portal-srch" style={{ minWidth: '260px', flex: '1 1 260px' }}>
+                          <Search className="w-4 h-4 text-[#6b7d6c]" />
+                          <input
+                            type="search"
+                            placeholder="Cari materi sesi kuis..."
+                            value={riwayatCari}
+                            onChange={(e) => {
+                              setRiwayatCari(e.target.value);
+                              setRiwayatHalaman(1);
+                            }}
+                            aria-label="Cari riwayat materi"
+                          />
+                        </div>
 
-                          return (
-                            <div
-                              key={r.id}
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: '16px',
-                                padding: '20px 26px',
-                              }}
-                            >
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="portal-tag yellow font-bold">
-                                    Mode {r.mode === 'multi' ? 'MULTI' : 'SOLO'}
-                                  </span>
-                                  <span className="text-xs text-[#6b7d6c]">
-                                    {new Date(r.tanggal).toLocaleDateString('id-ID', {
-                                      day: 'numeric',
-                                      month: 'short',
-                                      year: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })}
-                                  </span>
-                                </div>
-                                <h3 className="portal-cv text-2xl text-[#1d3b2e]">
-                                  {r.templateJudul}
-                                </h3>
-                                <div className="text-xs font-semibold text-[#1d3b2e]">
-                                  Pemenang:{' '}
-                                  <span>
-                                    {isRed
-                                      ? '🔴 Tim Merah'
-                                      : isWhite
-                                      ? '⚪ Tim Putih'
-                                      : '🤝 Seri'}
-                                  </span>{' '}
-                                  (Skor: {r.skorMerah} vs {r.skorPutih}) • Posisi Tali:{' '}
-                                  <span className="font-mono font-bold">
-                                    {r.posisiAkhir > 0 ? `+${r.posisiAkhir}` : r.posisiAkhir}
-                                  </span>
-                                </div>
-                              </div>
+                        {/* Filter Mode & Hasil Pertandingan */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <select
+                            className="portal-sel"
+                            value={riwayatFilterMode}
+                            onChange={(e) => {
+                              setRiwayatFilterMode(e.target.value as any);
+                              setRiwayatHalaman(1);
+                            }}
+                            title="Filter mode game"
+                          >
+                            <option value="semua">Semua Mode</option>
+                            <option value="multi">Mode Multiplayer</option>
+                            <option value="solo">Mode Solo</option>
+                          </select>
 
-                              <button
-                                type="button"
-                                onClick={() => setModalDetailSessionId(r.id)}
-                                className="portal-btn ghost-red sm"
-                                style={{ flexShrink: 0 }}
-                              >
-                                Lihat Detail
-                              </button>
-                            </div>
-                          );
-                        })}
+                          <select
+                            className="portal-sel"
+                            value={riwayatFilterMenang}
+                            onChange={(e) => {
+                              setRiwayatFilterMenang(e.target.value as any);
+                              setRiwayatHalaman(1);
+                            }}
+                            title="Filter hasil pertandingan"
+                          >
+                            <option value="semua">Semua Hasil</option>
+                            <option value="merah">🔴 Tim Merah</option>
+                            <option value="putih">⚪ Tim Putih</option>
+                            <option value="seri">🤝 Seri</option>
+                          </select>
+                        </div>
                       </div>
-                    </div>
+
+                      {/* Tabel Kartu Riwayat */}
+                      <div className="portal-card overflow-hidden">
+                        {riwayatTersaring.length === 0 ? (
+                          <div className="py-12 text-center text-[#6b7d6c] space-y-2">
+                            <p className="font-bold">Tidak ada riwayat yang sesuai dengan filter.</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRiwayatCari('');
+                                setRiwayatFilterMode('semua');
+                                setRiwayatFilterMenang('semua');
+                                setRiwayatHalaman(1);
+                              }}
+                              className="text-xs text-[#c8362f] underline font-bold"
+                            >
+                              Reset Filter
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="divide-y-2 divide-dashed divide-[#e0d5b8]">
+                              {riwayatDitampilkan.map((r) => {
+                                const isRed = r.timMenang === 'merah';
+                                const isWhite = r.timMenang === 'putih';
+
+                                return (
+                                  <div
+                                    key={r.id}
+                                    style={{
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center',
+                                      gap: '16px',
+                                      padding: '18px 24px',
+                                    }}
+                                  >
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="portal-tag yellow font-bold">
+                                          Mode {r.mode === 'multi' ? 'MULTI' : 'SOLO'}
+                                        </span>
+                                        <span className="text-xs text-[#6b7d6c]">
+                                          {new Date(r.tanggal).toLocaleDateString('id-ID', {
+                                            day: 'numeric',
+                                            month: 'short',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                          })}
+                                        </span>
+                                      </div>
+                                      <h3 className="portal-cv text-2xl text-[#1d3b2e]">
+                                        {r.templateJudul}
+                                      </h3>
+                                      <div className="text-xs font-semibold text-[#1d3b2e]">
+                                        Pemenang:{' '}
+                                        <span>
+                                          {isRed
+                                            ? '🔴 Tim Merah'
+                                            : isWhite
+                                            ? '⚪ Tim Putih'
+                                            : '🤝 Seri'}
+                                        </span>{' '}
+                                        (Skor: {r.skorMerah} vs {r.skorPutih}) • Posisi Tali:{' '}
+                                        <span className="font-mono font-bold">
+                                          {r.posisiAkhir > 0 ? `+${r.posisiAkhir}` : r.posisiAkhir}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => setModalDetailSessionId(r.id)}
+                                      className="portal-btn ghost-red sm"
+                                      style={{ flexShrink: 0 }}
+                                    >
+                                      Lihat Detail
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Paginasi Riwayat */}
+                            <div className="portal-pagination">
+                              <span className="portal-pagination-info">
+                                Menampilkan {indeksAwal + 1}–{Math.min(indeksAwal + RIWAYAT_PER_HALAMAN, riwayatTersaring.length)} dari {riwayatTersaring.length} sesi
+                              </span>
+
+                              <div className="portal-pagination-btns">
+                                <button
+                                  type="button"
+                                  onClick={() => setRiwayatHalaman((p) => Math.max(1, p - 1))}
+                                  disabled={riwayatHalaman === 1}
+                                  className="portal-page-btn"
+                                  title="Halaman Sebelumnya"
+                                >
+                                  <ChevronLeft className="w-4 h-4" />
+                                </button>
+
+                                {Array.from({ length: totalHalamanRiwayat }, (_, idx) => idx + 1).map((hal) => {
+                                  if (
+                                    hal === 1 ||
+                                    hal === totalHalamanRiwayat ||
+                                    Math.abs(hal - riwayatHalaman) <= 1
+                                  ) {
+                                    return (
+                                      <button
+                                        key={hal}
+                                        type="button"
+                                        onClick={() => setRiwayatHalaman(hal)}
+                                        className={`portal-page-btn ${riwayatHalaman === hal ? 'active' : ''}`}
+                                      >
+                                        {hal}
+                                      </button>
+                                    );
+                                  } else if (
+                                    (hal === 2 && riwayatHalaman > 3) ||
+                                    (hal === totalHalamanRiwayat - 1 && riwayatHalaman < totalHalamanRiwayat - 2)
+                                  ) {
+                                    return (
+                                      <span key={hal} className="px-1 text-[#6b7d6c] font-bold">
+                                        ...
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })}
+
+                                <button
+                                  type="button"
+                                  onClick={() => setRiwayatHalaman((p) => Math.min(totalHalamanRiwayat, p + 1))}
+                                  disabled={riwayatHalaman === totalHalamanRiwayat}
+                                  className="portal-page-btn"
+                                  title="Halaman Selanjutnya"
+                                >
+                                  <ChevronRight className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
