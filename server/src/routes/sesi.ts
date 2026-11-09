@@ -500,6 +500,8 @@ sesiRouter.get('/:id', async (req: AuthRequest, res: Response) => {
             streakBenar: p.streakBenar,
             selesaiKerupuk: p.selesaiKerupuk,
             terakhirGigitan: p.terakhirGigitan,
+            rataRataWaktuJawabMs: p.rataRataWaktuJawabMs,
+            jumlahJawab: p.jumlahJawab,
           })),
           soalSaatIni: soalAktif
             ? {

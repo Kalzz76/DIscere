@@ -40,13 +40,27 @@ export function setupMultiplayerSocket(io: Server) {
               skorTotal: p.skorTotal,
               streakBenar: p.streakBenar,
               selesaiKerupuk: p.selesaiKerupuk,
+              rataRataWaktuJawabMs: p.rataRataWaktuJawabMs,
+              jumlahJawab: p.jumlahJawab,
             }));
 
-            const soalAktif =
-              sesi.status === 'jalan' ? sesi.questions[sesi.currentQuestionIndex] : null;
-
-            const sudahJawabSoalAktif =
-              soalAktif && sesi.jawabanPerSoal.get(soalAktif.id)?.has(peserta.id);
+            // Ambil data soal aktif personal siswa jika permainan sedang berlangsung dan kerupuk belum 0%
+            let soalAktifData: any = null;
+            if (sesi.status === 'jalan' && !peserta.selesaiKerupuk && peserta.sisaKerupuk > 0) {
+              const item = kerupukManager.dapatkanSoalAktifPeserta(sesi.sessionId, peserta.id);
+              if (item) {
+                soalAktifData = {
+                  id: item.soal.id,
+                  questionId: item.soal.id,
+                  nomorSoal: item.nomorSoalPemain,
+                  totalSoal: item.totalSoalTemplate,
+                  teks: item.soal.teks,
+                  opsiA: item.soal.opsiA,
+                  opsiB: item.soal.opsiB,
+                  opsiC: item.soal.opsiC,
+                };
+              }
+            }
 
             callback?.({
               success: true,
@@ -66,23 +80,14 @@ export function setupMultiplayerSocket(io: Server) {
                 streakBenar: peserta.streakBenar,
                 selesaiKerupuk: peserta.selesaiKerupuk,
                 terakhirGigitan: peserta.terakhirGigitan,
+                rataRataWaktuJawabMs: peserta.rataRataWaktuJawabMs,
+                jumlahJawab: peserta.jumlahJawab,
               },
               leaderboard: kerupukManager.dapatkanLeaderboard(sesi.sessionId),
-              currentQuestionIndex: sesi.currentQuestionIndex,
+              currentQuestionIndex: peserta.nomorSoalPemain || 0,
               totalSoal: sesi.totalSoal,
-              soalAktif: soalAktif
-                ? {
-                    id: soalAktif.id,
-                    nomorSoal: sesi.currentQuestionIndex + 1,
-                    totalSoal: sesi.totalSoal,
-                    teks: soalAktif.teks,
-                    opsiA: soalAktif.opsiA,
-                    opsiB: soalAktif.opsiB,
-                    opsiC: soalAktif.opsiC,
-                    endsAt: sesi.soalBerakhirPada,
-                  }
-                : null,
-              sudahJawabSoalAktif: Boolean(sudahJawabSoalAktif),
+              soalAktif: soalAktifData,
+              sudahJawabSoalAktif: false,
             });
 
             // Siarkan pembaruan lobi ke semua orang di room
@@ -91,6 +96,11 @@ export function setupMultiplayerSocket(io: Server) {
               totalPeserta: sesi.peserta.size,
               daftarPeserta,
             });
+
+            // Jika late-join atau reconnect saat game sedang jalan dan ada soal aktif, kirimkan juga lewat socket event
+            if (sesi.status === 'jalan' && soalAktifData) {
+              socket.emit('soal:tampil', soalAktifData);
+            }
             return;
           }
 
@@ -180,6 +190,8 @@ export function setupMultiplayerSocket(io: Server) {
           skorTotal: p.skorTotal,
           streakBenar: p.streakBenar,
           selesaiKerupuk: p.selesaiKerupuk,
+          rataRataWaktuJawabMs: p.rataRataWaktuJawabMs,
+          jumlahJawab: p.jumlahJawab,
         }));
 
         socket.emit('lobi:update', {
@@ -245,8 +257,25 @@ export function setupMultiplayerSocket(io: Server) {
               totalSoal: sesi.totalSoal,
             });
 
-            // Mulai soal pertama
-            mulaiSoalKerupukIndex(io, sesi, 0);
+            // Bagikan soal pertama secara independen ke setiap siswa yang terhubung
+            for (const p of sesi.peserta.values()) {
+              if (p.connected && p.socketId) {
+                const item = kerupukManager.ambilSoalBerikutnyaUntukPeserta(sesi.sessionId, p.id);
+                if (item) {
+                  io.to(p.socketId).emit('soal:tampil', {
+                    game: 'makan_kerupuk',
+                    nomorSoal: item.nomorSoalPemain,
+                    totalSoal: item.totalSoalTemplate,
+                    id: item.soal.id,
+                    questionId: item.soal.id,
+                    teks: item.soal.teks,
+                    opsiA: item.soal.opsiA,
+                    opsiB: item.soal.opsiB,
+                    opsiC: item.soal.opsiC,
+                  });
+                }
+              }
+            }
 
             callback?.({ success: true, pesan: 'Makan Kerupuk Challenge dimulai!' });
             return;
@@ -293,7 +322,7 @@ export function setupMultiplayerSocket(io: Server) {
     // 4. Siswa mengirimkan jawaban
     socket.on(
       'jawab:kirim',
-      (
+      async (
         data: {
           sessionId: string;
           pesertaId: string;
@@ -313,7 +342,7 @@ export function setupMultiplayerSocket(io: Server) {
             const targetQuestionId =
               rawQId && rawQId !== 'undefined' && rawQId !== 'null'
                 ? rawQId
-                : sesiKerupuk.questions[sesiKerupuk.currentQuestionIndex]?.id;
+                : '';
 
             const hasil = kerupukManager.prosesJawabanSiswa(
               sessionId,
@@ -323,13 +352,14 @@ export function setupMultiplayerSocket(io: Server) {
             );
 
             const roomName = `session:${sesiKerupuk.sessionId}`;
+            const soalDijawab = sesiKerupuk.questions.find((q) => q.id === targetQuestionId);
 
             const feedbackPayload = {
               success: true,
               game: 'makan_kerupuk',
               benar: hasil.hasilJawaban.benar,
-              jawabanBenar: sesiKerupuk.questions[sesiKerupuk.currentQuestionIndex]?.jawabanBenar,
-              penjelasan: sesiKerupuk.questions[sesiKerupuk.currentQuestionIndex]?.penjelasan,
+              jawabanBenar: soalDijawab?.jawabanBenar || '',
+              penjelasan: soalDijawab?.penjelasan || null,
               poinDidapat: hasil.hasilJawaban.poinDidapat,
               poinDasar: hasil.hasilJawaban.poinDasar,
               bonusStreak: hasil.hasilJawaban.bonusStreak,
@@ -345,14 +375,12 @@ export function setupMultiplayerSocket(io: Server) {
             // Siarkan event langsung personal ke socket siswa (kompatibilitas penuh)
             socket.emit('jawab:hasil', feedbackPayload);
 
-            const mapJawaban = sesiKerupuk.jawabanPerSoal.get(targetQuestionId);
-            const answeredCount = mapJawaban ? mapJawaban.size : 0;
             const activeCount = Array.from(sesiKerupuk.peserta.values()).filter((p) => p.connected).length;
 
-            // Siarkan pembaruan leaderboard & gigitan ke seluruh room
+            // Siarkan pembaruan leaderboard & aktivitas ke seluruh room
             io.to(roomName).emit('kerupuk:update', {
               leaderboard: hasil.leaderboard,
-              answeredCount,
+              answeredCount: sesiKerupuk.peserta.size,
               totalCount: Math.max(activeCount, sesiKerupuk.peserta.size),
               terakhirJawab: {
                 pesertaId,
@@ -363,14 +391,47 @@ export function setupMultiplayerSocket(io: Server) {
               },
             });
 
-            // Jika semua kerupuk habis atau semua peserta sudah menjawab
-            if (hasil.gameSelesaiSemuaHabis || hasil.semuaSelesai) {
-              if (sesiKerupuk.timerHandle) {
-                clearTimeout(sesiKerupuk.timerHandle);
-                sesiKerupuk.timerHandle = undefined;
-              }
-              tutupSoalKerupukAktif(io, sesiKerupuk);
+            // 1. KONDISI SELESAI OTOMATIS: Semua peserta aktif telah menghabiskan kerupuk (0%)
+            if (hasil.gameSelesaiSemuaHabis) {
+              const hasilAkhir = kerupukManager.akhiriPermainan(sesiKerupuk.sessionId);
+              await simpanHasilKerupukKeDatabase(sesiKerupuk);
+              io.to(roomName).emit('sesi:selesai', {
+                game: 'makan_kerupuk',
+                hasil: hasilAkhir,
+              });
+              return;
             }
+
+            // 2. Jika pemain ini selesai (kerupuk 0%), beri notifikasi personal bahwa dia selesai
+            if (hasil.pemainSelesai) {
+              socket.emit('pemain:selesai', {
+                peserta: hasil.hasilJawaban.pesertaUpdated,
+                pesan: 'Selamat! Kerupukmu telah ludes 100%!',
+              });
+              return;
+            }
+
+            // 3. Jika pemain masih belum selesai (> 0%), kirimkan soal berikutnya setelah jeda 1.5 detik
+            setTimeout(() => {
+              const sesiCheck = kerupukManager.dapatkanSesi(sessionId);
+              if (!sesiCheck || sesiCheck.status !== 'jalan') return;
+
+              const nextItem = kerupukManager.ambilSoalBerikutnyaUntukPeserta(sessionId, pesertaId);
+              if (nextItem) {
+                socket.emit('soal:tampil', {
+                  game: 'makan_kerupuk',
+                  nomorSoal: nextItem.nomorSoalPemain,
+                  totalSoal: nextItem.totalSoalTemplate,
+                  id: nextItem.soal.id,
+                  questionId: nextItem.soal.id,
+                  teks: nextItem.soal.teks,
+                  opsiA: nextItem.soal.opsiA,
+                  opsiB: nextItem.soal.opsiB,
+                  opsiC: nextItem.soal.opsiC,
+                });
+              }
+            }, 1500);
+
             return;
           }
 
@@ -432,6 +493,35 @@ export function setupMultiplayerSocket(io: Server) {
         }
       }
     );
+
+    // 4b. Siswa meminta soal berikutnya secara langsung (misalnya menekan tombol "Lanjut" tanpa menunggu timer 1.5s)
+    socket.on('soal:lanjut', (data: { sessionId: string; pesertaId: string }) => {
+      const { sessionId, pesertaId } = data || {};
+      const sesi = kerupukManager.dapatkanSesi(sessionId);
+      if (!sesi || sesi.status !== 'jalan') return;
+
+      const peserta = sesi.peserta.get(pesertaId);
+      if (!peserta || peserta.selesaiKerupuk || peserta.sisaKerupuk === 0) return;
+
+      // Ambil soal aktif yang sudah disiapkan atau ambil soal berikutnya dari antrean
+      const item =
+        kerupukManager.dapatkanSoalAktifPeserta(sessionId, pesertaId) ||
+        kerupukManager.ambilSoalBerikutnyaUntukPeserta(sessionId, pesertaId);
+
+      if (item) {
+        socket.emit('soal:tampil', {
+          game: 'makan_kerupuk',
+          nomorSoal: item.nomorSoalPemain,
+          totalSoal: item.totalSoalTemplate,
+          id: item.soal.id,
+          questionId: item.soal.id,
+          teks: item.soal.teks,
+          opsiA: item.soal.opsiA,
+          opsiB: item.soal.opsiB,
+          opsiC: item.soal.opsiC,
+        });
+      }
+    });
 
     // 5. Guru mengakhiri permainan secara manual
     socket.on(
