@@ -3,7 +3,6 @@ import { useAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
 import { Modal } from '../../components';
 import {
-  ShieldCheck,
   LogOut,
   BarChart3,
   Users,
@@ -23,6 +22,8 @@ import {
   Calendar,
   Gamepad2,
   Info,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 
@@ -33,6 +34,7 @@ export default function DashboardAdmin() {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<AdminTab>('statistik');
+  const [sidebarMinimized, setSidebarMinimized] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorPesan, setErrorPesan] = useState<string | null>(null);
   const [suksesPesan, setSuksesPesan] = useState<string | null>(null);
@@ -323,12 +325,39 @@ export default function DashboardAdmin() {
 
   return (
     <div className="portal-bg">
-      <div className="portal-shell">
-        {/* Sidebar Papan Tulis */}
+      <div className={`portal-shell ${sidebarMinimized ? 'minimized' : ''}`}>
+        {/* Sidebar Papan Tulis (Sticky Mengikuti Scroll & Minimizable) */}
         <aside className="portal-side">
-          <div className="portal-brand">
-            <ShieldCheck className="w-8 h-8 text-[#f2c230]" />
-            <span>Discere Admin</span>
+          <div className="portal-side-header">
+            <div className="portal-brand">
+              <svg
+                className="w-8 h-8 shrink-0 text-[#f4ecd8]"
+                viewBox="0 0 48 48"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3.2"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M5 11c7-3 14-1 19 4v26c-5-5-12-7-19-4zM43 11c-7-3-14-1-19 4v26c5-5 12-7 19-4z" />
+                <path d="M10 19h8M10 26h8M30 19h8M30 26h8" />
+              </svg>
+              <span>Discere Admin</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarMinimized((prev) => !prev)}
+              className="portal-side-toggle"
+              title={sidebarMinimized ? 'Perluas Sidebar' : 'Kecilkan Sidebar'}
+              aria-label={sidebarMinimized ? 'Perluas Sidebar' : 'Kecilkan Sidebar'}
+            >
+              {sidebarMinimized ? (
+                <ChevronRight className="w-4 h-4" />
+              ) : (
+                <ChevronLeft className="w-4 h-4" />
+              )}
+            </button>
           </div>
 
           <nav className="portal-nav" aria-label="Menu navigasi admin">
@@ -336,8 +365,9 @@ export default function DashboardAdmin() {
               type="button"
               aria-current={activeTab === 'statistik' ? 'page' : undefined}
               onClick={() => setActiveTab('statistik')}
+              title="Statistik Platform"
             >
-              <BarChart3 className="w-4 h-4" />
+              <BarChart3 className="w-4 h-4 shrink-0" />
               <span>Statistik Platform</span>
             </button>
 
@@ -345,8 +375,9 @@ export default function DashboardAdmin() {
               type="button"
               aria-current={activeTab === 'guru' ? 'page' : undefined}
               onClick={() => setActiveTab('guru')}
+              title="Kelola Akun Guru"
             >
-              <Users className="w-4 h-4" />
+              <Users className="w-4 h-4 shrink-0" />
               <span>Kelola Akun Guru</span>
             </button>
 
@@ -354,8 +385,9 @@ export default function DashboardAdmin() {
               type="button"
               aria-current={activeTab === 'pustaka' ? 'page' : undefined}
               onClick={() => setActiveTab('pustaka')}
+              title="Pustaka Resmi"
             >
-              <BookOpen className="w-4 h-4" />
+              <BookOpen className="w-4 h-4 shrink-0" />
               <span>Pustaka Resmi</span>
             </button>
 
@@ -363,8 +395,9 @@ export default function DashboardAdmin() {
               type="button"
               aria-current={activeTab === 'ai' ? 'page' : undefined}
               onClick={() => setActiveTab('ai')}
+              title="Monitoring AI"
             >
-              <Sparkles className="w-4 h-4 text-[#f2c230]" />
+              <Sparkles className="w-4 h-4 text-[#f2c230] shrink-0" />
               <span>Monitoring AI</span>
             </button>
 
@@ -372,18 +405,19 @@ export default function DashboardAdmin() {
               type="button"
               aria-current={activeTab === 'log' ? 'page' : undefined}
               onClick={() => setActiveTab('log')}
+              title="Log Audit"
             >
-              <History className="w-4 h-4" />
+              <History className="w-4 h-4 shrink-0" />
               <span>Log Audit</span>
             </button>
           </nav>
 
           <div className="portal-who">
-            Masuk sebagai:
+            <span className="portal-who-label">Masuk sebagai:</span>
             <b>{user?.nama || 'Administrator'}</b>
             <span>{user?.email}</span>
-            <button type="button" onClick={handleKeluar} className="portal-out">
-              <LogOut className="w-4 h-4" />
+            <button type="button" onClick={handleKeluar} className="portal-out" title="Keluar">
+              <LogOut className="w-4 h-4 shrink-0" />
               <span>Keluar</span>
             </button>
           </div>

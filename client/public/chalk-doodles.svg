@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" fill="none">
+  <!-- Soft Chalk Dust Patches -->
+  <g opacity="0.08" fill="#f4ecd8">
+    <ellipse cx="140" cy="90" rx="90" ry="40" filter="blur(8px)" />
+    <ellipse cx="460" cy="220" rx="110" ry="50" filter="blur(10px)" />
+    <ellipse cx="280" cy="480" rx="120" ry="45" filter="blur(9px)" />
+    <ellipse cx="100" cy="380" rx="80" ry="35" filter="blur(7px)" />
+  </g>
+
+  <!-- Chalk Doodles & Math Formulas (Stroke #f4ecd8, opacity 0.12 - 0.18) -->
+  <g stroke="#f4ecd8" stroke-linecap="round" stroke-linejoin="round" opacity="0.14">
+    <!-- Math: E = mc² -->
+    <text x="40" y="70" font-family="'Caveat Brush', 'Comic Sans MS', cursive" font-size="28" fill="#f4ecd8" stroke="none" opacity="0.15">E = mc²</text>
+    
+    <!-- Geometry: Chalk Cube -->
+    <path d="M 460 50 L 510 50 L 510 100 L 460 100 Z" stroke-width="2" />
+    <path d="M 480 30 L 530 30 L 530 80 L 480 80 Z" stroke-width="2" stroke-dasharray="3 3" />
+    <path d="M 460 50 L 480 30 M 510 50 L 530 30 M 510 100 L 530 80 M 460 100 L 480 80" stroke-width="2" />
+
+    <!-- Math: a² + b² = c² -->
+    <text x="240" y="110" font-family="'Caveat Brush', 'Comic Sans MS', cursive" font-size="24" fill="#f4ecd8" stroke="none" opacity="0.15">a² + b² = c²</text>
+
+    <!-- Atom / Science Doodle -->
+    <g transform="translate(110, 200)">
+      <circle cx="0" cy="0" r="6" fill="#f4ecd8" stroke="none" opacity="0.18" />
+      <ellipse cx="0" cy="0" rx="36" ry="12" stroke-width="1.8" transform="rotate(25)" />
+      <ellipse cx="0" cy="0" rx="36" ry="12" stroke-width="1.8" transform="rotate(-35)" />
+      <ellipse cx="0" cy="0" rx="36" ry="12" stroke-width="1.8" transform="rotate(85)" />
+    </g>
+
+    <!-- Lightbulb Doodle -->
+    <g transform="translate(380, 160)">
+      <path d="M 0 -15 C -12 -15, -16 0, -10 12 C -6 18, -4 20, -4 25 L 4 25 C 4 20, 6 18, 10 12 C 16 0, 12 -15, 0 -15 Z" stroke-width="2" />
+      <path d="M -4 29 L 4 29 M -3 33 L 3 33" stroke-width="2" />
+      <!-- Glow rays -->
+      <path d="M 0 -22 L 0 -28 M -18 -18 L -24 -24 M 18 -18 L 24 -24 M -22 -2 L -28 -2 M 22 -2 L 28 -2" stroke-width="1.8" />
+    </g>
+
+    <!-- Math: Fractions & Square Root -->
+    <text x="480" y="270" font-family="'Caveat Brush', 'Comic Sans MS', cursive" font-size="22" fill="#f4ecd8" stroke="none" opacity="0.15">√144 = 12</text>
+    <text x="50" y="320" font-family="'Caveat Brush', 'Comic Sans MS', cursive" font-size="22" fill="#f4ecd8" stroke="none" opacity="0.15">½ + ¼ = ¾</text>
+
+    <!-- Chalk Stars -->
+    <path d="M 280 230 L 284 242 L 296 242 L 286 250 L 290 262 L 280 254 L 270 262 L 274 250 L 264 242 L 276 242 Z" stroke-width="1.8" />
+    <path d="M 520 400 L 523 408 L 531 408 L 525 414 L 527 422 L 520 417 L 513 422 L 515 414 L 509 408 L 517 408 Z" stroke-width="1.5" />
+    <path d="M 80 470 L 83 478 L 91 478 L 85 484 L 87 492 L 80 487 L 73 492 L 75 484 L 69 478 L 77 478 Z" stroke-width="1.5" />
+
+    <!-- Planet with ring -->
+    <g transform="translate(200, 370)">
+      <circle cx="0" cy="0" r="18" stroke-width="2" />
+      <ellipse cx="0" cy="0" rx="32" ry="8" stroke-width="1.8" transform="rotate(-20)" />
+    </g>
+
+    <!-- Right Triangle (Pythagoras) -->
+    <g transform="translate(360, 360)">
+      <path d="M 0 45 L 60 45 L 0 0 Z" stroke-width="2" />
+      <path d="M 0 35 L 10 35 L 10 45" stroke-width="1.5" />
+      <text x="25" y="58" font-family="'Caveat Brush', cursive" font-size="14" fill="#f4ecd8" stroke="none">a</text>
+      <text x="-12" y="26" font-family="'Caveat Brush', cursive" font-size="14" fill="#f4ecd8" stroke="none">b</text>
+      <text x="36" y="20" font-family="'Caveat Brush', cursive" font-size="14" fill="#f4ecd8" stroke="none">c</text>
+    </g>
+
+    <!-- Open Book Doodle -->
+    <g transform="translate(180, 500)">
+      <path d="M 0 0 C 15 -6, 30 -6, 45 0 L 45 35 C 30 29, 15 29, 0 35 Z" stroke-width="2" />
+      <path d="M 0 0 C -15 -6, -30 -6, -45 0 L -45 35 C -30 29, -15 29, 0 35 Z" stroke-width="2" />
+      <line x1="0" y1="0" x2="0" y2="35" stroke-width="2" />
+    </g>
+
+    <!-- Chalk Math: 1 + 1 = 2 & Pi -->
+    <text x="360" y="510" font-family="'Caveat Brush', 'Comic Sans MS', cursive" font-size="26" fill="#f4ecd8" stroke="none" opacity="0.16">π ≈ 3.14159</text>
+    <text x="460" y="560" font-family="'Caveat Brush', 'Comic Sans MS', cursive" font-size="22" fill="#f4ecd8" stroke="none" opacity="0.15">1 + 1 = 2 ✓</text>
+
+    <!-- Compass / Divider -->
+    <g transform="translate(80, 140)">
+      <circle cx="0" cy="0" r="3" stroke-width="1.5" />
+      <line x1="0" y1="3" x2="-14" y2="36" stroke-width="2" />
+      <line x1="0" y1="3" x2="14" y2="36" stroke-width="2" />
+      <path d="M -8 20 Q 0 16 8 20" stroke-width="1.5" />
+    </g>
+
+    <!-- Wavy chalk underlines and doodles -->
+    <path d="M 30 550 Q 55 540, 80 550 T 130 550" stroke-width="2" />
+    <path d="M 240 280 Q 260 270, 280 280 T 320 280" stroke-width="2" />
+    <path d="M 440 130 Q 455 125, 470 130 T 500 130" stroke-width="1.8" />
+  </g>
+</svg>
+
