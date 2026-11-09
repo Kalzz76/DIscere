@@ -328,7 +328,17 @@ export const multiManager = {
     }
 
     const soalAktif = sesi.questions[sesi.currentQuestionIndex];
-    if (!soalAktif || soalAktif.id !== questionId) {
+    if (!soalAktif) {
+      throw new Error('Tidak ada soal yang sedang aktif.');
+    }
+
+    // Resolusi ID soal: toleransi jika client mengirimkan questionId/id kosong atau undefined
+    const resolvedQuestionId =
+      questionId && questionId !== 'undefined' && questionId !== 'null'
+        ? questionId
+        : soalAktif.id;
+
+    if (soalAktif.id !== resolvedQuestionId) {
       throw new Error('Soal yang dijawab sudah tidak aktif.');
     }
 
@@ -338,10 +348,10 @@ export const multiManager = {
     }
 
     // Ambil atau buat Map jawaban untuk soal aktif
-    let mapJawaban = sesi.jawabanPerSoal.get(questionId);
+    let mapJawaban = sesi.jawabanPerSoal.get(soalAktif.id);
     if (!mapJawaban) {
       mapJawaban = new Map();
-      sesi.jawabanPerSoal.set(questionId, mapJawaban);
+      sesi.jawabanPerSoal.set(soalAktif.id, mapJawaban);
     }
 
     // Cegah jawaban ganda dari peserta yang sama
@@ -349,9 +359,22 @@ export const multiManager = {
       throw new Error('Anda sudah mengirim jawaban untuk soal ini.');
     }
 
-    const jawabanBenar = soalAktif.jawabanBenar.toUpperCase();
-    const cleanJawaban = jawabanDipilih.toUpperCase();
-    const benar = cleanJawaban === jawabanBenar;
+    const cleanJawaban = (jawabanDipilih || '').trim().toUpperCase();
+    const jawabanBenar = (soalAktif.jawabanBenar || '').trim().toUpperCase();
+
+    // Validasi jawaban benar:
+    // 1. Pencocokan langsung kode opsi ("A", "B", "C")
+    // 2. Pencocokan jika input berupa isi teks dari opsi yang benar
+    let benar = cleanJawaban === jawabanBenar;
+    if (!benar) {
+      if (jawabanBenar === 'A' && cleanJawaban === (soalAktif.opsiA || '').trim().toUpperCase()) {
+        benar = true;
+      } else if (jawabanBenar === 'B' && cleanJawaban === (soalAktif.opsiB || '').trim().toUpperCase()) {
+        benar = true;
+      } else if (jawabanBenar === 'C' && cleanJawaban === (soalAktif.opsiC || '').trim().toUpperCase()) {
+        benar = true;
+      }
+    }
 
     // Hitung posisi tali baru secara atomik
     const posisiBaru = hitungPosisiTali(sesi.taliPosition, peserta.tim, benar);

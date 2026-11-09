@@ -297,28 +297,34 @@ export function setupMultiplayerSocket(io: Server) {
         data: {
           sessionId: string;
           pesertaId: string;
-          questionId: string;
+          questionId?: string;
+          id?: string;
           jawaban: string;
         },
         callback?: (res: any) => void
       ) => {
         try {
-          const { sessionId, pesertaId, questionId, jawaban } = data || {};
+          const { sessionId, pesertaId, jawaban } = data || {};
+          const rawQId = data?.questionId || data?.id;
 
           // A. Sesi Makan Kerupuk
           const sesiKerupuk = kerupukManager.dapatkanSesi(sessionId);
           if (sesiKerupuk) {
+            const targetQuestionId =
+              rawQId && rawQId !== 'undefined' && rawQId !== 'null'
+                ? rawQId
+                : sesiKerupuk.questions[sesiKerupuk.currentQuestionIndex]?.id;
+
             const hasil = kerupukManager.prosesJawabanSiswa(
               sessionId,
               pesertaId,
-              questionId,
+              targetQuestionId,
               jawaban
             );
 
             const roomName = `session:${sesiKerupuk.sessionId}`;
 
-            // Callback feedback personal lengkap ke siswa yang menjawab
-            callback?.({
+            const feedbackPayload = {
               success: true,
               game: 'makan_kerupuk',
               benar: hasil.hasilJawaban.benar,
@@ -332,9 +338,14 @@ export function setupMultiplayerSocket(io: Server) {
               sisaKerupukBaru: hasil.hasilJawaban.sisaKerupukBaru,
               selesaiBaru: hasil.hasilJawaban.selesaiBaru,
               pesertaUpdated: hasil.hasilJawaban.pesertaUpdated,
-            });
+            };
 
-            const mapJawaban = sesiKerupuk.jawabanPerSoal.get(questionId);
+            // Callback acknowledgment ke socket pengirim
+            callback?.(feedbackPayload);
+            // Siarkan event langsung personal ke socket siswa (kompatibilitas penuh)
+            socket.emit('jawab:hasil', feedbackPayload);
+
+            const mapJawaban = sesiKerupuk.jawabanPerSoal.get(targetQuestionId);
             const answeredCount = mapJawaban ? mapJawaban.size : 0;
             const activeCount = Array.from(sesiKerupuk.peserta.values()).filter((p) => p.connected).length;
 
@@ -364,28 +375,37 @@ export function setupMultiplayerSocket(io: Server) {
           }
 
           // B. Sesi Tarik Tambang
-          const hasil = multiManager.prosesJawabanSiswa(
-            sessionId,
-            pesertaId,
-            questionId,
-            jawaban
-          );
-
           const sesi = multiManager.dapatkanSesi(sessionId);
           if (!sesi) return;
 
+          const targetQuestionId =
+            rawQId && rawQId !== 'undefined' && rawQId !== 'null'
+              ? rawQId
+              : sesi.questions[sesi.currentQuestionIndex]?.id;
+
+          const hasil = multiManager.prosesJawabanSiswa(
+            sessionId,
+            pesertaId,
+            targetQuestionId,
+            jawaban
+          );
+
           const roomName = `session:${sesi.sessionId}`;
 
-          // Kirim feedback personal ke siswa yang menjawab
-          callback?.({
+          const feedbackPayload = {
             success: true,
             game: 'tarik_tambang',
             benar: hasil.benar,
             jawabanBenar: hasil.jawabanBenar,
             penjelasan: hasil.penjelasan,
-          });
+          };
 
-          const mapJawaban = sesi.jawabanPerSoal.get(questionId);
+          // Kirim feedback personal ke siswa yang menjawab
+          callback?.(feedbackPayload);
+          // Siarkan event langsung personal ke socket siswa (kompatibilitas penuh)
+          socket.emit('jawab:hasil', feedbackPayload);
+
+          const mapJawaban = sesi.jawabanPerSoal.get(targetQuestionId);
           const answeredCount = mapJawaban ? mapJawaban.size : 0;
           const activeCount = Array.from(sesi.peserta.values()).filter((p) => p.connected).length;
 
@@ -527,6 +547,7 @@ function mulaiSoalKerupukIndex(io: Server, sesi: SesiKerupukActive, index: numbe
     questionIndex: index,
     nomorSoal: index + 1,
     totalSoal: sesi.totalSoal,
+    id: soalAktif.id,
     questionId: soalAktif.id,
     teks: soalAktif.teks,
     opsiA: soalAktif.opsiA,
@@ -687,6 +708,7 @@ function mulaiSoalIndex(io: Server, sesi: SesiMultiplayerActive, index: number) 
     questionIndex: index,
     nomorSoal: index + 1,
     totalSoal: sesi.totalSoal,
+    id: soalAktif.id,
     questionId: soalAktif.id,
     teks: soalAktif.teks,
     opsiA: soalAktif.opsiA,

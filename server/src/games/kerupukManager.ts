@@ -343,7 +343,17 @@ export const kerupukManager = {
     }
 
     const soalAktif = sesi.questions[sesi.currentQuestionIndex];
-    if (!soalAktif || soalAktif.id !== questionId) {
+    if (!soalAktif) {
+      throw new Error('Tidak ada soal yang sedang aktif.');
+    }
+
+    // Resolusi ID soal: toleransi jika client mengirimkan questionId/id kosong atau undefined
+    const resolvedQuestionId =
+      questionId && questionId !== 'undefined' && questionId !== 'null'
+        ? questionId
+        : soalAktif.id;
+
+    if (soalAktif.id !== resolvedQuestionId) {
       throw new Error('Soal yang dijawab sudah tidak aktif.');
     }
 
@@ -353,10 +363,10 @@ export const kerupukManager = {
     }
 
     // Ambil atau buat Map jawaban untuk soal aktif
-    let mapJawaban = sesi.jawabanPerSoal.get(questionId);
+    let mapJawaban = sesi.jawabanPerSoal.get(soalAktif.id);
     if (!mapJawaban) {
       mapJawaban = new Map();
-      sesi.jawabanPerSoal.set(questionId, mapJawaban);
+      sesi.jawabanPerSoal.set(soalAktif.id, mapJawaban);
     }
 
     // Cegah jawaban ganda
@@ -371,6 +381,9 @@ export const kerupukManager = {
       peserta,
       jawabanSiswa: jawabanDipilih,
       kunciJawaban: soalAktif.jawabanBenar,
+      opsiA: soalAktif.opsiA,
+      opsiB: soalAktif.opsiB,
+      opsiC: soalAktif.opsiC,
       probabilitasConfig: sesi.config.probabilitas,
       waktuJawabTimestamp: Date.now(),
     });

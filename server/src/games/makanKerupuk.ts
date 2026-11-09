@@ -185,6 +185,9 @@ export interface ProsesJawabanParams {
   peserta: PesertaKerupukState;
   jawabanSiswa: string;
   kunciJawaban: string;
+  opsiA?: string;
+  opsiB?: string;
+  opsiC?: string;
   probabilitasConfig: ProbabilitasConfig;
   waktuJawabTimestamp: number;
 }
@@ -203,7 +206,19 @@ export interface HasilProsesJawaban {
 
 export function prosesJawabanKerupuk(params: ProsesJawabanParams): HasilProsesJawaban {
   const { peserta, jawabanSiswa, kunciJawaban, probabilitasConfig, waktuJawabTimestamp } = params;
-  const benar = jawabanSiswa.trim().toUpperCase() === kunciJawaban.trim().toUpperCase();
+  const cleanJawaban = (jawabanSiswa || '').trim().toUpperCase();
+  const cleanKunci = (kunciJawaban || '').trim().toUpperCase();
+
+  let benar = cleanJawaban === cleanKunci;
+  if (!benar) {
+    if (cleanKunci === 'A' && cleanJawaban === (params.opsiA || '').trim().toUpperCase()) {
+      benar = true;
+    } else if (cleanKunci === 'B' && cleanJawaban === (params.opsiB || '').trim().toUpperCase()) {
+      benar = true;
+    } else if (cleanKunci === 'C' && cleanJawaban === (params.opsiC || '').trim().toUpperCase()) {
+      benar = true;
+    }
+  }
 
   // Clone peserta state agar immutability terjaga
   const updated: PesertaKerupukState = { ...peserta };

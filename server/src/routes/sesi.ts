@@ -664,6 +664,7 @@ sesiRouter.get('/:id', async (req: AuthRequest, res: Response) => {
             soalSaatIni: soalAktif
               ? {
                   id: soalAktif.id,
+                  questionId: soalAktif.id,
                   urutan: soalAktif.urutan,
                   nomorSoal: multi.currentQuestionIndex + 1,
                   teks: soalAktif.teks,
