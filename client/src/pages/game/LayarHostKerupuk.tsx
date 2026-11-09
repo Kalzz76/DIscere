@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { apiRequest } from '../../lib/api';
 import { getSocket } from '../../lib/socket';
@@ -10,11 +10,9 @@ import {
   Users,
   Play,
   StopCircle,
-  Clock,
   Loader2,
   Copy,
   Check,
-  CheckCircle2,
   Flame,
   Volume2,
   VolumeX,
@@ -33,17 +31,8 @@ interface PesertaKerupuk {
   streakBenar: number;
   selesaiKerupuk?: boolean;
   terakhirGigitan?: HasilGachaGigitanProps;
-}
-
-interface SoalItem {
-  id: string;
-  nomorSoal: number;
-  totalSoal: number;
-  teks: string;
-  opsiA: string;
-  opsiB: string;
-  opsiC: string;
-  endsAt?: number;
+  rataRataWaktuJawabMs?: number;
+  jumlahJawab?: number;
 }
 
 export default function LayarHostKerupuk() {
@@ -64,20 +53,8 @@ export default function LayarHostKerupuk() {
   const [totalPeserta, setTotalPeserta] = useState(0);
 
   // In-Game
-  const [soalAktif, setSoalAktif] = useState<SoalItem | null>(null);
-  const [sisaDetik, setSisaDetik] = useState(15);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [liveFeed, setLiveFeed] = useState<Array<{ id: string; teks: string; tipe: string }>>([]);
-
-  // Intermission (Rekap Jawaban & Penjelasan per Soal)
-  const [rekapSoal, setRekapSoal] = useState<{
-    tampil: boolean;
-    jawabanBenar?: string;
-    penjelasan?: string | null;
-    benarCount?: number;
-    salahCount?: number;
-    tidakJawabCount?: number;
-  } | null>(null);
 
   // Hasil Akhir
   const [hasilAkhir, setHasilAkhir] = useState<any>(null);
@@ -88,46 +65,6 @@ export default function LayarHostKerupuk() {
   const [isStarting, setIsStarting] = useState(false);
   const [isMuted, setIsMuted] = useState(soundEffects.getMuted());
   const [copied, setCopied] = useState(false);
-
-  // Timer interval ref
-  const countdownIntervalRef = useRef<any>(null);
-
-  // Fungsi sinkronisasi timer lokal dengan endsAt server
-  const startCountdown = useCallback((endsAtTimestamp?: number, duration: number = 15) => {
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = null;
-    }
-
-    if (!endsAtTimestamp) {
-      setSisaDetik(duration);
-      return;
-    }
-
-    const updateTimer = () => {
-      const now = Date.now();
-      const diffMs = endsAtTimestamp - now;
-      const detik = Math.max(0, Math.ceil(diffMs / 1000));
-      setSisaDetik(detik);
-      if (detik <= 0) {
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-          countdownIntervalRef.current = null;
-        }
-      }
-    };
-
-    updateTimer();
-    countdownIntervalRef.current = setInterval(updateTimer, 200);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-      }
-    };
-  }, []);
 
   // 1. Fetch data awal sesi dari REST API
   const fetchSesi = useCallback(async () => {
@@ -144,10 +81,7 @@ export default function LayarHostKerupuk() {
       setTotalPeserta(s.totalPeserta ?? 0);
       setLeaderboard(s.leaderboard || s.daftarPeserta || []);
 
-      if (s.status === 'jalan' && s.soalSaatIni) {
-        setSoalAktif(s.soalSaatIni);
-        startCountdown(s.soalSaatIni.endsAt, s.config?.durasiSoalDetik || 15);
-      } else if (s.status === 'selesai' && s.hasil) {
+      if (s.status === 'selesai' && s.hasil) {
         setHasilAkhir(s.hasil);
       }
     } catch (err: any) {
@@ -155,7 +89,7 @@ export default function LayarHostKerupuk() {
     } finally {
       setLoading(false);
     }
-  }, [id, startCountdown]);
+  }, [id]);
 
   useEffect(() => {
     fetchSesi();
@@ -186,16 +120,7 @@ export default function LayarHostKerupuk() {
       soundEffects.playWhistle();
     };
 
-    // Listener 3: Soal Tampil
-    const handleSoalTampil = (data: SoalItem & { endsAt: number; duration: number }) => {
-      setStatus('jalan');
-      setSoalAktif(data);
-      setAnsweredCount(0);
-      setRekapSoal(null);
-      startCountdown(data.endsAt, data.duration);
-    };
-
-    // Listener 4: Update Kerupuk Real-Time
+    // Listener 3: Update Kerupuk Real-Time
     const handleKerupukUpdate = (data: {
       leaderboard: PesertaKerupuk[];
       answeredCount: number;
@@ -232,53 +157,25 @@ export default function LayarHostKerupuk() {
       }
     };
 
-    // Listener 5: Soal Berakhir (Penjelasan & Jawaban Benar)
-    const handleSoalSelesai = (data: {
-      questionIndex: number;
-      jawabanBenar: string;
-      penjelasan?: string | null;
-      leaderboard?: PesertaKerupuk[];
-      stats?: { benar: number; salah: number; tidakJawab: number };
-      isGameFinished: boolean;
-    }) => {
-      if (data.leaderboard) {
-        setLeaderboard(data.leaderboard);
-      }
-
-      setRekapSoal({
-        tampil: true,
-        jawabanBenar: data.jawabanBenar,
-        penjelasan: data.penjelasan,
-        benarCount: data.stats?.benar ?? 0,
-        salahCount: data.stats?.salah ?? 0,
-        tidakJawabCount: data.stats?.tidakJawab ?? 0,
-      });
-    };
-
-    // Listener 6: Seluruh Sesi Selesai
+    // Listener 4: Seluruh Sesi Selesai
     const handleSesiSelesai = (data: { hasil: any }) => {
       setHasilAkhir(data.hasil);
       setStatus('selesai');
-      setRekapSoal(null);
       soundEffects.playVictoryFanfare();
     };
 
     socket.on('lobi:update', handleLobiUpdate);
     socket.on('game:mulai', handleGameMulai);
-    socket.on('soal:tampil', handleSoalTampil);
     socket.on('kerupuk:update', handleKerupukUpdate);
-    socket.on('soal:selesai', handleSoalSelesai);
     socket.on('sesi:selesai', handleSesiSelesai);
 
     return () => {
       socket.off('lobi:update', handleLobiUpdate);
       socket.off('game:mulai', handleGameMulai);
-      socket.off('soal:tampil', handleSoalTampil);
       socket.off('kerupuk:update', handleKerupukUpdate);
-      socket.off('soal:selesai', handleSoalSelesai);
       socket.off('sesi:selesai', handleSesiSelesai);
     };
-  }, [id, startCountdown]);
+  }, [id]);
 
   // Handler: Guru Memulai Lomba Makan Kerupuk
   const handleMulaiLomba = () => {
@@ -502,38 +399,43 @@ export default function LayarHostKerupuk() {
   // FASE 2: PERMAINAN BERJALAN (Layar Kelas / Proyektor)
   // -------------------------------------------------------------------------
   if (status === 'jalan') {
+    const totalLudes = leaderboard.filter((p) => p.sisaKerupuk === 0).length;
+
     return (
       <div className="min-h-screen bg-slate-900 text-white flex flex-col justify-between p-4 sm:p-6 select-none">
-        {/* Header Bar: Status Soal, Timer Proyektor, & Kontrol Guru */}
+        {/* Header Bar: Status Sesi & Kontrol Guru */}
         <header className="flex justify-between items-center bg-slate-800/90 border border-slate-700 rounded-2xl p-4 shadow-md">
           <div className="flex items-center gap-4">
             <span className="px-3.5 py-1.5 bg-amber-500 text-slate-950 text-xs font-black rounded-xl uppercase tracking-wider">
-              Soal {soalAktif ? `${soalAktif.nomorSoal} / ${soalAktif.totalSoal}` : '-'}
+              Lomba Berlangsung
             </span>
-            <div className="text-xs font-bold text-slate-300 hidden sm:block">
-              Dijawab: <span className="text-amber-400 font-mono text-sm">{answeredCount}</span> dari {totalPeserta} siswa
+            <div>
+              <h2 className="text-sm sm:text-base font-black text-white">{templateJudul}</h2>
+              <span className="text-[11px] text-slate-400 font-semibold block">
+                Pertanyaan berulang mandiri sampai kerupuk ludes
+              </span>
             </div>
           </div>
 
-          {/* Timer Lingkaran / Kotak Raksasa */}
-          <div
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-mono text-lg font-black transition-all ${
-              sisaDetik <= 3
-                ? 'bg-red-500 text-white animate-pulse'
-                : sisaDetik <= 6
-                ? 'bg-amber-500 text-slate-950'
-                : 'bg-slate-700 text-white'
-            }`}
-          >
-            <Clock className="w-5 h-5" />
-            <span>{sisaDetik}s</span>
-          </div>
+          {/* Indikator Status Siswa Ludes */}
+          <div className="flex items-center gap-3">
+            <div className="px-4 py-2 rounded-xl bg-slate-800 border border-slate-700 flex items-center gap-2">
+              <span className="text-xs text-slate-400 font-bold">Kerupuk Ludes:</span>
+              <span className="text-sm font-black font-mono text-emerald-400">
+                {totalLudes} / {totalPeserta} Siswa
+              </span>
+            </div>
 
-          <div className="flex items-center gap-2">
+            {answeredCount > 0 && (
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-mono font-bold text-amber-400">
+                <span>Total Gigitan: {answeredCount}</span>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={handleToggleSound}
-              className="p-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200"
+              className="p-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors"
               title={isMuted ? 'Nyalakan Suara' : 'Bisukan Suara'}
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
@@ -549,103 +451,136 @@ export default function LayarHostKerupuk() {
           </div>
         </header>
 
-        {/* Konten Tengah: Soal Aktif & Leaderboard Horisontal */}
+        {/* Konten Utama: Arena Balapan Mandiri & Leaderboard 5-Kriteria */}
         <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 my-auto py-4 items-start">
-          {/* Sisi Kiri (7 Kolom): Teks Pertanyaan & Opsi Jawaban (Tampilan Raksasa) */}
+          {/* Sisi Kiri (7 Kolom): Arena Balapan Makan Kerupuk Seluruh Siswa */}
           <div className="lg:col-span-7 space-y-4">
-            {/* Box Soal */}
-            <div className="bg-slate-800 border border-slate-700 rounded-3xl p-6 sm:p-8 shadow-xl text-center">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 block mb-2">
-                Pertanyaan Kuis
-              </span>
-              <h2 className="text-xl sm:text-2xl font-black text-white leading-relaxed">
-                {soalAktif?.teks}
-              </h2>
-            </div>
+            <div className="bg-slate-800/90 border border-slate-700 rounded-3xl p-5 shadow-xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-700">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-orange-400" />
+                  <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                    Arena Kerupuk Siswa
+                  </h3>
+                </div>
+                <span className="text-[11px] text-amber-400 font-bold">
+                  Progres Independen Real-Time
+                </span>
+              </div>
 
-            {/* Opsi A, B, C */}
-            <div className="grid grid-cols-1 gap-3">
-              {(['A', 'B', 'C'] as const).map((opsiKey) => {
-                const teksOpsi =
-                  opsiKey === 'A'
-                    ? soalAktif?.opsiA
-                    : opsiKey === 'B'
-                    ? soalAktif?.opsiB
-                    : soalAktif?.opsiC;
+              {/* Grid Kartu Kerupuk Setiap Siswa */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[460px] overflow-y-auto pr-1.5 custom-scrollbar">
+                {leaderboard.map((p) => {
+                  const isLudes = p.sisaKerupuk === 0;
 
-                const isKunci = rekapSoal?.jawabanBenar === opsiKey;
-
-                let cardStyle = 'bg-slate-800/80 border-slate-700 text-white';
-                if (rekapSoal?.tampil) {
-                  if (isKunci) {
-                    cardStyle = 'bg-emerald-600 border-emerald-400 text-white ring-4 ring-emerald-300';
-                  } else {
-                    cardStyle = 'bg-slate-800/40 border-slate-700/40 text-slate-400 opacity-50';
-                  }
-                }
-
-                return (
-                  <div
-                    key={opsiKey}
-                    className={`p-4 rounded-2xl border-2 flex items-center gap-4 transition-all shadow-md ${cardStyle}`}
-                  >
-                    <span
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${
-                        isKunci ? 'bg-white text-emerald-800' : 'bg-slate-700 text-slate-200'
+                  return (
+                    <div
+                      key={p.id}
+                      className={`p-3.5 rounded-2xl border transition-all text-center flex flex-col justify-between ${
+                        isLudes
+                          ? 'bg-emerald-950/40 border-emerald-500/60 shadow-lg shadow-emerald-950/30'
+                          : 'bg-slate-800 border-slate-700/80 hover:border-slate-600'
                       }`}
                     >
-                      {opsiKey}
-                    </span>
-                    <span className="text-sm sm:text-base font-bold flex-1 leading-snug">
-                      {teksOpsi}
-                    </span>
-                    {rekapSoal?.tampil && isKunci && (
-                      <CheckCircle2 className="w-6 h-6 text-emerald-200 shrink-0" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                      <div>
+                        {/* Header Kartu: Nama & Badge Ludes */}
+                        <div className="flex items-center justify-between gap-1 mb-2">
+                          <span className="text-xs font-black text-white truncate max-w-[110px]" title={p.nama}>
+                            {p.nama}
+                          </span>
+                          {p.streakBenar > 1 && (
+                            <span className="text-[10px] text-orange-400 font-bold flex items-center gap-0.5">
+                              <Flame className="w-3 h-3 fill-current" />
+                              {p.streakBenar}
+                            </span>
+                          )}
+                        </div>
 
-            {/* Intermission Banner Rekap Pembahasan */}
-            {rekapSoal?.tampil && (
-              <div className="bg-emerald-950/80 border border-emerald-500 rounded-2xl p-4 text-center animate-fade-in space-y-1">
-                <span className="text-xs font-black text-emerald-300 uppercase tracking-wider block">
-                  Kunci Jawaban: {rekapSoal.jawabanBenar}
-                </span>
-                {rekapSoal.penjelasan && (
-                  <p className="text-xs text-emerald-100 font-semibold">{rekapSoal.penjelasan}</p>
-                )}
-                <div className="flex justify-center gap-4 text-[11px] font-bold text-slate-300 pt-1">
-                  <span className="text-emerald-400">Benar: {rekapSoal.benarCount}</span>
-                  <span className="text-red-400">Salah: {rekapSoal.salahCount}</span>
-                  <span className="text-slate-400">Tidak Jawab: {rekapSoal.tidakJawabCount}</span>
-                </div>
+                        {/* Indikator Sisa Kerupuk Persen */}
+                        <div className="py-2 flex flex-col items-center">
+                          <span
+                            className={`text-2xl font-black font-mono ${
+                              isLudes
+                                ? 'text-emerald-400 animate-bounce'
+                                : p.sisaKerupuk <= 25
+                                ? 'text-red-400'
+                                : p.sisaKerupuk <= 50
+                                ? 'text-amber-400'
+                                : 'text-slate-100'
+                            }`}
+                          >
+                            {isLudes ? '🎉 0%' : `${p.sisaKerupuk}%`}
+                          </span>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 mt-0.5">
+                            {isLudes ? 'Kerupuk Ludes!' : 'Sisa Kerupuk'}
+                          </span>
+                        </div>
+
+                        {/* Progress Bar Mini */}
+                        <div className="bg-slate-900 h-2 rounded-full overflow-hidden p-0.5 mt-1">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              isLudes
+                                ? 'bg-emerald-400'
+                                : p.sisaKerupuk <= 25
+                                ? 'bg-red-400'
+                                : p.sisaKerupuk <= 50
+                                ? 'bg-amber-400'
+                                : 'bg-slate-200'
+                            }`}
+                            style={{ width: `${p.sisaKerupuk}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Footer Info Kartu: Skor & Kecepatan */}
+                      <div className="pt-3 mt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] font-mono">
+                        <span className="text-amber-400 font-black">{p.skorTotal} pt</span>
+                        <span className="text-blue-300 font-bold">
+                          ⚡ {p.rataRataWaktuJawabMs ? `${(p.rataRataWaktuJawabMs / 1000).toFixed(1)}s` : '-'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            )}
+
+              {/* Live Ticker Feed Aktivitas */}
+              {liveFeed.length > 0 && (
+                <div className="pt-3 border-t border-slate-700 flex items-center gap-2">
+                  <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-black rounded-lg uppercase shrink-0">
+                    Aktivitas
+                  </span>
+                  <p className="text-xs text-slate-200 font-semibold italic animate-fade-in line-clamp-1">
+                    {liveFeed[0]?.teks}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Sisi Kanan (5 Kolom): Live Kerupuk Leaderboard Kelas */}
+          {/* Sisi Kanan (5 Kolom): Live Kerupuk Leaderboard Kelas (5 Kriteria) */}
           <div className="lg:col-span-5 bg-slate-800/90 border border-slate-700 rounded-3xl p-5 shadow-xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-700">
               <div className="flex items-center gap-2">
                 <Trophy className="w-4 h-4 text-amber-400" />
                 <h3 className="text-sm font-black text-white uppercase tracking-wider">
-                  Peringkat & Kerupuk Siswa
+                  Peringkat Kelas
                 </h3>
               </div>
-              <span className="text-[11px] text-slate-400 font-semibold">
-                Urutan Skor & Kecepatan
+              <span className="text-[10px] text-slate-400 font-bold">
+                Skor • Benar • Sisa • Kecepatan
               </span>
             </div>
 
             {/* List Peserta dengan Progress Bar Kerupuk */}
-            <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1.5 custom-scrollbar">
+            <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1.5 custom-scrollbar">
               {leaderboard.map((p, idx) => {
                 const rank = idx + 1;
                 const isTop1 = rank === 1;
                 const isTop2 = rank === 2;
                 const isTop3 = rank === 3;
+                const isLudes = p.sisaKerupuk === 0;
 
                 return (
                   <div
@@ -684,9 +619,12 @@ export default function LayarHostKerupuk() {
                         )}
                       </div>
 
-                      <div className="text-right shrink-0">
-                        <span className="text-xs font-mono font-black text-amber-400">
+                      <div className="text-right shrink-0 flex items-center gap-2 font-mono">
+                        <span className="text-xs font-black text-amber-400">
                           {p.skorTotal} pt
+                        </span>
+                        <span className="text-[11px] text-blue-300 font-bold">
+                          ⚡{p.rataRataWaktuJawabMs ? `${(p.rataRataWaktuJawabMs / 1000).toFixed(1)}s` : '-'}
                         </span>
                       </div>
                     </div>
@@ -695,8 +633,8 @@ export default function LayarHostKerupuk() {
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-slate-900 h-2 rounded-full overflow-hidden p-0.5">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            p.sisaKerupuk === 0
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            isLudes
                               ? 'bg-emerald-400'
                               : p.sisaKerupuk <= 25
                               ? 'bg-red-400'
@@ -707,26 +645,14 @@ export default function LayarHostKerupuk() {
                           style={{ width: `${p.sisaKerupuk}%` }}
                         />
                       </div>
-                      <span className="text-[10px] font-mono font-bold text-slate-300 w-12 text-right">
-                        {p.sisaKerupuk === 0 ? 'LUDES! 🎉' : `${p.sisaKerupuk}%`}
+                      <span className="text-[10px] font-mono font-bold text-slate-300 w-14 text-right">
+                        {isLudes ? 'LUDES! 🎉' : `${p.sisaKerupuk}%`}
                       </span>
                     </div>
                   </div>
                 );
               })}
             </div>
-
-            {/* Live Ticker Feed Gigitan */}
-            {liveFeed.length > 0 && (
-              <div className="pt-2 border-t border-slate-700">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
-                  Aktivitas Terkini
-                </span>
-                <p className="text-xs text-amber-300 font-semibold italic animate-fade-in line-clamp-1">
-                  {liveFeed[0]?.teks}
-                </p>
-              </div>
-            )}
           </div>
         </main>
 

@@ -34,9 +34,14 @@ interface PesertaData {
   skorTotal: number;
   skorPengetahuan?: number;
   skorKeberuntungan?: number;
+  totalBenar?: number;
+  totalSalah?: number;
   streakBenar: number;
   selesaiKerupuk?: boolean;
   terakhirGigitan?: HasilGachaGigitanProps;
+  rataRataWaktuJawabMs?: number;
+  totalWaktuJawabMs?: number;
+  jumlahJawab?: number;
 }
 
 interface MainKerupukProps {
@@ -97,7 +102,6 @@ export default function MainKerupuk({
         }
       : null
   );
-  const [sisaDetik, setSisaDetik] = useState<number>(15);
   const [jawabanDipilih, setJawabanDipilih] = useState<'A' | 'B' | 'C' | null>(null);
   const [sudahKirim, setSudahKirim] = useState(false);
   const [sedangAnimasiGigit, setSedangAnimasiGigit] = useState(false);
@@ -115,42 +119,33 @@ export default function MainKerupuk({
   // Final Result state
   const [hasilAkhir, setHasilAkhir] = useState<any>(null);
 
-  // Timer reference
-  const countdownIntervalRef = useRef<any>(null);
+  // Stopwatch waktu respon per soal (menghitung detik sejak soal tampil)
+  const [detikElapsed, setDetikElapsed] = useState<number>(0);
+  const stopwatchIntervalRef = useRef<any>(null);
 
-  // Sinkronisasi countdown timer lokal terhadap endsAt server
-  const startCountdown = useCallback((endsAtTimestamp?: number) => {
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = null;
+  const startStopwatch = useCallback(() => {
+    if (stopwatchIntervalRef.current) {
+      clearInterval(stopwatchIntervalRef.current);
     }
+    const startTime = Date.now();
+    setDetikElapsed(0);
+    stopwatchIntervalRef.current = setInterval(() => {
+      const elapsed = Math.round((Date.now() - startTime) / 100) / 10;
+      setDetikElapsed(elapsed);
+    }, 100);
+  }, []);
 
-    if (!endsAtTimestamp) {
-      setSisaDetik(15);
-      return;
+  const stopStopwatch = useCallback(() => {
+    if (stopwatchIntervalRef.current) {
+      clearInterval(stopwatchIntervalRef.current);
+      stopwatchIntervalRef.current = null;
     }
-
-    const hitungSisa = () => {
-      const now = Date.now();
-      const diffMs = endsAtTimestamp - now;
-      const detik = Math.max(0, Math.ceil(diffMs / 1000));
-      setSisaDetik(detik);
-      if (detik <= 0) {
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-          countdownIntervalRef.current = null;
-        }
-      }
-    };
-
-    hitungSisa();
-    countdownIntervalRef.current = setInterval(hitungSisa, 200);
   }, []);
 
   useEffect(() => {
     return () => {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
+      if (stopwatchIntervalRef.current) {
+        clearInterval(stopwatchIntervalRef.current);
       }
     };
   }, []);
@@ -173,7 +168,7 @@ export default function MainKerupuk({
       soundEffects.playWhistle();
     };
 
-    // 3. Soal Baru Ditampilkan
+    // 3. Soal Baru Ditampilkan (Independen untuk Siswa Ini)
     const handleSoalTampil = (data: any) => {
       setStage('PLAYING');
       const resolvedId = data.id || data.questionId || '';
@@ -187,7 +182,7 @@ export default function MainKerupuk({
       setSudahKirim(false);
       setFeedback(null);
       setSedangAnimasiGigit(false);
-      startCountdown(data.endsAt);
+      startStopwatch();
     };
 
     // 4. Update Kerupuk & Leaderboard Real-Time
@@ -244,6 +239,7 @@ export default function MainKerupuk({
     // 5b. Feedback Langsung Jawaban Personal
     const handleJawabHasil = (res: any) => {
       if (res?.success) {
+        stopStopwatch();
         if (res.benar) {
           if (res.gacha && res.gacha.tipe !== 'zonk') {
             soundEffects.playCrunch();
@@ -272,8 +268,19 @@ export default function MainKerupuk({
       }
     };
 
+    // 5c. Notifikasi Pemain Selesai (Kerupuk 0%)
+    const handlePemainSelesai = (data: { peserta?: PesertaData; pesan?: string }) => {
+      stopStopwatch();
+      if (data?.peserta) {
+        setMyState(data.peserta);
+      } else {
+        setMyState((prev) => ({ ...prev, selesaiKerupuk: true, sisaKerupuk: 0 }));
+      }
+    };
+
     // 6. Sesi Selesai (Podium & Hasil Akhir)
     const handleSesiSelesai = (data: { hasil: any }) => {
+      stopStopwatch();
       setHasilAkhir(data.hasil);
       setStage('SELESAI');
       soundEffects.playVictoryFanfare();
@@ -285,6 +292,7 @@ export default function MainKerupuk({
     socket.on('kerupuk:update', handleKerupukUpdate);
     socket.on('soal:selesai', handleSoalSelesai);
     socket.on('jawab:hasil', handleJawabHasil);
+    socket.on('pemain:selesai', handlePemainSelesai);
     socket.on('sesi:selesai', handleSesiSelesai);
 
     return () => {
@@ -294,16 +302,18 @@ export default function MainKerupuk({
       socket.off('kerupuk:update', handleKerupukUpdate);
       socket.off('soal:selesai', handleSoalSelesai);
       socket.off('jawab:hasil', handleJawabHasil);
+      socket.off('pemain:selesai', handlePemainSelesai);
       socket.off('sesi:selesai', handleSesiSelesai);
     };
-  }, [pesertaId, startCountdown]);
+  }, [pesertaId, startStopwatch, stopStopwatch]);
 
   // Handler: Siswa Mengirim Jawaban (A / B / C)
   const handlePilihJawaban = (pilihan: 'A' | 'B' | 'C') => {
-    if (sudahKirim || !soalAktif || sisaDetik <= 0) return;
+    if (sudahKirim || !soalAktif) return;
 
     setJawabanDipilih(pilihan);
     setSudahKirim(true);
+    stopStopwatch();
 
     const targetId = soalAktif.id || soalAktif.questionId || '';
 
@@ -348,6 +358,11 @@ export default function MainKerupuk({
         }
       }
     );
+  };
+
+  const handleLanjutSoalCepat = () => {
+    const socket = getSocket();
+    socket.emit('soal:lanjut', { sessionId, pesertaId });
   };
 
   // Posisi ranking siswa saat ini
@@ -421,14 +436,83 @@ export default function MainKerupuk({
   // 2. TAHAP PERMAINAN BERJALAN (PLAYING)
   // -------------------------------------------------------------------------
   if (stage === 'PLAYING') {
+    // 2a. Siswa telah menghabiskan kerupuk (0%) -> Tampilkan layar perayaan & tunggu teman
+    if (myState.selesaiKerupuk || myState.sisaKerupuk === 0) {
+      return (
+        <div className="min-h-screen bg-slate-900 text-white flex flex-col justify-between p-4 max-w-md mx-auto w-full select-none">
+          <header className="flex items-center justify-between bg-slate-800/80 backdrop-blur rounded-2xl p-4 border border-slate-700 shadow-sm">
+            <div>
+              <span className="text-[10px] font-black uppercase text-emerald-400 block tracking-wider">
+                Makan Kerupuk Challenge
+              </span>
+              <h2 className="text-sm font-bold text-slate-100">{templateJudul}</h2>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 text-emerald-300 rounded-xl text-xs font-black">
+              <Trophy className="w-4 h-4 text-amber-400" />
+              <span>Rank #{myRank || 1}</span>
+            </div>
+          </header>
+
+          <div className="my-auto text-center space-y-4 py-4">
+            <div className="bg-slate-800/90 border-2 border-emerald-500/50 rounded-3xl p-6 shadow-2xl space-y-4">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/20 flex items-center justify-center text-3xl animate-bounce">
+                🎉
+              </div>
+              <div>
+                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 block mb-1">
+                  Lomba Selesai Untukmu
+                </span>
+                <h1 className="text-2xl font-black text-white">Kerupukmu Telah Ludes!</h1>
+                <p className="text-xs text-slate-400 mt-1">
+                  Luar biasa! Kamu berhasil menghabiskan seluruh kerupuk virtual.
+                </p>
+              </div>
+
+              {/* Statistik Pribadi Siswa */}
+              <div className="grid grid-cols-2 gap-2.5 pt-2">
+                <div className="bg-slate-900/80 p-3 rounded-2xl border border-slate-700">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Skor</span>
+                  <span className="text-lg font-black text-amber-400 font-mono">{myState.skorTotal} pt</span>
+                </div>
+                <div className="bg-slate-900/80 p-3 rounded-2xl border border-slate-700">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Jawaban Benar</span>
+                  <span className="text-lg font-black text-emerald-400 font-mono">{myState.totalBenar ?? 0}</span>
+                </div>
+                <div className="bg-slate-900/80 p-3 rounded-2xl border border-slate-700">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Rata-Rata Kecepatan</span>
+                  <span className="text-lg font-black text-blue-400 font-mono">
+                    {myState.rataRataWaktuJawabMs ? `${(myState.rataRataWaktuJawabMs / 1000).toFixed(1)}s` : '-'}
+                  </span>
+                </div>
+                <div className="bg-slate-900/80 p-3 rounded-2xl border border-slate-700">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Sisa Kerupuk</span>
+                  <span className="text-lg font-black text-emerald-400 font-mono">0% (Ludes)</span>
+                </div>
+              </div>
+
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 flex items-center justify-center gap-2.5 text-xs text-amber-300 font-semibold">
+                <div className="w-2.5 h-2.5 bg-amber-400 rounded-full animate-ping shrink-0" />
+                <span>Menunggu siswa lain selesai atau guru mengakhiri sesi...</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center text-xs text-slate-500 font-medium pb-2">
+            Peringkat podium resmi akan ditampilkan setelah seluruh sesi berakhir.
+          </div>
+        </div>
+      );
+    }
+
+    // 2b. Siswa masih bermain (kerupuk > 0%)
     return (
       <div className="min-h-screen bg-slate-900 text-white flex flex-col justify-between p-3 sm:p-5 select-none">
-        {/* Top Bar: Progress Soal, Timer, & Skor */}
+        {/* Top Bar: Progress Soal, Stopwatch Kecepatan, & Skor */}
         <div className="flex items-center justify-between gap-2 bg-slate-800/80 backdrop-blur rounded-2xl p-3 border border-slate-700 shadow-sm">
           {/* Nomor Soal & Ranking */}
           <div>
             <span className="text-[10px] font-black uppercase text-amber-400 block tracking-wider">
-              Soal {soalAktif ? `${soalAktif.nomorSoal} / ${soalAktif.totalSoal}` : '-'}
+              Soal {soalAktif?.nomorSoal ? `#${soalAktif.nomorSoal}` : '-'}
             </span>
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
               <Trophy className="w-3.5 h-3.5 text-amber-400" />
@@ -436,18 +520,17 @@ export default function MainKerupuk({
             </div>
           </div>
 
-          {/* Timer Countdown Lingkaran / Kotak */}
-          <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-sm font-black transition-all ${
-              sisaDetik <= 3
-                ? 'bg-red-500 text-white animate-pulse'
-                : sisaDetik <= 6
-                ? 'bg-amber-500 text-slate-900'
-                : 'bg-slate-700 text-white'
-            }`}
-          >
-            <Clock className="w-4 h-4" />
-            <span>{sisaDetik}s</span>
+          {/* Stopwatch Waktu Respon Real-Time */}
+          <div className="flex flex-col items-center">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-700 text-amber-300 font-mono text-sm font-black border border-slate-600">
+              <Clock className="w-3.5 h-3.5" />
+              <span>{detikElapsed.toFixed(1)}s</span>
+            </div>
+            {myState.rataRataWaktuJawabMs && myState.rataRataWaktuJawabMs > 0 ? (
+              <span className="text-[9px] font-bold text-slate-400 mt-0.5">
+                Rata: {(myState.rataRataWaktuJawabMs / 1000).toFixed(1)}s
+              </span>
+            ) : null}
           </div>
 
           {/* Skor & Streak */}
@@ -477,7 +560,7 @@ export default function MainKerupuk({
           {/* Banner Feedback Hasil Jawaban */}
           {feedback?.tampil && (
             <div
-              className={`mt-3 px-4 py-2 rounded-2xl text-xs font-bold max-w-sm w-full text-center shadow-lg transition-all animate-fade-in ${
+              className={`mt-3 px-4 py-2.5 rounded-2xl text-xs font-bold max-w-sm w-full text-center shadow-lg transition-all animate-fade-in ${
                 feedback.benar
                   ? 'bg-emerald-900/80 border border-emerald-500 text-emerald-200'
                   : 'bg-red-900/80 border border-red-500 text-red-200'
@@ -492,7 +575,7 @@ export default function MainKerupuk({
                 ) : (
                   <>
                     <XCircle className="w-4 h-4 text-red-400" />
-                    <span className="font-black text-white">Jawaban Salah! (Kunci: {feedback.jawabanBenar})</span>
+                    <span className="font-black text-white">Jawaban Belum Tepat! (Kunci: {feedback.jawabanBenar})</span>
                   </>
                 )}
               </div>
@@ -512,6 +595,18 @@ export default function MainKerupuk({
                   🎉 KERUPUK LUDES! Bonus Penyelesaian Pertama (+100 pt)!
                 </p>
               )}
+
+              {/* Tombol Percepat Soal Berikutnya */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleLanjutSoalCepat}
+                  className="w-full py-1.5 bg-white/10 hover:bg-white/20 active:scale-[0.98] rounded-xl text-[11px] font-black text-white transition-all flex items-center justify-center gap-1.5"
+                >
+                  <span>Soal Berikutnya</span>
+                  <span>➔</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -556,7 +651,7 @@ export default function MainKerupuk({
                 <button
                   key={opsiKey}
                   type="button"
-                  disabled={sudahKirim || sisaDetik <= 0}
+                  disabled={sudahKirim}
                   onClick={() => handlePilihJawaban(opsiKey)}
                   className={`p-3.5 rounded-2xl border-2 flex items-center gap-3 transition-all active:scale-[0.98] text-left ${btnClass} ${
                     sudahKirim ? 'cursor-not-allowed' : 'cursor-pointer'
