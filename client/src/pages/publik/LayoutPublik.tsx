@@ -161,7 +161,7 @@ export function LayoutPublik({ children }: { children: React.ReactNode }) {
               </h3>
               <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
                 <li>
-                  <a href="/#apa" className="hover:text-[#1f4a37] dark:hover:text-[#f2c230] transition-colors">
+                  <a href="/#tentang" className="hover:text-[#1f4a37] dark:hover:text-[#f2c230] transition-colors">
                     Tentang Discere
                   </a>
                 </li>
@@ -176,7 +176,7 @@ export function LayoutPublik({ children }: { children: React.ReactNode }) {
                   </a>
                 </li>
                 <li>
-                  <a href="/#cara" className="hover:text-[#1f4a37] dark:hover:text-[#f2c230] transition-colors">
+                  <a href="/#cara-kerja" className="hover:text-[#1f4a37] dark:hover:text-[#f2c230] transition-colors">
                     Cara Penggunaan
                   </a>
                 </li>

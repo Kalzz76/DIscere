@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router';
+import { useSearchParams, Link } from 'react-router';
 import { getSocket } from '../../lib/socket';
 import { Button, Card } from '../../components';
 import { soundEffects } from '../../lib/soundEffects';
@@ -13,6 +13,7 @@ import {
   LogOut,
   ShieldAlert,
   Loader2,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface SoalData {
@@ -407,9 +408,21 @@ export default function MainSiswa() {
         }}
       >
         {/* ============================================================ */}
+        {/* TOMBOL KEMBALI KE HOME (KIRI ATAS)                           */}
+        {/* ============================================================ */}
+        <Link
+          to="/"
+          className="absolute top-5 left-5 sm:top-8 sm:left-8 z-40 flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#f6efe2]/90 hover:bg-[#f6efe2] text-[#163a2b] shadow-[0_4px_12px_rgba(0,0,0,0.3)] border-2 border-[#e4d7c3] transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+          title="Kembali ke Beranda"
+          aria-label="Kembali ke Beranda"
+        >
+          <ArrowLeft className="w-6 h-6 text-[#163a2b] transition-transform group-hover:-translate-x-0.5" />
+        </Link>
+
+        {/* ============================================================ */}
         {/* DOODLE 1: PESAWAT KERTAS KAPUR (Kiri Atas)                   */}
         {/* ============================================================ */}
-        <div className="absolute top-6 left-6 sm:top-10 sm:left-14 w-28 h-28 sm:w-36 sm:h-36 pointer-events-none z-10 text-[#f4ecd8]/85">
+        <div className="absolute top-20 left-4 sm:top-24 sm:left-10 w-24 h-24 sm:w-32 sm:h-32 pointer-events-none z-10 text-[#f4ecd8]/75">
           <svg viewBox="0 0 130 130" fill="none" className="w-full h-full" aria-hidden="true">
             {/* Lintasan melengkung putus-putus */}
             <path
