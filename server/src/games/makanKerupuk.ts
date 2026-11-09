@@ -323,3 +323,4 @@ export function urutkanLeaderboard(pesertaList: PesertaKerupukState[]): PesertaK
     return a.nama.localeCompare(b.nama);
   });
 }
+
