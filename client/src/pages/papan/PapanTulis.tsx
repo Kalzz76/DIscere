@@ -21,6 +21,7 @@ import { PapanToolbar, ToolType } from './PapanToolbar';
 import { PapanSettingsBar, CanvasSettings } from './PapanSettingsBar';
 import { PapanSidebarGame } from './PapanSidebarGame';
 import { PapanShareModal } from './PapanShareModal';
+import { KalkulatorMelayang } from './KalkulatorMelayang';
 import { Loader2, ShieldAlert, Sparkles } from 'lucide-react';
 import { Button, Card } from '../../components';
 
@@ -63,6 +64,7 @@ export default function PapanTulis() {
   // Modals & Sidebars
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isSidebarGameOpen, setIsSidebarGameOpen] = useState(false);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
 
   // Kolaborator state
   const [collaboratorsCount, setCollaboratorsCount] = useState({
@@ -1088,6 +1090,8 @@ export default function PapanTulis() {
         onImageUpload={handleImageUpload}
         onDeleteSelected={handleDeleteSelected}
         hasSelection={hasSelection}
+        onToggleCalculator={() => setIsCalculatorOpen(!isCalculatorOpen)}
+        isCalculatorOpen={isCalculatorOpen}
       />
 
       {/* 3. Floating Contextual Settings Bar di Atas */}
@@ -1191,6 +1195,11 @@ export default function PapanTulis() {
           </div>
         </div>
       )}
+      {/* 8. Kalkulator Melayang Interaktif (P1) */}
+      <KalkulatorMelayang
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
+      />
     </div>
   );
 }

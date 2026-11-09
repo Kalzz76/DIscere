@@ -18,6 +18,7 @@ import {
 import { PapanHeader, AutosaveStatus } from './PapanHeader';
 import { PapanToolbar, ToolType } from './PapanToolbar';
 import { PapanSettingsBar, CanvasSettings } from './PapanSettingsBar';
+import { KalkulatorMelayang } from './KalkulatorMelayang';
 import { Button, Card } from '../../components';
 import {
   Loader2,
@@ -79,6 +80,7 @@ export default function KolaborasiPublik() {
   settingsRef.current = settings;
 
   const [hasSelection, setHasSelection] = useState(false);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
 
   // Kolaborator Counter
   const [collaboratorsCount, setCollaboratorsCount] = useState({
@@ -795,11 +797,17 @@ export default function KolaborasiPublik() {
             onImageUpload={handleImageUpload}
             onDeleteSelected={handleDeleteSelected}
             hasSelection={hasSelection}
+            onToggleCalculator={() => setIsCalculatorOpen(!isCalculatorOpen)}
+            isCalculatorOpen={isCalculatorOpen}
           />
           <PapanSettingsBar
             activeTool={activeTool}
             settings={settings}
             onUpdateSettings={handleUpdateSettings}
+          />
+          <KalkulatorMelayang
+            isOpen={isCalculatorOpen}
+            onClose={() => setIsCalculatorOpen(false)}
           />
         </>
       )}

@@ -12,6 +12,7 @@ import {
   Circle,
   Triangle,
   Image as ImageIcon,
+  Calculator,
   Trash2,
 } from 'lucide-react';
 
@@ -36,6 +37,8 @@ interface PapanToolbarProps {
   onDeleteSelected: () => void;
   hasSelection: boolean;
   disabled?: boolean;
+  onToggleCalculator?: () => void;
+  isCalculatorOpen?: boolean;
 }
 
 export const PapanToolbar: React.FC<PapanToolbarProps> = ({
@@ -45,6 +48,8 @@ export const PapanToolbar: React.FC<PapanToolbarProps> = ({
   onDeleteSelected,
   hasSelection,
   disabled = false,
+  onToggleCalculator,
+  isCalculatorOpen = false,
 }) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -118,6 +123,21 @@ export const PapanToolbar: React.FC<PapanToolbarProps> = ({
       >
         <ImageIcon className="w-4 h-4" />
       </button>
+
+      {/* Kalkulator Melayang (P1) */}
+      {onToggleCalculator && (
+        <button
+          onClick={onToggleCalculator}
+          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+            isCalculatorOpen
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+              : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40'
+          }`}
+          title="Kalkulator Cepat (P1)"
+        >
+          <Calculator className="w-4 h-4" />
+        </button>
+      )}
 
       {/* Hapus Objek Terpilih */}
       <button
