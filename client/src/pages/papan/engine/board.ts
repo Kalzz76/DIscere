@@ -529,8 +529,10 @@ export class Board {
   // --- Event Handlers Pointer & Window ---
   private initCanvasSize(): void {
     const d = window.devicePixelRatio || 1;
-    this.canvas.width = this.canvas.clientWidth * d;
-    this.canvas.height = this.canvas.clientHeight * d;
+    const w = this.canvas.clientWidth || window.innerWidth;
+    const h = this.canvas.clientHeight || window.innerHeight;
+    this.canvas.width = w * d;
+    this.canvas.height = h * d;
   }
 
   private handleResize = (): void => {
@@ -543,7 +545,11 @@ export class Board {
     if (this.options.onCloseTextEditor) {
       this.options.onCloseTextEditor();
     }
-    this.canvas.setPointerCapture(e.pointerId);
+    try {
+      this.canvas.setPointerCapture(e.pointerId);
+    } catch {
+      // Abaikan jika pointer capture gagal
+    }
 
     const p = this.toWorld(e.clientX, e.clientY);
     const t = this.state.tool;

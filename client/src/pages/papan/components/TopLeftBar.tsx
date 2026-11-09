@@ -25,10 +25,14 @@ export function TopLeftBar({
   return (
     <header className="pn top-left-panel">
       <button
+        id="mn"
         className="ib"
         title="Menu"
         aria-label="Menu"
-        onClick={(e) => onOpenMenu(e.currentTarget)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenMenu(e.currentTarget);
+        }}
       >
         <svg viewBox="0 0 24 24">
           <path d="M4 6h16M4 12h16M4 18h16" />

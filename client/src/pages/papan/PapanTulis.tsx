@@ -31,6 +31,7 @@ export default function PapanTulis() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [title, setTitle] = useState('Papan Pembelajaran Baru');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'busy' | 'error'>('saved');
+  const [loadedObjs, setLoadedObjs] = useState<CanvasObj[] | null>(null);
 
   // State UI Kanvas
   const [boardState, setBoardState] = useState<BoardState>({
@@ -102,7 +103,6 @@ export default function PapanTulis() {
             }),
           });
           setSaveStatus('saved');
-          // Hapus cadangan darurat jika server berhasil menyimpan
           try {
             localStorage.removeItem(`discere-draft-${boardId}`);
           } catch {
@@ -111,7 +111,6 @@ export default function PapanTulis() {
         } catch (err) {
           console.error('Gagal menyimpan papan ke server:', err);
           setSaveStatus('error');
-          // Simpan draf cadangan ke localStorage saat server gagal
           try {
             localStorage.setItem(
               `discere-draft-${boardId}`,
@@ -127,7 +126,7 @@ export default function PapanTulis() {
     [boardId, title, showToast]
   );
 
-  // Muat data papan dari server
+  // 1. Muat data papan dari server
   useEffect(() => {
     if (!boardId) {
       setLoadError('ID papan tidak valid.');
@@ -163,7 +162,6 @@ export default function PapanTulis() {
             initialObjs = parsed.objs;
           }
         } catch {
-          // Coba draf lokal cadangan
           try {
             const draft = localStorage.getItem(`discere-draft-${boardId}`);
             if (draft) {
@@ -179,40 +177,7 @@ export default function PapanTulis() {
           }
         }
 
-        // Inisialisasi engine Board jika canvas siap
-        if (canvasRef.current) {
-          if (boardRef.current) {
-            boardRef.current.destroy();
-          }
-
-          const board = new Board(canvasRef.current, initialObjs, {
-            onUbah: () => {
-              triggerAutosave();
-            },
-            onStateChange: (nextState) => {
-              setBoardState(nextState);
-            },
-            onSelectionChange: (selId) => {
-              setSelectedId(selId);
-            },
-            onViewChange: (nextView) => {
-              setView(nextView);
-            },
-            onOpenTextEditor: (edState) => {
-              setTextEditor(edState);
-            },
-            onCloseTextEditor: () => {
-              setTextEditor(null);
-            },
-            onToast: (m) => {
-              showToast(m);
-            },
-          });
-
-          boardRef.current = board;
-          setBoardState({ ...board.state });
-          setView({ ...board.view });
-        }
+        setLoadedObjs(initialObjs);
       } catch (err: any) {
         if (!isMounted) return;
         setLoadError(
@@ -232,12 +197,52 @@ export default function PapanTulis() {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
+    };
+  }, [boardId, showToast]);
+
+  // 2. Inisialisasi engine Board ketika canvas siap dan data terambil
+  useEffect(() => {
+    if (!loadedObjs || !canvasRef.current) return;
+
+    if (boardRef.current) {
+      boardRef.current.destroy();
+    }
+
+    const board = new Board(canvasRef.current, loadedObjs, {
+      onUbah: () => {
+        triggerAutosave();
+      },
+      onStateChange: (nextState) => {
+        setBoardState({ ...nextState });
+      },
+      onSelectionChange: (selId) => {
+        setSelectedId(selId);
+      },
+      onViewChange: (nextView) => {
+        setView({ ...nextView });
+      },
+      onOpenTextEditor: (edState) => {
+        setTextEditor(edState);
+      },
+      onCloseTextEditor: () => {
+        setTextEditor(null);
+      },
+      onToast: (m) => {
+        showToast(m);
+      },
+    });
+
+    boardRef.current = board;
+    setBoardState({ ...board.state });
+    setView({ ...board.view });
+
+    return () => {
       if (boardRef.current) {
         boardRef.current.destroy();
         boardRef.current = null;
       }
     };
-  }, [boardId, triggerAutosave, showToast]);
+  }, [loadedObjs, triggerAutosave, showToast]);
 
   // Handler Menu
   const handleTitleChange = (newTitle: string) => {
@@ -246,9 +251,6 @@ export default function PapanTulis() {
   };
 
   const handleToolSelect = (tool: ToolType, buttonEl: HTMLElement) => {
-    const board = boardRef.current;
-    if (!board) return;
-
     if (tool === 'upload') {
       if (fileImgRef.current) {
         fileImgRef.current.click();
@@ -257,7 +259,11 @@ export default function PapanTulis() {
     }
 
     const wasFlyout = activeFlyout === tool;
-    board.setTool(tool);
+    if (boardRef.current) {
+      boardRef.current.setTool(tool);
+    } else {
+      setBoardState((prev) => ({ ...prev, tool }));
+    }
 
     if (['pen', 'shape', 'text', 'table'].includes(tool)) {
       if (wasFlyout) {
@@ -300,7 +306,7 @@ export default function PapanTulis() {
           triggerAutosave(j.judul);
           showToast('Papan berhasil dimuat dari JSON');
         } else if (j && Array.isArray(j.o)) {
-          // Kompatibilitas dengan discere-v5 file json
+          // Kompatibilitas dengan file json referensi
           boardRef.current!.objs = j.o;
           if (j.t) setTitle(j.t);
           boardRef.current!.setSelection(null);
@@ -317,70 +323,87 @@ export default function PapanTulis() {
     e.target.value = '';
   };
 
-  if (loading) {
-    return (
-      <div className="papan" style={{ display: 'grid', placeItems: 'center', background: '#111827' }}>
-        <div style={{ textAlign: 'center', color: '#eef1fa' }}>
-          <div
-            style={{
-              width: 38,
-              height: 38,
-              border: '3px solid rgba(255,255,255,0.2)',
-              borderTopColor: '#9b17f5',
-              borderRadius: '50%',
-              margin: '0 auto 14px',
-              animation: 'spin 0.8s linear infinite',
-            }}
-          />
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>Memuat papan tulis…</h2>
-        </div>
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="papan" style={{ display: 'grid', placeItems: 'center', background: '#0b0f19' }}>
-        <div
-          style={{
-            maxWidth: 420,
-            background: '#1b2238',
-            padding: 32,
-            borderRadius: 20,
-            textAlign: 'center',
-            border: '1px solid rgba(255,255,255,0.1)',
-          }}
-        >
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#f87171', marginBottom: 8 }}>
-            Gagal Membuka Papan
-          </h2>
-          <p style={{ color: '#8e98b4', fontSize: 14, marginBottom: 24, lineHeight: 1.5 }}>
-            {loadError}
-          </p>
-          <button
-            onClick={() => navigate('/papan')}
-            style={{
-              background: '#9b17f5',
-              color: '#fff',
-              fontWeight: 700,
-              padding: '10px 20px',
-              borderRadius: 12,
-              fontSize: 14,
-            }}
-          >
-            Kembali ke Daftar Papan
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const board = boardRef.current;
 
   return (
     <div className="papan">
-      {/* Kanvas 2D tak terbatas */}
+      {/* Kanvas 2D tak terbatas (selalu dirender di DOM agar canvasRef siap) */}
       <canvas id="cv" ref={canvasRef} className="board-canvas" />
+
+      {/* Overlay status memuat data awal */}
+      {loading && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            display: 'grid',
+            placeItems: 'center',
+            background: 'rgba(17, 24, 39, 0.85)',
+            backdropFilter: 'blur(6px)',
+          }}
+        >
+          <div style={{ textAlign: 'center', color: '#eef1fa' }}>
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                border: '3px solid rgba(255,255,255,0.2)',
+                borderTopColor: '#9b17f5',
+                borderRadius: '50%',
+                margin: '0 auto 14px',
+                animation: 'spin 0.8s linear infinite',
+              }}
+            />
+            <h2 style={{ fontSize: 18, fontWeight: 700 }}>Memuat papan tulis…</h2>
+          </div>
+        </div>
+      )}
+
+      {/* Overlay error memuat */}
+      {loadError && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            display: 'grid',
+            placeItems: 'center',
+            background: '#0b0f19',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 420,
+              background: '#1b2238',
+              padding: 32,
+              borderRadius: 20,
+              textAlign: 'center',
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}
+          >
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: '#f87171', marginBottom: 8 }}>
+              Gagal Membuka Papan
+            </h2>
+            <p style={{ color: '#8e98b4', fontSize: 14, marginBottom: 24, lineHeight: 1.5 }}>
+              {loadError}
+            </p>
+            <button
+              onClick={() => navigate('/papan')}
+              style={{
+                background: '#9b17f5',
+                color: '#fff',
+                fontWeight: 700,
+                padding: '10px 20px',
+                borderRadius: 12,
+                fontSize: 14,
+              }}
+            >
+              Kembali ke Daftar Papan
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Top Left Panel: Menu, Logo, Judul, Ekspor PNG, Status Simpan */}
       <TopLeftBar
@@ -406,7 +429,10 @@ export default function PapanTulis() {
       <OptionsBar
         state={boardState}
         hasSelection={!!selectedId}
-        onUpdateState={(patch) => board?.updateState(patch)}
+        onUpdateState={(patch) => {
+          if (board) board.updateState(patch);
+          else setBoardState((prev) => ({ ...prev, ...patch }));
+        }}
         onOpenColorPicker={(btnEl) => {
           setColorPickerAnchor(btnEl.getBoundingClientRect());
           setIsColorPickerOpen(true);
@@ -443,16 +469,22 @@ export default function PapanTulis() {
         shape={boardState.shape}
         tab={boardState.tab}
         onSelectStyle={(newStyle: PenStyle) => {
-          board?.updateState({ style: newStyle });
+          if (board) board.updateState({ style: newStyle });
+          else setBoardState((prev) => ({ ...prev, style: newStyle }));
           setActiveFlyout(null);
         }}
         onSelectShape={(newShape: string) => {
-          board?.updateState({ shape: newShape });
-          board?.setTool('shape');
+          if (board) {
+            board.updateState({ shape: newShape });
+            board.setTool('shape');
+          } else {
+            setBoardState((prev) => ({ ...prev, shape: newShape, tool: 'shape' }));
+          }
           setActiveFlyout(null);
         }}
         onSelectTab={(newTab: string) => {
-          board?.updateState({ tab: newTab });
+          if (board) board.updateState({ tab: newTab });
+          else setBoardState((prev) => ({ ...prev, tab: newTab }));
         }}
         onSelectText={(kind: 'box' | 'h' | 's' | 'b') => {
           board?.setTool('select');
@@ -476,7 +508,8 @@ export default function PapanTulis() {
         color={boardState.color}
         anchorRect={colorPickerAnchor}
         onSelectColor={(hex) => {
-          board?.updateState({ color: hex });
+          if (board) board.updateState({ color: hex });
+          else setBoardState((prev) => ({ ...prev, color: hex }));
         }}
         onClose={() => setIsColorPickerOpen(false)}
         onToast={showToast}

@@ -27,6 +27,10 @@ export function MenuPopup({
     if (!isOpen) return;
 
     function handleClickOutside(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('#mn, [title="Menu"], [aria-label="Menu"]')) {
+        return;
+      }
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose();
       }

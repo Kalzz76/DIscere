@@ -196,8 +196,8 @@ export function drawScene({
   onImageLoad,
 }: DrawSceneParams): void {
   const d = window.devicePixelRatio || 1;
-  const width = canvas.clientWidth;
-  const height = canvas.clientHeight;
+  const width = canvas.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 800);
+  const height = canvas.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 600);
 
   ctx.setTransform(d, 0, 0, d, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
