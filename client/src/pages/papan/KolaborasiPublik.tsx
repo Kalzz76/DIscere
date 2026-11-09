@@ -19,6 +19,7 @@ import { PapanHeader, AutosaveStatus } from './PapanHeader';
 import { PapanToolbar, ToolType } from './PapanToolbar';
 import { PapanSettingsBar, CanvasSettings } from './PapanSettingsBar';
 import { KalkulatorMelayang } from './KalkulatorMelayang';
+import { KontrolZoom } from './KontrolZoom';
 import { Button, Card } from '../../components';
 import {
   Loader2,
@@ -81,6 +82,7 @@ export default function KolaborasiPublik() {
 
   const [hasSelection, setHasSelection] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   // Kolaborator Counter
   const [collaboratorsCount, setCollaboratorsCount] = useState({
@@ -494,6 +496,7 @@ export default function KolaborasiPublik() {
       if (zoom > 5) zoom = 5;
       if (zoom < 0.2) zoom = 0.2;
       canvas.zoomToPoint(new Point(opt.e.offsetX, opt.e.offsetY), zoom);
+      setZoomLevel(zoom);
       opt.e.preventDefault();
       opt.e.stopPropagation();
     });
@@ -628,6 +631,51 @@ export default function KolaborasiPublik() {
       }
       return updated;
     });
+  };
+
+  // Zoom Controls
+  const handleZoomIn = () => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    let nextZoom = canvas.getZoom() * 1.25;
+    if (nextZoom > 5) nextZoom = 5;
+    const center = new Point(canvas.getWidth() / 2, canvas.getHeight() / 2);
+    canvas.zoomToPoint(center, nextZoom);
+    setZoomLevel(nextZoom);
+  };
+
+  const handleZoomOut = () => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    let nextZoom = canvas.getZoom() / 1.25;
+    if (nextZoom < 0.2) nextZoom = 0.2;
+    const center = new Point(canvas.getWidth() / 2, canvas.getHeight() / 2);
+    canvas.zoomToPoint(center, nextZoom);
+    setZoomLevel(nextZoom);
+  };
+
+  const handleResetZoom = () => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    setZoomLevel(1);
+    canvas.renderAll();
+  };
+
+  // Ekspor Kanvas ke Gambar PNG
+  const handleExportImage = () => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    canvas.discardActiveObject();
+    canvas.renderAll();
+    const dataUrl = canvas.toDataURL({
+      format: 'png',
+      multiplier: 2,
+    });
+    const link = document.createElement('a');
+    link.download = `${(shareInfo?.judul || 'Papan_Bersama').replace(/[^a-zA-Z0-9_-]/g, '_')}_discere.png`;
+    link.href = dataUrl;
+    link.click();
   };
 
   // Handler: Hapus Objek Terpilih (untuk Editor)
@@ -786,6 +834,7 @@ export default function KolaborasiPublik() {
         peran={shareInfo.peran}
         collaboratorsCount={collaboratorsCount}
         onRetrySave={triggerAutosave}
+        onExportImage={handleExportImage}
       />
 
       {/* 2. Toolbar & Settings (Hanya untuk Editor) */}
@@ -824,6 +873,14 @@ export default function KolaborasiPublik() {
       <main className="flex-1 relative overflow-hidden bg-white dark:bg-slate-950">
         <canvas ref={canvasElRef} className="block w-full h-full" />
       </main>
+
+      {/* Kontrol Zoom dan Persentase Pojok Kanan Bawah */}
+      <KontrolZoom
+        zoomPercent={zoomLevel * 100}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onResetZoom={handleResetZoom}
+      />
     </div>
   );
 }

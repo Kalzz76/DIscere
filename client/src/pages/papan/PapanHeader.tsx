@@ -7,6 +7,7 @@ import {
   Redo2,
   Share2,
   Gamepad2,
+  Download,
   Check,
   AlertCircle,
   WifiOff,
@@ -37,6 +38,7 @@ interface PapanHeaderProps {
     viewers: number;
   };
   onRetrySave?: () => void;
+  onExportImage?: () => void;
 }
 
 export const PapanHeader: React.FC<PapanHeaderProps> = ({
@@ -54,6 +56,7 @@ export const PapanHeader: React.FC<PapanHeaderProps> = ({
   peran,
   collaboratorsCount,
   onRetrySave,
+  onExportImage,
 }) => {
   const navigate = useNavigate();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -223,6 +226,17 @@ export const PapanHeader: React.FC<PapanHeaderProps> = ({
               <Redo2 className="w-4 h-4" />
             </button>
           </div>
+        )}
+
+        {/* Tombol Ekspor PNG */}
+        {onExportImage && (
+          <button
+            onClick={onExportImage}
+            className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            title="Unduh Gambar Papan (PNG)"
+          >
+            <Download className="w-4 h-4" />
+          </button>
         )}
 
         {/* Tombol Bagikan (Khusus Pemilik) */}
