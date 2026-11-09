@@ -13,12 +13,10 @@ Tagline: *"Belajar seru, tarik kemenangan bersama."*
   - Tipografi lokal: font *Baloo 2* untuk judul dan *Inter* untuk teks isi via `@fontsource` (tanpa CDN eksternal).
   - Dukungan mode gelap otomatis (`prefers-color-scheme`) dan pengurangan gerak (`prefers-reduced-motion`).
   - Komponen antarmuka modular: Button, Card, Input, Modal, Badge, dan Toast dengan ikon `lucide-react`.
-- **Halaman Publik Lengkap:**
-  - **Beranda (`/`):** 7 bagian komprehensif (Hero dengan simulasi tarik tambang animasi SVG, Masalah, Cara Kerja 3 langkah, Fitur Unggulan, Kelebihan, FAQ, dan Call-to-Action).
-  - **Fitur (`/fitur`):** Penjelasan detail papan tulis Fabric.js, lomba tarik tambang, 2 mode main, asisten AI, kolaborasi, dan rekapitulasi evaluasi.
-  - **Kelebihan (`/kelebihan`):** Keunggulan siswa tanpa akun, jalan di kelas tanpa HP, hemat sumber daya lokal, dan jaminan privasi data.
-  - **Dokumentasi (`/dokumentasi`):** Panduan langkah demi langkah guru di kelas beserta tanya jawab teknis jaringan lokal.
-  - **Kebijakan Privasi (`/privasi`):** Transparansi data sesuai UU PDP No. 27 Tahun 2022, penegasan bahwa nama siswa tidak disimpan ke database, dan isolasi akses admin.
+- **Halaman Publik Modern & Terpadu (Single-Page Experience):**
+  - **Beranda Terpadu (`/`):** Desain halaman satu pintu dengan navigasi halus ke bagian Hero, Apa itu Discere, Fitur Unggulan (`/#fitur`), Template Soal, Cara Kerja (`/#cara`), Demo Interaktif, FAQ, dan Kebijakan Privasi UU PDP No. 27 Tahun 2022.
+  - **Akses Siswa Cepat (`/main` & `/join`):** Desain mobile-first bertema papan tulis interaktif, memungkinkan siswa bergabung hanya dengan memasukkan 6 digit PIN sesi dan nama panggilan tanpa registrasi akun.
+  - **Pendaftaran & Masuk Guru (`/daftar` & `/masuk`):** Autentikasi aman JWT dengan cookie `httpOnly`, validasi input ganda (Zod di klien dan server), serta pembatasan laju (*rate limiting*).
 - **Dashboard Guru & Manajemen Template:**
   - **Ringkasan Aktivitas (`/guru`):** Kartu metrik jumlah template, sesi tuntas, dan papan tersimpan, dilengkapi daftar template terbaru dan sesi terakhir.
   - **Koleksi & Pustaka Resmi:** Pengelolaan template kuis (CRUD), duplikasi template pustaka resmi admin ke koleksi guru, dan pencarian instan.
