@@ -13,6 +13,7 @@ import { sesiRouter } from './routes/sesi.js';
 import { guruRouter } from './routes/guru.js';
 import { papanRouter } from './routes/papan.js';
 import { aiRouter } from './routes/ai.js';
+import { adminRouter } from './routes/admin.js';
 import { errorHandler } from './middleware/error.js';
 import { setupMultiplayerSocket } from './realtime/sesi.js';
 import { setupBoardSocket } from './realtime/papan.js';
@@ -50,6 +51,7 @@ app.use('/api/sesi', sesiRouter);
 app.use('/api/guru', guruRouter);
 app.use('/api/papan', papanRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/admin', adminRouter);
 
 // Setup Socket.IO multiplayer & papan tulis
 setupMultiplayerSocket(io);
