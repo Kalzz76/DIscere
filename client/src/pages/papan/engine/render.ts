@@ -1,5 +1,5 @@
 import { CanvasObj, BoardView, BoardState, Pt, LaserPoint } from './types';
-import { bounds, ew, lines } from './geometry';
+import { bounds, ew, lines, intersects } from './geometry';
 import { up } from './shapes';
 
 let fontLoaded = false;
@@ -250,8 +250,19 @@ export function drawScene({
     }
   }
 
-  // Objek kanvas
+  // Viewport culling bounds (ruang dunia)
+  const vx0 = -view.x / view.z;
+  const vy0 = -view.y / view.z;
+  const vw = width / view.z;
+  const vh = height / view.z;
+  const viewportBounds = { x: vx0, y: vy0, w: vw, h: vh };
+
+  // Objek kanvas (dengan Viewport Culling agar kanvas besar 500+ objek tetap sangat cepat)
   for (const o of objs) {
+    const b = bounds(o);
+    if (!intersects(b, viewportBounds)) {
+      continue;
+    }
     drawObj(ctx, o, onImageLoad);
   }
 

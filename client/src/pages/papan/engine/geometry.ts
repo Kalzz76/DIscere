@@ -3,6 +3,20 @@ import { Pt, Bounds, CanvasObj, TextObj } from './types';
 const mc = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
 
 const textBoundsCache = new WeakMap<TextObj, { text: string; fs: number; fw: any; w: number; h: number }>();
+const strokeBoundsCache = new WeakMap<CanvasObj, Bounds>();
+
+export function clearBoundsCache(o: CanvasObj): void {
+  strokeBoundsCache.delete(o);
+}
+
+export function intersects(b1: Bounds, b2: Bounds): boolean {
+  return (
+    b1.x <= b2.x + b2.w &&
+    b1.x + b1.w >= b2.x &&
+    b1.y <= b2.y + b2.h &&
+    b1.y + b1.h >= b2.y
+  );
+}
 
 export function lines(o: TextObj): string[] {
   return String(o.text ?? '').split('\n');
@@ -17,6 +31,8 @@ export function ew(o: CanvasObj): number {
 
 export function bounds(o: CanvasObj): Bounds {
   if (o.type === 'stroke') {
+    const cached = strokeBoundsCache.get(o);
+    if (cached) return cached;
     if (o.pts.length === 0) return { x: 0, y: 0, w: 0, h: 0 };
     let a = 1e9,
       b = 1e9,
@@ -29,12 +45,14 @@ export function bounds(o: CanvasObj): Bounds {
       if (p.y > d) d = p.y;
     }
     const r = ew(o) / 2;
-    return {
+    const res = {
       x: a - r,
       y: b - r,
       w: c - a + 2 * r,
       h: d - b + 2 * r,
     };
+    strokeBoundsCache.set(o, res);
+    return res;
   }
 
   if (o.type === 'text') {
@@ -112,6 +130,11 @@ export function move(o: CanvasObj, dx: number, dy: number): void {
     for (const p of o.pts) {
       p.x += dx;
       p.y += dy;
+    }
+    const cached = strokeBoundsCache.get(o);
+    if (cached) {
+      cached.x += dx;
+      cached.y += dy;
     }
   } else {
     o.x += dx;
