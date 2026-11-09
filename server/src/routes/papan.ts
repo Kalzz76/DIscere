@@ -6,6 +6,7 @@ import { prisma } from '../db.js';
 import { config } from '../config.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { roleMiddleware } from '../middleware/role.js';
+import { io } from '../index.js';
 
 export const papanRouter = Router();
 
@@ -325,7 +326,52 @@ papanRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// POST /api/papan/:id/bagikan - Buat tautan berbagi
+// GET /api/papan/:id/bagikan - Cek status tautan berbagi aktif (hanya pemilik)
+papanRouter.get('/:id/bagikan', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const board = await prisma.board.findUnique({
+      where: { id },
+      select: { ownerId: true },
+    });
+
+    if (!board) {
+      return res.status(404).json({ pesan: 'Papan tulis tidak ditemukan.' });
+    }
+
+    if (board.ownerId !== req.user!.id) {
+      return res.status(403).json({ pesan: 'Anda tidak berwenang melihat tautan berbagi papan ini.' });
+    }
+
+    const share = await prisma.boardShare.findFirst({
+      where: { boardId: id, aktif: true },
+    });
+
+    const baseUrl = getNetworkBaseUrl(req);
+
+    if (!share) {
+      return res.json({
+        aktif: false,
+        token: null,
+        peran: 'viewer',
+        joinUrl: null,
+        networkUrl: baseUrl,
+      });
+    }
+
+    return res.json({
+      aktif: true,
+      token: share.token,
+      peran: share.peran,
+      joinUrl: `${baseUrl}/b/${share.token}`,
+      networkUrl: baseUrl,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ pesan: err.message || 'Gagal memeriksa status tautan berbagi.' });
+  }
+});
+
+// POST /api/papan/:id/bagikan - Buat atau perbarui satu tautan aktif untuk papan (hanya pemilik)
 const bagikanSchema = z.object({
   peran: z.enum(['viewer', 'editor'], {
     message: "Peran harus berupa 'viewer' atau 'editor'.",
@@ -350,12 +396,23 @@ papanRouter.post('/:id/bagikan', async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ pesan: 'Anda tidak berwenang membagikan papan ini.' });
     }
 
+    // Cari tautan aktif yang sudah ada untuk papan ini
     let share = await prisma.boardShare.findFirst({
-      where: { boardId: id, peran, aktif: true },
+      where: { boardId: id, aktif: true },
     });
 
-    if (!share) {
-      const token = crypto.randomBytes(12).toString('hex');
+    if (share) {
+      // Perbarui peran jika sudah ada
+      share = await prisma.boardShare.update({
+        where: { id: share.id },
+        data: {
+          peran,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      // Buat tautan baru dengan token acak panjang yang sulit ditebak (32 karakter hex)
+      const token = crypto.randomBytes(16).toString('hex');
       share = await prisma.boardShare.create({
         data: {
           boardId: id,
@@ -371,6 +428,7 @@ papanRouter.post('/:id/bagikan', async (req: AuthRequest, res: Response) => {
 
     return res.status(201).json({
       pesan: `Tautan ${peran === 'editor' ? 'Editor' : 'Viewer'} siap dibagikan.`,
+      token: share.token,
       share: {
         id: share.id,
         token: share.token,
@@ -384,6 +442,48 @@ papanRouter.post('/:id/bagikan', async (req: AuthRequest, res: Response) => {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ pesan: err.issues[0]?.message || 'Input tidak valid.' });
     }
-    return res.status(500).json({ pesan: err.message || 'Gagal membuat tautan berbagi.' });
+    return res.status(500).json({ pesan: err.message || 'Gagal membuat atau memperbarui tautan berbagi.' });
+  }
+});
+
+// DELETE /api/papan/bagi/:token - Cabut tautan berbagi papan (hanya pemilik)
+papanRouter.delete('/bagi/:token', async (req: AuthRequest, res: Response) => {
+  try {
+    const token = req.params.token as string;
+
+    const share = await prisma.boardShare.findUnique({
+      where: { token },
+      include: {
+        board: { select: { id: true, ownerId: true } },
+      },
+    });
+
+    if (!share) {
+      return res.status(404).json({ pesan: 'Tautan berbagi tidak ditemukan.' });
+    }
+
+    if (share.board.ownerId !== req.user!.id) {
+      return res.status(403).json({ pesan: 'Anda tidak berwenang mencabut tautan papan ini.' });
+    }
+
+    // Tandai tidak aktif
+    await prisma.boardShare.update({
+      where: { id: share.id },
+      data: {
+        aktif: false,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Beritahu ruang kolaborasi Socket.IO bahwa token ini telah dicabut
+    try {
+      io.to(`papan:${share.boardId}`).emit('papan:akses_dicabut', { token });
+    } catch (err) {
+      console.error('Gagal menyiarkan pembatalan akses socket:', err);
+    }
+
+    return res.json({ pesan: 'Tautan berbagi berhasil dicabut.' });
+  } catch (err: any) {
+    return res.status(500).json({ pesan: err.message || 'Gagal mencabut tautan berbagi.' });
   }
 });
