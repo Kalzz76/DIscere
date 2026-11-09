@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { apiRequest } from '../../lib/api';
-import { Button, Card, Input } from '../../components';
+import { Button, Card, Input, Modal } from '../../components';
 import {
   ArrowLeft,
   Plus,
   Trash2,
   Save,
   Loader2,
+  Sparkles,
+  Info,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface QuestionFormItem {
@@ -19,6 +23,7 @@ interface QuestionFormItem {
   opsiC: string;
   jawabanBenar: 'A' | 'B' | 'C';
   penjelasan: string;
+  dibuatAi?: boolean;
 }
 
 export default function TemplateForm() {
@@ -45,6 +50,20 @@ export default function TemplateForm() {
   const [submitting, setSubmitting] = useState(false);
   const [errorPesan, setErrorPesan] = useState<string | null>(null);
 
+  // State Generator Soal AI
+  const [modalAiOpen, setModalAiOpen] = useState(false);
+  const [aiMateri, setAiMateri] = useState('');
+  const [aiJumlah, setAiJumlah] = useState<number>(5);
+  const [aiTingkat, setAiTingkat] = useState<'SD' | 'SMP'>('SD');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiSuksesPesan, setAiSuksesPesan] = useState<string | null>(null);
+  const [aiKuota, setAiKuota] = useState<{
+    sisaKuota: number;
+    totalTerpakai: number;
+    batasHarian: number;
+  } | null>(null);
+
   useEffect(() => {
     if (!id) return;
 
@@ -66,6 +85,7 @@ export default function TemplateForm() {
               opsiC: q.opsiC,
               jawabanBenar: q.jawabanBenar,
               penjelasan: q.penjelasan || '',
+              dibuatAi: Boolean(q.dibuatAi),
             }))
           );
         }
@@ -78,6 +98,94 @@ export default function TemplateForm() {
 
     loadTemplate();
   }, [id]);
+
+  const bukaModalAi = async () => {
+    setAiError(null);
+    setAiSuksesPesan(null);
+    setModalAiOpen(true);
+    try {
+      const k = await apiRequest<any>('/ai/kuota');
+      setAiKuota({
+        sisaKuota: k.sisaKuota,
+        totalTerpakai: k.totalTerpakai,
+        batasHarian: k.batasHarian,
+      });
+    } catch {
+      // Abaikan jika info kuota gagal
+    }
+  };
+
+  const handleGenerateAi = async () => {
+    if (!aiMateri.trim() || aiMateri.trim().length < 20) {
+      setAiError('Teks materi minimal 20 karakter agar AI dapat menyusun soal yang mendidik.');
+      return;
+    }
+
+    try {
+      setAiLoading(true);
+      setAiError(null);
+
+      const res = await apiRequest<{
+        pesan: string;
+        soal: Array<{
+          teks: string;
+          opsiA: string;
+          opsiB: string;
+          opsiC: string;
+          jawabanBenar: 'A' | 'B' | 'C';
+          penjelasan: string;
+          dibuatAi: boolean;
+        }>;
+        kuota: any;
+      }>('/ai/soal', {
+        method: 'POST',
+        body: JSON.stringify({
+          materi: aiMateri,
+          jumlah: aiJumlah,
+          tingkat: aiTingkat,
+        }),
+      });
+
+      if (res.soal && res.soal.length > 0) {
+        // Jika soal pertama masih kosong bawaan, gantikan dengan soal baru
+        const isDefaultFirstOnly =
+          questions.length === 1 &&
+          !questions[0].teks.trim() &&
+          !questions[0].opsiA.trim();
+
+        const baseQuestions = isDefaultFirstOnly ? [] : questions;
+
+        const newItems: QuestionFormItem[] = res.soal.map((s, idx) => ({
+          urutan: baseQuestions.length + idx + 1,
+          teks: s.teks,
+          opsiA: s.opsiA,
+          opsiB: s.opsiB,
+          opsiC: s.opsiC,
+          jawabanBenar: s.jawabanBenar,
+          penjelasan: s.penjelasan || '',
+          dibuatAi: true,
+        }));
+
+        setQuestions([...baseQuestions, ...newItems]);
+        setAiSuksesPesan(
+          `✨ Berhasil membuat ${res.soal.length} soal dengan AI! Soal telah ditambahkan ke form. Silakan tinjau dan edit sebelum menyimpan.`
+        );
+        if (res.kuota) {
+          setAiKuota(res.kuota);
+        }
+
+        setTimeout(() => {
+          setModalAiOpen(false);
+          setAiSuksesPesan(null);
+          setAiMateri('');
+        }, 1200);
+      }
+    } catch (err: any) {
+      setAiError(err.pesan || 'Gagal menghasilkan soal dengan AI.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const handleTambahSoal = () => {
     setQuestions((prev) => [
@@ -152,6 +260,7 @@ export default function TemplateForm() {
           opsiC: q.opsiC.trim(),
           jawabanBenar: q.jawabanBenar,
           penjelasan: q.penjelasan.trim() || null,
+          dibuatAi: Boolean(q.dibuatAi),
         })),
       };
 
@@ -262,27 +371,45 @@ export default function TemplateForm() {
 
           {/* Daftar Soal */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <h2 className="text-xl font-bold">
                 Daftar Soal ({questions.length})
               </h2>
-              <Button
-                type="button"
-                variant="sekunder"
-                size="sm"
-                icon={<Plus className="w-4 h-4" />}
-                onClick={handleTambahSoal}
-              >
-                Tambah Soal
-              </Button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={bukaModalAi}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-sm shadow-sm transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Buat Soal dengan AI
+                </button>
+                <Button
+                  type="button"
+                  variant="sekunder"
+                  size="sm"
+                  icon={<Plus className="w-4 h-4" />}
+                  onClick={handleTambahSoal}
+                >
+                  Tambah Manual
+                </Button>
+              </div>
             </div>
 
             {questions.map((soal, index) => (
               <Card key={index} padding="md" className="space-y-4 relative">
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-                  <span className="font-extrabold text-base text-[#D7262E]">
-                    Soal #{index + 1}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-base text-[#D7262E]">
+                      Soal #{index + 1}
+                    </span>
+                    {soal.dibuatAi && (
+                      <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                        <Sparkles className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                        Dibuat AI
+                      </span>
+                    )}
+                  </div>
                   {questions.length > 1 && (
                     <button
                       type="button"
@@ -406,6 +533,130 @@ export default function TemplateForm() {
             </Button>
           </div>
         </form>
+
+        {/* Modal Generator Soal AI */}
+        <Modal
+          isOpen={modalAiOpen}
+          onClose={() => !aiLoading && setModalAiOpen(false)}
+          title="Buat Soal Otomatis dengan AI"
+          maxWidth="lg"
+        >
+          <div className="space-y-5">
+            {/* Kuota & Warning */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-900 dark:text-amber-200">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>
+                  Sisa Kuota AI Hari Ini:{' '}
+                  <strong>
+                    {aiKuota ? `${aiKuota.sisaKuota} / ${aiKuota.batasHarian}` : '30'} kali
+                  </strong>
+                </span>
+              </div>
+              <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+                Reset otomatis setiap tengah malam
+              </span>
+            </div>
+
+            {/* Peringatan Privasi UU PDP */}
+            <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-200">
+              <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+              <p>
+                <strong>Etika & Privasi Guru:</strong> Dilarang memasukkan data pribadi, nama siswa, atau informasi rahasia ke dalam teks materi. Soal hasil AI wajib ditinjau guru sebelum disimpan.
+              </p>
+            </div>
+
+            {aiError && (
+              <div className="flex items-center gap-2 p-3 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-red-900 dark:text-red-200 text-xs font-semibold">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{aiError}</span>
+              </div>
+            )}
+
+            {aiSuksesPesan && (
+              <div className="flex items-center gap-2 p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs font-semibold">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span>{aiSuksesPesan}</span>
+              </div>
+            )}
+
+            {/* Input Materi */}
+            <div>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Teks Materi Pembelajaran
+              </label>
+              <textarea
+                rows={5}
+                disabled={aiLoading}
+                className="w-full p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-medium leading-relaxed"
+                placeholder="Tempelkan ringkasan materi pembelajaran, bab buku, atau catatan konsep di sini (minimal 20 karakter)... Contoh: Perkembangbiakan tumbuhan secara generatif melibatkan penyerbukan dan pembuahan melalui serbuk sari dan putik..."
+                value={aiMateri}
+                onChange={(e) => setAiMateri(e.target.value)}
+              />
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                {aiMateri.length} karakter (minimal 20 karakter)
+              </span>
+            </div>
+
+            {/* Pilihan Pengaturan AI */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Jumlah Soal
+                </label>
+                <select
+                  disabled={aiLoading}
+                  value={aiJumlah}
+                  onChange={(e) => setAiJumlah(parseInt(e.target.value, 10))}
+                  className="w-full h-11 px-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value={5}>5 Soal (Rekomendasi Cepat)</option>
+                  <option value={8}>8 Soal</option>
+                  <option value={10}>10 Soal (Lomba Standar)</option>
+                  <option value={15}>15 Soal (Maksimal)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Jenjang / Tingkat
+                </label>
+                <select
+                  disabled={aiLoading}
+                  value={aiTingkat}
+                  onChange={(e) => setAiTingkat(e.target.value as 'SD' | 'SMP')}
+                  className="w-full h-11 px-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="SD">Sekolah Dasar (SD Kelas 4 - 6)</option>
+                  <option value="SMP">Sekolah Menengah Pertama (SMP)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="hantu"
+                onClick={() => setModalAiOpen(false)}
+                disabled={aiLoading}
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                variant="utama"
+                onClick={handleGenerateAi}
+                loading={aiLoading}
+                disabled={aiLoading || aiMateri.trim().length < 20}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                icon={<Sparkles className="w-4 h-4" />}
+              >
+                Buat Soal Sekarang
+              </Button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </div>
   );

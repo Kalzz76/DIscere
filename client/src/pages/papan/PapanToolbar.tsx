@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Sparkles,
   MousePointer2,
   Hand,
   Pencil,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 
 export type ToolType =
+  | 'ai'
   | 'select'
   | 'pan'
   | 'pen'
@@ -65,6 +67,22 @@ export const PapanToolbar: React.FC<PapanToolbarProps> = ({
 
   return (
     <div className="absolute left-4 top-20 z-20 flex flex-col items-center gap-1.5 p-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl select-none">
+      {/* Tombol Tanya AI Utama di Paling Atas */}
+      <button
+        type="button"
+        onClick={() => onSelectTool('ai')}
+        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+          activeTool === 'ai'
+            ? 'bg-amber-500 text-white shadow-md ring-2 ring-amber-300 dark:ring-amber-700'
+            : 'bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/70 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-300'
+        }`}
+        title="Tanya AI: Lingkari atau pilih area soal di kanvas"
+      >
+        <Sparkles className="w-5 h-5" />
+      </button>
+
+      <div className="w-6 h-px bg-slate-200 dark:bg-slate-700 my-0.5" />
+
       {tools.map((t) => {
         const isActive = activeTool === t.id;
         return (

@@ -21,7 +21,7 @@ import { PapanToolbar, ToolType } from './PapanToolbar';
 import { PapanSettingsBar, CanvasSettings } from './PapanSettingsBar';
 import { PapanSidebarGame } from './PapanSidebarGame';
 import { PapanShareModal } from './PapanShareModal';
-import { Loader2, ShieldAlert } from 'lucide-react';
+import { Loader2, ShieldAlert, Sparkles } from 'lucide-react';
 import { Button, Card } from '../../components';
 
 export default function PapanTulis() {
@@ -91,6 +91,22 @@ export default function PapanTulis() {
   const shapeOriginRef = useRef<{ x: number; y: number } | null>(null);
   const currentShapeRef = useRef<any>(null);
 
+  // Tanya AI State & Ref
+  const isDrawingAiBoxRef = useRef(false);
+  const aiOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const currentAiSelectionRef = useRef<Rect | null>(null);
+  const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
+  const [aiPopoverPos, setAiPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [aiCropBounds, setAiCropBounds] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [aiPertanyaan, setAiPertanyaan] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
   // 1. Simpan Snapshot ke History Stack
   const pushHistorySnapshot = useCallback(() => {
     if (isHistoryActionRef.current || isSilentActionRef.current || !fabricCanvasRef.current) {
@@ -156,6 +172,9 @@ export default function PapanTulis() {
     if (tool === 'select') {
       canvas.selection = true;
       canvas.defaultCursor = 'default';
+    } else if (tool === 'ai') {
+      canvas.selection = false;
+      canvas.defaultCursor = 'crosshair';
     } else if (tool === 'pan') {
       canvas.defaultCursor = 'grab';
     } else if (tool === 'pen') {
@@ -276,6 +295,31 @@ export default function PapanTulis() {
           const currentTool = activeToolRef.current;
           const pointer = canvas.getScenePoint(opt.e);
 
+          // Tanya AI: Mulai buat seleksi area kotak kuning
+          if (currentTool === 'ai') {
+            isDrawingAiBoxRef.current = true;
+            aiOriginRef.current = { x: pointer.x, y: pointer.y };
+            if (currentAiSelectionRef.current) {
+              canvas.remove(currentAiSelectionRef.current);
+            }
+            const selectionBox = new Rect({
+              left: pointer.x,
+              top: pointer.y,
+              width: 0,
+              height: 0,
+              fill: 'rgba(245, 183, 0, 0.15)',
+              stroke: '#F5B700',
+              strokeWidth: 2,
+              strokeDashArray: [6, 4],
+              selectable: false,
+              evented: false,
+            });
+            currentAiSelectionRef.current = selectionBox;
+            canvas.add(selectionBox);
+            canvas.renderAll();
+            return;
+          }
+
           // A. Hand Tool (Pan Kanvas)
           if (currentTool === 'pan') {
             isPanningRef.current = true;
@@ -372,6 +416,21 @@ export default function PapanTulis() {
 
         // Mouse Move (Untuk Drag Pan & Drag Shape Size)
         canvas.on('mouse:move', (opt) => {
+          // Ubah ukuran seleksi Tanya AI
+          if (isDrawingAiBoxRef.current && currentAiSelectionRef.current && aiOriginRef.current) {
+            const pointer = canvas.getScenePoint(opt.e);
+            const origX = aiOriginRef.current.x;
+            const origY = aiOriginRef.current.y;
+            currentAiSelectionRef.current.set({
+              left: Math.min(origX, pointer.x),
+              top: Math.min(origY, pointer.y),
+              width: Math.abs(pointer.x - origX),
+              height: Math.abs(pointer.y - origY),
+            });
+            canvas.renderAll();
+            return;
+          }
+
           // Pan kanvas
           if (isPanningRef.current && lastPanPosRef.current) {
             const mouseEvt = opt.e as MouseEvent;
@@ -415,6 +474,33 @@ export default function PapanTulis() {
 
         // Mouse Up (Selesai Drag Shape atau Pan)
         canvas.on('mouse:up', (opt) => {
+          if (isDrawingAiBoxRef.current) {
+            isDrawingAiBoxRef.current = false;
+            aiOriginRef.current = null;
+            const box = currentAiSelectionRef.current;
+            if (box && box.width && box.height && box.width > 20 && box.height > 20) {
+              const mouseEvt = opt.e as MouseEvent;
+              setAiPopoverPos({
+                x: Math.min(window.innerWidth - 340, Math.max(20, (mouseEvt?.clientX || 100) + 10)),
+                y: Math.min(window.innerHeight - 280, Math.max(80, (mouseEvt?.clientY || 100) + 10)),
+              });
+              setAiCropBounds({
+                left: box.left || 0,
+                top: box.top || 0,
+                width: box.width || 0,
+                height: box.height || 0,
+              });
+              setAiPertanyaan('');
+              setAiError(null);
+              setAiPopoverOpen(true);
+            } else if (box) {
+              canvas.remove(box);
+              currentAiSelectionRef.current = null;
+              canvas.renderAll();
+              setActiveTool('select');
+            }
+          }
+
           if (isPanningRef.current) {
             isPanningRef.current = false;
             lastPanPosRef.current = null;
@@ -686,6 +772,150 @@ export default function PapanTulis() {
     e.target.value = '';
   };
 
+  // Handler: Batal Tanya AI
+  const handleBatalTanyaAi = () => {
+    const canvas = fabricCanvasRef.current;
+    if (canvas && currentAiSelectionRef.current) {
+      canvas.remove(currentAiSelectionRef.current);
+      currentAiSelectionRef.current = null;
+      canvas.renderAll();
+    }
+    setAiPopoverOpen(false);
+    setAiCropBounds(null);
+    setAiPertanyaan('');
+    setAiError(null);
+    setActiveTool('select');
+  };
+
+  // Handler: Kirim Tanya AI ke Server
+  const handleKirimTanyaAi = async () => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas || !aiCropBounds) return;
+
+    try {
+      setAiLoading(true);
+      setAiError(null);
+
+      // Sembunyikan seleksi box sementara saat crop agar gambar bersih
+      if (currentAiSelectionRef.current) {
+        currentAiSelectionRef.current.set('visible', false);
+        canvas.renderAll();
+      }
+
+      // Potong kanvas sesuai koordinat area soal
+      const dataUrl = canvas.toDataURL({
+        format: 'png',
+        left: aiCropBounds.left,
+        top: aiCropBounds.top,
+        width: aiCropBounds.width,
+        height: aiCropBounds.height,
+        multiplier: 1,
+      });
+
+      // Bersihkan selection box dari kanvas
+      if (currentAiSelectionRef.current) {
+        canvas.remove(currentAiSelectionRef.current);
+        currentAiSelectionRef.current = null;
+      }
+
+      const res = await apiRequest<{
+        hasil: { jawaban: string; rumus: string; langkah: string; dibuatAi: boolean };
+      }>('/ai/jawab', {
+        method: 'POST',
+        body: JSON.stringify({
+          imageBase64: dataUrl,
+          pertanyaan: aiPertanyaan.trim() || undefined,
+        }),
+      });
+
+      // Render Solusi AI sebagai Kartu Elegan di Samping Soal pada Kanvas
+      const cardLeft = aiCropBounds.left + aiCropBounds.width + 24;
+      const cardTop = aiCropBounds.top;
+
+      // Card Background
+      const bg = new Rect({
+        width: 380,
+        height: 280,
+        fill: '#FFFFFF',
+        stroke: '#F5B700',
+        strokeWidth: 2,
+        rx: 16,
+        ry: 16,
+      });
+
+      // Header Tag
+      const headerText = new IText('✨ Solusi Tanya AI (Dibuat AI)', {
+        left: 18,
+        top: 16,
+        fontSize: 14,
+        fontWeight: 'bold',
+        fill: '#B45309',
+        fontFamily: 'Inter',
+      });
+
+      // Jawaban Text
+      const jawabanText = new IText(`Jawaban:\n${res.hasil.jawaban}`, {
+        left: 18,
+        top: 46,
+        width: 344,
+        fontSize: 14,
+        fontWeight: 'bold',
+        fill: '#1E2A5A',
+        fontFamily: 'Inter',
+      });
+
+      // Rumus Text
+      const rumusText = new IText(`Rumus: ${res.hasil.rumus}`, {
+        left: 18,
+        top: 106,
+        width: 344,
+        fontSize: 12,
+        fill: '#475569',
+        fontFamily: 'Inter',
+      });
+
+      // Langkah Text
+      const langkahText = new IText(`Langkah:\n${res.hasil.langkah}`, {
+        left: 18,
+        top: 140,
+        width: 344,
+        fontSize: 12,
+        fill: '#334155',
+        fontFamily: 'Inter',
+      });
+
+      // Sesuaikan tinggi kartu secara proporsional
+      const contentHeight = 160 + (langkahText.height || 80);
+      bg.set('height', Math.max(240, contentHeight));
+
+      const cardGroup = new Group([bg, headerText, jawabanText, rumusText, langkahText], {
+        left: cardLeft,
+        top: cardTop,
+        selectable: true,
+      });
+
+      canvas.add(cardGroup);
+      canvas.setActiveObject(cardGroup);
+      canvas.renderAll();
+      pushHistorySnapshot();
+      triggerAutosave();
+      emitBoardChange('tambah', cardGroup.toJSON());
+
+      setAiPopoverOpen(false);
+      setAiCropBounds(null);
+      setAiPertanyaan('');
+      setActiveTool('select');
+    } catch (err: any) {
+      setAiError(err.pesan || 'Gagal memproses Tanya AI dari kanvas.');
+      if (currentAiSelectionRef.current) {
+        currentAiSelectionRef.current.set('visible', true);
+        canvas.renderAll();
+      }
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   // Handler: Undo
   const handleUndo = async () => {
     const canvas = fabricCanvasRef.current;
@@ -888,6 +1118,79 @@ export default function PapanTulis() {
         onRefreshShares={fetchShares}
         onRevokeShareToken={handleRevokeShareToken}
       />
+
+      {/* 7. Floating Popover Dialog Tanya AI di dekat Area Seleksi */}
+      {aiPopoverOpen && (
+        <div
+          style={{ left: aiPopoverPos.x, top: aiPopoverPos.y }}
+          className="fixed z-50 w-80 p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border-2 border-amber-400 dark:border-amber-600 shadow-2xl space-y-3"
+        >
+          <div className="flex items-center justify-between pb-2 border-b border-amber-100 dark:border-amber-950">
+            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-bold text-sm">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              <span>Tanya AI Soal Ini</span>
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
+              Dibuat AI
+            </span>
+          </div>
+
+          {aiError && (
+            <p className="text-xs text-red-600 dark:text-red-400 font-medium">
+              {aiError}
+            </p>
+          )}
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Butuh apa? (Opsional)
+            </label>
+            <input
+              type="text"
+              disabled={aiLoading}
+              value={aiPertanyaan}
+              onChange={(e) => setAiPertanyaan(e.target.value)}
+              placeholder="Misal: Jelaskan rumus dan langkah..."
+              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleKirimTanyaAi();
+                }
+              }}
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              type="button"
+              disabled={aiLoading}
+              onClick={handleBatalTanyaAi}
+              className="px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              disabled={aiLoading}
+              onClick={handleKirimTanyaAi}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-sm transition-all cursor-pointer disabled:opacity-50"
+            >
+              {aiLoading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Menganalisis...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Dapatkan Jawaban
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
