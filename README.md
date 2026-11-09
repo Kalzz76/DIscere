@@ -41,6 +41,9 @@ Tagline: *"Belajar seru, tarik kemenangan bersama."*
   - **Riwayat & Analisis Kelemahan Siswa:** Penyimpanan otomatis ke basis data via transaksi Prisma, dilengkapi modal detail evaluasi yang menyorot **soal yang paling sering dijawab salah** agar guru mengetahui topik yang perlu dibahas ulang.
 - **Papan Tulis Digital Interaktif & Kolaborasi (Fabric.js & Socket.IO):**
   - **Kanvas Interaktif Tak Terbatas (`/papan/:id`):** Kanvas berbasis Fabric.js dengan dukungan pan & zoom (Alt/Space + geser atau roda tetikus), pena gambar bebas, penghapus objek instan, penambahan teks, bentuk bangun datar (persegi, lingkaran, segitiga, garis lurus, panah penunjuk), serta fitur unggah gambar materi.
+  - **Kalkulator Melayang Interaktif (Prioritas P1):** Widget kalkulator melayang yang dapat digeser bebas (*draggable*) di atas kanvas dengan riwayat kalkulasi, operasi aritmetika lengkap, dukungan keyboard numerik, serta tampilan Baloo/Inter ramah anak.
+  - **Ekspor Catatan Kanvas ke PNG (Prioritas P2):** Guru dapat langsung mengunduh hasil coretan materi berkualitas tinggi (*multiplier 2x*) berformat PNG untuk dibagikan ke siswa sebagai bahan rangkuman pelajaran.
+  - **Kontrol Zoom Presisi & Reset Cepat:** Widget kontrol di pojok kanan bawah kanvas yang menampilkan persentase pembesaran aktif (*zoom percentage*), tombol perbesar/perkecil instan, dan satu tombol reset ke 100%.
   - **Penyesuaian Gaya & Riwayat Lengkap:** Palet warna tematik Discere, pengaturan ketebalan goresan (2px, 4px, 8px, 14px), warna isian bentuk transparan/solid, transparansi objek (opacity slider 10%-100%), pemformatan teks tebal/miring, dan riwayat Undo/Redo tak terbatas (hingga 40 langkah).
   - **Autosave Pintar & Pemulihan Sesi:** Penyimpanan otomatis dengan mekanisme debounce 1.5 detik ke database SQLite via Prisma ORM, indikator status live (*Menyimpan*, *Tersimpan*, *Gagal/Offline*), dan pemulihan seluruh objek kanvas secara utuh saat peramban dimuat ulang.
   - **Integrasi Sidebar Game Tarik Tambang:** Menu laci samping pada kanvas yang memungkinkan guru membuka koleksi template soal, memilih mode (Solo Layar Bersama atau Multiplayer HP Siswa), dan langsung meluncurkan game kelas tanpa merusak atau mereset objek di kanvas.
@@ -48,6 +51,10 @@ Tagline: *"Belajar seru, tarik kemenangan bersama."*
     - **Viewer (Hanya Baca):** Siswa melihat goresan dan anotasi guru secara live tanpa risiko merusak kanvas (keamanan digembok di level gateway server & HTTP).
     - **Editor (Bisa Menggambar):** Kolaborator dapat bersama-sama menggambar materi dan menyiarkan objek baru secara instan.
     - **Pencabutan Akses Real-Time:** Pemilik papan dapat mencabut tautan berbagi kapan saja; server seketika menonaktifkan token dan memutuskan hak akses peserta terkait secara real-time.
+- **Efek Suara Prosedural Web Audio API (Nuansa Lomba 17-an):**
+  - **100% Offline Tanpa Aset Eksternal:** Seluruh suara disintesis langsung menggunakan Web Audio API murni (tanpa file mp3 eksternal), menjamin kecepatan instan tanpa beban unduhan atau masalah CORS.
+  - **Efek Suara Edukatif & Meriah:** Meliputi peluit wasit pembuka lomba, efek gesekan tarikan tali, denting nada mayor jawaban benar, nada dengung bersahabat jawaban salah, dan melodi fanfare selebrasi juara tarik tambang.
+  - **Kontrol Audio Guru:** Dilengkapi tombol beralih suara (*mute/unmute*) dengan persistensi status lokal di layar host proyektor kelas.
 - **Fitur AI Terstruktur & Etis (Gemini & Fallback Cerdas):**
   - **Generator Soal dari Materi (`POST /api/ai/soal`):** Guru cukup menempelkan teks materi, memilih jumlah soal (5-15), dan jenjang (SD/SMP). AI menyusun soal pilihan ganda berstruktur Zod (3 pilihan opsi, 1 jawaban benar, penjelasan). Soal ditandai badge *"Dibuat AI"* dan wajib ditinjau guru sebelum disimpan.
   - **Tanya AI Papan Tulis (`POST /api/ai/jawab`):** Guru melingkari area soal/rumus di kanvas dan mengajukan pertanyaan. AI menganalisis potongan gambar kanvas dan menyajikan kartu solusi terstruktur (*Jawaban, Rumus, Langkah*) langsung di samping soal kanvas dalam teks polos tanpa markdown/LaTeX.
@@ -304,24 +311,54 @@ flowchart TD
 
 ## Pengujian Otomatis (Testing Suite)
 
-Untuk menjalankan pengujian otomatis di seluruh modul yang telah selesai:
+Untuk menjalankan pengujian otomatis di seluruh modul platform:
 
 ```bash
 # 1. Pastikan server lokal aktif di terminal terpisah
 npm start
 
-# 2. Uji Game Solo (Tahap 4)
-npx tsx tests/test-solo.ts
+# 2. Uji Komprehensif Seluruh Modul Sekaligus (Tahap 1 - 9)
+npx tsx tests/test-full-suite.ts
 
-# 3. Uji Game Multiplayer Socket.IO (Tahap 5)
-npx tsx tests/test-e2e-multi.ts
-
-# 4. Uji Papan Tulis, Autosave, & Kolaborasi Real-Time (Tahap 6)
-npx tsx tests/test-e2e-papan.ts
-
-# 5. Uji Fitur AI, Caching, Kuota, & Dashboard Admin (Tahap 7)
-npx tsx tests/test-e2e-ai-admin.ts
+# 3. Uji Spesifik per Modul
+npx tsx tests/test-solo.ts         # Game Solo Tarik Tambang
+npx tsx tests/test-e2e-multi.ts     # Game Multiplayer Socket.IO
+npx tsx tests/test-e2e-papan.ts     # Papan Tulis Fabric.js & Kolaborasi
+npx tsx tests/test-e2e-ai-admin.ts  # Fitur AI, Caching, Kuota, & Dashboard Admin
 ```
+
+---
+
+## Skenario Video Demo (3-5 Menit Tanpa Suara Narasi)
+
+Sesuai aturan kompetisi LOGICODIX 2026, rekaman video demonstrasi berdurasi 3 hingga 5 menit tanpa narasi suara (dilengkapi teks keterangan singkat di layar):
+
+| Menit | Adegan | Aksi Antarmuka | Keterangan Teks di Layar (Caption) |
+| :---: | :--- | :--- | :--- |
+| **00:00 - 00:35** | **Beranda & Login Guru** | Buka `http://localhost:3000/`, gulir sekilas ke Hero, Masalah, & Fitur. Klik **Masuk**, masukkan akun demo `guru@discere.local`. | *"Discere: Papan Tulis Interaktif & Game Lomba Edukatif 17-an"*<br>*"Login cepat guru dan dashboard ringkasan materi"* |
+| **00:35 - 01:15** | **Pembuat Soal Otomatis dengan AI** | Masuk ke menu **Template Baru**, klik **Buat Soal dengan AI**. Tempel materi ekosistem, pilih 5 soal SD. Tinjau soal berlabel *"Dibuat AI"*, lalu simpan. | *"Generator Soal AI dari teks materi (tervalidasi Zod)"*<br>*"Guru meninjau & mengedit sebelum disimpan"* |
+| **01:15 - 02:15** | **Papan Tulis Digital & Tanya AI** | Buka Papan Tulis. Tulis materi/rumus menggunakan pena, buat bentuk geometri, buka **Kalkulator Melayang**, lalu gunakan tool **Tanya AI** melingkari soal di kanvas. Muncul kartu solusi. Klik **Unduh Gambar (PNG)**. | *"Kanvas tak terbatas Fabric.js, autosave & kalkulator melayang"*<br>*"Tanya AI: Lingkari soal untuk solusi langkah demi langkah"*<br>*"Ekspor catatan PNG instan untuk siswa"* |
+| **02:15 - 03:00** | **Lomba Tarik Tambang Mode Solo** | Buka drawer **Template Game** di papan tulis, pilih Mode Solo. Tampil proyektor kelas tarik tambang. Sentuh jawaban Tim Merah & Tim Putih secara bergantian. Tali bergeser dengan efek suara. Selesai dan lihat layar hasil. | *"Mode Solo: 1 proyektor bersama di kelas tanpa butuh HP"*<br>*"Jawaban benar menggeser tali secara real-time"* |
+| **03:00 - 04:00** | **Lomba Tarik Tambang Multiplayer** | Luncurkan template dengan Mode Multiplayer. Layar host menampilkan PIN & QR code. Buka 2 tab/jendela baru di `/main`, masukkan PIN dan nama siswa. Guru klik **Mulai Lomba**. Siswa menjawab dari HP. Tali bergerak live via Socket.IO. Layar selebrasi juara. | *"Mode Multiplayer: Siswa bergabung dengan PIN tanpa akun"*<br>*"Pembagian tim seimbang otomatis & sinkronisasi Socket.IO"*<br>*"Privasi aman: nama siswa tidak dicatat ke database"* |
+| **04:00 - 04:30** | **Dashboard Admin & Isolasi Privasi** | Keluar, login akun `admin@discere.local`. Tunjukkan statistik agregat platform, manajemen akun guru, audit trail log, dan penegasan isolasi privasi (admin diblokir 403 mengintip papan guru). | *"Dashboard Admin: Pengawasan platform transparan"*<br>*"Isolasi privasi mutlak: admin tidak bisa mengintip dokumen guru"* |
+
+---
+
+## Panduan Evaluasi Grand Final (Localhost Verification)
+
+Platform Discere dirancang untuk keandalan maksimal saat demonstrasi langsung di hadapan juri:
+1. **Jalankan Aplikasi:**
+   ```bash
+   npm run build
+   npm start
+   ```
+2. **Koneksi Jaringan Kelas:**
+   - Server mencetak IP LAN lokal (misal: `http://192.168.1.10:3000`).
+   - Guru membuka proyektor di laptop (`localhost:3000`).
+   - Siswa menyambung ke WiFi yang sama dan membuka alamat IP tersebut dari ponsel tanpa instalasi aplikasi.
+3. **Mitigasi Kondisi Darurat (Offline / Tanpa WiFi):**
+   - Jika jaringan WiFi tempat lomba mati atau tidak stabil, guru dapat beralih ke **Mode Solo** (satu layar laptop/proyektor bersama).
+   - Seluruh kanvas, kalkulator melayang, visualisasi tali tarik tambang, dan suara Web Audio API tetap berjalan 100% normal tanpa membutuhkan internet.
 
 ---
 
