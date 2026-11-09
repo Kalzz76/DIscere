@@ -3,10 +3,6 @@ import { AuthProvider, RequireRole } from './lib/auth';
 import { ToastProvider } from './components';
 
 import Landing from './pages/publik/Landing';
-import Fitur from './pages/publik/Fitur';
-import Kelebihan from './pages/publik/Kelebihan';
-import Dokumentasi from './pages/publik/Dokumentasi';
-import Privasi from './pages/publik/Privasi';
 import Daftar from './pages/publik/Daftar';
 import Masuk from './pages/publik/Masuk';
 import MainSiswa from './pages/siswa/Main';
@@ -28,12 +24,9 @@ export default function App() {
           <Routes>
             {/* Rute Publik */}
             <Route path="/" element={<Landing />} />
-            <Route path="/fitur" element={<Fitur />} />
-            <Route path="/kelebihan" element={<Kelebihan />} />
-            <Route path="/dokumentasi" element={<Dokumentasi />} />
-            <Route path="/privasi" element={<Privasi />} />
             <Route path="/daftar" element={<Daftar />} />
             <Route path="/masuk" element={<Masuk />} />
+            <Route path="/join" element={<MainSiswa />} />
             <Route path="/main" element={<MainSiswa />} />
             <Route path="/b/:token" element={<KolaborasiPublik />} />
 

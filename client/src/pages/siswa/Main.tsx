@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   XCircle,
   Sparkles,
-  ArrowRight,
   LogOut,
   ShieldAlert,
   Loader2,
@@ -39,9 +38,12 @@ export default function MainSiswa() {
 
   // Form states
   const [tokenInput, setTokenInput] = useState(searchParams.get('token') || '');
-  const [namaInput, setNamaInput] = useState('');
+  const [namaInput, setNamaInput] = useState(searchParams.get('nama') || '');
   const [formError, setFormError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
+  const [joinStep, setJoinStep] = useState<'PIN' | 'NAMA'>(
+    searchParams.get('token') && searchParams.get('token')!.trim().length === 6 ? 'NAMA' : 'PIN'
+  );
 
   // Session states
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -257,7 +259,20 @@ export default function MainSiswa() {
     };
   }, [pesertaId, startCountdown]);
 
-  // Handler: Siswa Submit Form Gabung
+  // Handler: Siswa Submit PIN (Langkah 1)
+  const handleNextToName = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    const clean = tokenInput.trim().replace(/\D/g, '');
+    if (!clean || clean.length !== 6) {
+      setFormError('Kode PIN harus terdiri dari 6 angka.');
+      return;
+    }
+    setTokenInput(clean);
+    setJoinStep('NAMA');
+  };
+
+  // Handler: Siswa Submit Form Gabung (Langkah 2)
   const handleGabung = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -266,6 +281,7 @@ export default function MainSiswa() {
     const cleanNama = namaInput.trim();
 
     if (!cleanToken || cleanToken.length !== 6) {
+      setJoinStep('PIN');
       setFormError('Kode PIN harus terdiri dari 6 angka.');
       return;
     }
@@ -371,84 +387,121 @@ export default function MainSiswa() {
   };
 
   // ==========================================
-  // RENDER STAGE 1: FORM GABUNG
+  // RENDER STAGE 1: FORM GABUNG (KAHOOT / QUIZIZZ STYLE)
   // ==========================================
   if (stage === 'GABUNG') {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4">
-        <div className="w-full max-w-md">
+      <div className="min-h-screen bg-gradient-to-b from-[#183a2c] via-[#143226] to-[#0c1f17] flex flex-col justify-between items-center p-4 py-8">
+        <div className="w-full max-w-sm flex flex-col items-center my-auto">
           {/* Logo Brand */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-500/25 mb-4">
-              <Trophy className="w-8 h-8 text-amber-300" />
-            </div>
-            <h1 className="text-3xl font-black tracking-tight text-white">DISCERE</h1>
-            <p className="text-slate-400 text-sm mt-1">Lomba Tarik Tambang Edukatif</p>
+          <div className="flex items-center gap-2.5 mb-7 text-white">
+            <svg
+              className="w-9 h-9 text-[#f4ecd9]"
+              viewBox="0 0 48 48"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 38c6 0 12-3 18-3s12 3 18 3V8c-6 0-12-3-18-3S12 8 6 8v30zM24 5v30" />
+            </svg>
+            <span
+              className="text-4xl font-extrabold tracking-tight font-['Caveat',sans-serif]"
+              style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}
+            >
+              Discere
+            </span>
           </div>
 
-          <Card className="p-6 sm:p-8 bg-slate-800 border-slate-700 shadow-2xl">
-            <h2 className="text-xl font-bold text-white text-center mb-6">
-              Gabung Permainan
-            </h2>
-
+          {/* Clean White Card (Kahoot / Quizizz style) */}
+          <div className="w-full bg-white rounded-2xl p-6 sm:p-7 shadow-2xl border border-slate-100 text-center">
             {formError && (
-              <div className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-rose-400 text-sm">
-                <ShieldAlert className="w-5 h-5 shrink-0" />
+              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs font-semibold flex items-center justify-center gap-2">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
                 <span>{formError}</span>
               </div>
             )}
 
-            <form onSubmit={handleGabung} className="space-y-5">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                  Kode PIN 6 Angka
-                </label>
+            {joinStep === 'PIN' ? (
+              <form onSubmit={handleNextToName} className="space-y-4">
+                <div className="text-xs font-black uppercase tracking-wider text-slate-600">
+                  PIN
+                </div>
                 <input
                   type="text"
+                  inputMode="numeric"
                   maxLength={6}
-                  placeholder="Contoh: 849201"
+                  placeholder="Enter PIN"
                   value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value.replace(/\D/g, ''))}
-                  className="w-full px-4 py-3.5 text-center text-2xl font-black tracking-widest text-white bg-slate-900 border-2 border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500 transition-colors"
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    setTokenInput(val);
+                    if (formError) setFormError(null);
+                  }}
+                  autoFocus
+                  className="w-full px-4 py-3.5 text-center text-2xl font-black tracking-widest text-slate-900 bg-white border-2 border-slate-300 rounded-xl focus:outline-none focus:border-slate-900 transition-colors placeholder:text-slate-300 placeholder:font-normal placeholder:tracking-normal placeholder:text-base"
                   required
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                  Nama Panggilan Kamu
-                </label>
+                <button
+                  type="submit"
+                  className="w-full py-3.5 text-base font-extrabold text-white bg-slate-900 hover:bg-slate-800 active:scale-[0.99] rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  Join
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleGabung} className="space-y-4">
+                <div className="text-xs font-black uppercase tracking-wider text-slate-600">
+                  NICKNAME
+                </div>
                 <input
                   type="text"
                   maxLength={20}
-                  placeholder="Contoh: Budi, Siti, Reza"
+                  placeholder="Enter nickname"
                   value={namaInput}
-                  onChange={(e) => setNamaInput(e.target.value)}
-                  className="w-full px-4 py-3 text-base text-white bg-slate-900 border-2 border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500 transition-colors"
+                  onChange={(e) => {
+                    setNamaInput(e.target.value);
+                    if (formError) setFormError(null);
+                  }}
+                  autoFocus
+                  className="w-full px-4 py-3.5 text-center text-lg font-bold text-slate-900 bg-white border-2 border-slate-300 rounded-xl focus:outline-none focus:border-slate-900 transition-colors placeholder:text-slate-300 placeholder:font-normal"
                   required
                 />
-              </div>
+                <button
+                  type="submit"
+                  disabled={isJoining}
+                  className="w-full py-3.5 text-base font-extrabold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-60 active:scale-[0.99] rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isJoining ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    'Join'
+                  )}
+                </button>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJoinStep('PIN');
+                      setFormError(null);
+                    }}
+                    className="text-xs font-semibold text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                  >
+                    ← Ganti PIN ({tokenInput || '......'})
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
 
-              <Button
-                type="submit"
-                variant="utama"
-                disabled={isJoining}
-                className="w-full py-4 text-base font-bold bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-lg shadow-indigo-600/30 flex justify-center items-center gap-2"
-              >
-                {isJoining ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Menghubungkan...
-                  </>
-                ) : (
-                  <>
-                    Gabung Lomba
-                    <ArrowRight className="w-5 h-5" />
-                  </>
-                )}
-              </Button>
-            </form>
-          </Card>
+        {/* Clean Minimal Footer */}
+        <div className="text-center text-xs text-white/40 font-medium">
+          Discere • Belajar Lebih Menyenangkan
         </div>
       </div>
     );
