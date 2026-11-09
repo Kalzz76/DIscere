@@ -48,6 +48,19 @@ Tagline: *"Belajar seru, tarik kemenangan bersama."*
     - **Viewer (Hanya Baca):** Siswa melihat goresan dan anotasi guru secara live tanpa risiko merusak kanvas (keamanan digembok di level gateway server & HTTP).
     - **Editor (Bisa Menggambar):** Kolaborator dapat bersama-sama menggambar materi dan menyiarkan objek baru secara instan.
     - **Pencabutan Akses Real-Time:** Pemilik papan dapat mencabut tautan berbagi kapan saja; server seketika menonaktifkan token dan memutuskan hak akses peserta terkait secara real-time.
+- **Fitur AI Terstruktur & Etis (Gemini & Fallback Cerdas):**
+  - **Generator Soal dari Materi (`POST /api/ai/soal`):** Guru cukup menempelkan teks materi, memilih jumlah soal (5-15), dan jenjang (SD/SMP). AI menyusun soal pilihan ganda berstruktur Zod (3 pilihan opsi, 1 jawaban benar, penjelasan). Soal ditandai badge *"Dibuat AI"* dan wajib ditinjau guru sebelum disimpan.
+  - **Tanya AI Papan Tulis (`POST /api/ai/jawab`):** Guru melingkari area soal/rumus di kanvas dan mengajukan pertanyaan. AI menganalisis potongan gambar kanvas dan menyajikan kartu solusi terstruktur (*Jawaban, Rumus, Langkah*) langsung di samping soal kanvas dalam teks polos tanpa markdown/LaTeX.
+  - **Caching Cerdas SHA-256 (`ai_cache`):** Permintaan identik dilayani secara instan dari cache database untuk menghemat kuota dan mempercepat respon.
+  - **Batas Pemakaian Harian (`ai_usage`):** Kuota 30 request per hari per guru dengan rate limiting `express-rate-limit` untuk mencegah penyalahgunaan.
+  - **Kepatuhan Privasi Data:** Peringatan etika dan privasi sesuai UU PDP No. 27 Tahun 2022 agar guru tidak memasukkan nama atau data pribadi siswa.
+- **Dashboard Administrator Platform (`/admin`):**
+  - **Statistik Agregat:** Ringkasan metrik total guru, template, sesi, papan, dan grafik aktivitas 7 hari terakhir tanpa akses ke isi dokumen guru.
+  - **Kelola Akun Guru:** Pencarian akun, aktivasi, nonaktivasi akun yang melanggar, reset kata sandi, dan penghapusan akun berantai (*cascade delete*).
+  - **Pustaka Template Resmi:** Pembuatan, pengubahan, dan penghapusan template contoh resmi platform yang dapat disalin oleh seluruh guru.
+  - **Monitoring AI:** Rekapitulasi pemakaian AI agregat harian dan jumlah cache tersimpan.
+  - **Audit Trail Akuntabilitas (`admin_logs`):** Seluruh tindakan admin tercatat secara permanen (siapa mengubah apa dan kapan) untuk mengawasi pengelola platform.
+  - **Jaminan Isolasi Privasi Guru & Siswa:** Administrator secara tegas dilarang membuka atau mengintip isi papan tulis privat guru, template privat, hasil kuis guru, maupun data siswa (akses diblokir di level middleware server dengan status `403 Forbidden`).
 - **Autentikasi & Keamanan:**
   - Pendaftaran guru (`/daftar`) dan Masuk (`/masuk`) divalidasi ganda dengan Zod (sisi klien dan server).
   - Sesi JWT aman tersimpan di cookie `httpOnly` dengan perlindungan rate limit `express-rate-limit`.
@@ -235,6 +248,60 @@ flowchart TD
 
 ---
 
+## Diagram Arsitektur Fitur AI & Administrasi Platform
+
+```mermaid
+flowchart TD
+    subgraph Antarmuka_Guru [Layar Guru]
+        FORM_TMPL["TemplateForm: Buat Soal Otomatis"]
+        PAPAN_AI["PapanTulis: Tanya AI (Seleksi Area)"]
+    end
+
+    subgraph Antarmuka_Admin [Layar Dashboard Admin /admin]
+        ADM_STAT["Statistik Agregat Platform"]
+        ADM_GURU["Kelola Guru: Status, Reset Sandi, Hapus"]
+        ADM_PUSTAKA["Pustaka Template Resmi (CRUD)"]
+        ADM_AI["Monitoring AI Harian"]
+        ADM_LOG["Audit Trail Tindakan Admin"]
+    end
+
+    subgraph Backend_AI_Admin [Server Node.js & Middleware]
+        GATEWAY_AI["Endpoint /api/ai (Rate Limit 25 req / 5 mnt)"]
+        GATEWAY_ADM["Endpoint /api/admin (Role: Admin Only)"]
+        CACHE_CHECK{"Periksa ai_cache (SHA-256)"}
+        KUOTA_CHECK{"Periksa Kuota Harian (ai_usage <= 30)"}
+        GEMINI_ENGINE["Gemini AI / Fallback Edukatif Cerdas"]
+        ISOLATION_WALL{"Dinding Isolasi Privasi (Admin 403 on Private Content)"}
+    end
+
+    subgraph Database_Penyimpanan [Database SQLite Prisma]
+        DB_CACHE[(ai_cache: Hash & JSON Hasil)]
+        DB_USAGE[(ai_usage: User, Tanggal, Jumlah)]
+        DB_ADMIN_LOG[(admin_logs: Audit Trail)]
+        DB_OFFICIAL_TMPL[(templates: resmi=true, ownerId=null)]
+    end
+
+    FORM_TMPL -->|POST /api/ai/soal| GATEWAY_AI
+    PAPAN_AI -->|POST /api/ai/jawab| GATEWAY_AI
+    GATEWAY_AI --> KUOTA_CHECK
+    KUOTA_CHECK -->|Kuota Aman| CACHE_CHECK
+    CACHE_CHECK -->|Hit: Return Instan| DB_CACHE
+    CACHE_CHECK -->|Miss: Panggil AI| GEMINI_ENGINE
+    GEMINI_ENGINE -->|Validasi Zod & Simpan Cache| DB_CACHE
+    GEMINI_ENGINE -->|Catat Pemakaian| DB_USAGE
+
+    ADM_STAT --> GATEWAY_ADM
+    ADM_GURU --> GATEWAY_ADM
+    ADM_PUSTAKA --> GATEWAY_ADM
+    ADM_AI --> GATEWAY_ADM
+    ADM_LOG --> GATEWAY_ADM
+    GATEWAY_ADM --> ISOLATION_WALL
+    GATEWAY_ADM -->|Catat Tindakan| DB_ADMIN_LOG
+    GATEWAY_ADM -->|Kelola Pustaka Resmi| DB_OFFICIAL_TMPL
+```
+
+---
+
 ## Pengujian Otomatis (Testing Suite)
 
 Untuk menjalankan pengujian otomatis di seluruh modul yang telah selesai:
@@ -251,6 +318,9 @@ npx tsx tests/test-e2e-multi.ts
 
 # 4. Uji Papan Tulis, Autosave, & Kolaborasi Real-Time (Tahap 6)
 npx tsx tests/test-e2e-papan.ts
+
+# 5. Uji Fitur AI, Caching, Kuota, & Dashboard Admin (Tahap 7)
+npx tsx tests/test-e2e-ai-admin.ts
 ```
 
 ---
@@ -262,4 +332,7 @@ Sesuai ketentuan transparansi kompetisi LOGICODIX 2026:
    - Agen AI digunakan sebagai mitra *pair programming* untuk merancang arsitektur modular, menulis logika murni perhitungan tali tarik tambang ([tarikTambang.ts](file:///c:/DIscere/server/src/games/tarikTambang.ts)), mengimplementasikan visualisasi komponen interaktif Tailwind CSS, serta menyusun skrip pengujian otomatis (unit testing & end-to-end integration test).
    - Seluruh kode divalidasi dengan pengujian ketat, audit keamanan otentikasi/otorisasi, dan verifikasi tipe TypeScript (`strict: true`).
 2. **AI sebagai Fitur Aplikasi:**
-   - Fitur AI di dalam aplikasi (seperti pembuatan soal otomatis dan asisten penjawab soal dari papan tulis) dikembangkan secara terisolasi pada backend pada tahap mendatang dengan integrasi model Gemini API dan validasi skema terstruktur Zod.
+   - **Pembuat Soal dari Teks Materi (`POST /api/ai/soal`):** Guru menginput materi, AI merespons dalam JSON terstruktur yang divalidasi dengan skema Zod (tepat 3 pilihan jawaban, 1 kunci jawaban, dan penjelasan materi).
+   - **Tanya AI Papan Tulis (`POST /api/ai/jawab`):** Guru melingkari soal/rumus di kanvas Fabric.js, potongan gambar dianalisis untuk menghasilkan kartu solusi terstruktur (*Jawaban, Rumus, Langkah*) dalam teks polos tanpa markdown atau LaTeX.
+   - **Caching Cerdas & Kuota Harian:** Setiap input di-hash dengan algoritma SHA-256 dan disimpan di tabel `ai_cache` agar tidak memanggil AI berulang kali untuk materi yang sama. Penggunaan dibatasi secara aman pada 30 permintaan per guru per hari melalui tabel `ai_usage` dan rate limiter Express.
+   - **Pemberitahuan Etika & Privasi:** Sesuai prinsip UU PDP No. 27 Tahun 2022, data siswa dilarang keras diikutsertakan dalam materi prompt AI, dan seluruh soal hasil AI wajib ditinjau serta dapat disunting oleh guru sebelum disimpan ke database.
