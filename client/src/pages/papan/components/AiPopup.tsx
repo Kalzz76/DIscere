@@ -90,6 +90,47 @@ export function AiPopup({
 
   // Hitung posisi popup di dekat area lasso agar tidak keluar viewport
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: 100, y: 100 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{ startX: number; startY: number; initPosX: number; initPosY: number }>({
+    startX: 0,
+    startY: 0,
+    initPosX: 0,
+    initPosY: 0,
+  });
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Jangan drag jika yang diklik adalah tombol (misal tombol close)
+    if ((e.target as HTMLElement).closest('button')) return;
+    setIsDragging(true);
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initPosX: pos.x,
+      initPosY: pos.y,
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartRef.current.startX;
+    const dy = e.clientY - dragStartRef.current.startY;
+    const winW = typeof window !== 'undefined' ? window.innerWidth : 1000;
+    const winH = typeof window !== 'undefined' ? window.innerHeight : 700;
+
+    const newX = Math.max(10, Math.min(dragStartRef.current.initPosX + dx, winW - 320));
+    const newY = Math.max(10, Math.min(dragStartRef.current.initPosY + dy, winH - 120));
+    setPos({ x: newX, y: newY });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDragging) {
+      setIsDragging(false);
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+  };
 
   useEffect(() => {
     if (!isOpen || !lasso || lasso.length < 8) return;
@@ -142,8 +183,16 @@ export function AiPopup({
       aria-modal="true"
       aria-label="Tanya AI Soal Ini"
     >
-      {/* Header Popup */}
-      <div className="ah">
+      {/* Header Popup (Bisa Ditarik / Draggable) */}
+      <div
+        className="ah"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        style={{ cursor: isDragging ? 'grabbing' : 'grab', userSelect: 'none' }}
+        title="Klik dan seret untuk memindahkan jendela"
+      >
         <span className="at">
           <svg viewBox="0 0 24 24" style={{ width: 20, height: 20 }}>
             <path d="M9 6l1.8 4.2L15 12l-4.2 1.8L9 18l-1.8-4.2L3 12l4.2-1.8z" />

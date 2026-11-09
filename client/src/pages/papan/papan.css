@@ -1103,6 +1103,7 @@ body.pres .papan .btn-exit-pres {
   padding-bottom: 12px;
   border-bottom: 1px solid #4a2b0a;
   margin-bottom: 12px;
+  touch-action: none;
 }
 
 .papan .at {
