@@ -12,6 +12,7 @@ import { templateRouter } from './routes/template.js';
 import { sesiRouter } from './routes/sesi.js';
 import { guruRouter } from './routes/guru.js';
 import { errorHandler } from './middleware/error.js';
+import { setupMultiplayerSocket } from './realtime/sesi.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -25,9 +26,18 @@ export const io = new Server(server, {
 app.use(express.json());
 app.use(cookieParser());
 
-// Endpoint health check
+// Endpoint health check & server network info
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+app.get('/api/info/server', (_req, res) => {
+  const ip = getLocalIp();
+  res.json({
+    localIp: ip,
+    port: config.port,
+    networkUrl: `http://${ip}:${config.port}`,
+  });
 });
 
 // Rute API Auth
@@ -35,6 +45,9 @@ app.use('/api/auth', authRouter);
 app.use('/api/template', templateRouter);
 app.use('/api/sesi', sesiRouter);
 app.use('/api/guru', guruRouter);
+
+// Setup Socket.IO multiplayer
+setupMultiplayerSocket(io);
 
 // Socket.IO event handler dasar
 io.on('connection', (socket) => {
