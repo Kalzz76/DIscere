@@ -54,18 +54,26 @@ Tagline: *"Belajar seru, tarik kemenangan bersama."*
 - **Hasil Pertandingan & Evaluasi Materi Guru:**
   - **Layar Hasil (`/guru/sesi/:id/hasil`):** Banner perayaan pemenang (Merah, Putih, atau Seri), skor akhir, log perjalanan soal, dan tombol *Main Lagi* (membuat sesi baru dari template sama dengan kondisi awal bersih).
   - **Riwayat & Analisis Kelemahan Siswa:** Penyimpanan otomatis ke basis data via transaksi Prisma, dilengkapi modal detail evaluasi yang menyorot **soal yang paling sering dijawab salah** agar guru mengetahui topik yang perlu dibahas ulang.
-- **Papan Tulis Digital Interaktif & Kolaborasi (Fabric.js & Socket.IO):**
-  - **Kanvas Interaktif Tak Terbatas (`/papan/:id`):** Kanvas berbasis Fabric.js dengan dukungan pan & zoom (Alt/Space + geser atau roda tetikus), pena gambar bebas, penghapus objek instan, penambahan teks, bentuk bangun datar (persegi, lingkaran, segitiga, garis lurus, panah penunjuk), serta fitur unggah gambar materi.
-  - **Kalkulator Melayang Interaktif (Prioritas P1):** Widget kalkulator melayang yang dapat digeser bebas (*draggable*) di atas kanvas dengan riwayat kalkulasi, operasi aritmetika lengkap, dukungan keyboard numerik, serta tampilan Baloo/Inter ramah anak.
-  - **Ekspor Catatan Kanvas ke PNG (Prioritas P2):** Guru dapat langsung mengunduh hasil coretan materi berkualitas tinggi (*multiplier 2x*) berformat PNG untuk dibagikan ke siswa sebagai bahan rangkuman pelajaran.
-  - **Kontrol Zoom Presisi & Reset Cepat:** Widget kontrol di pojok kanan bawah kanvas yang menampilkan persentase pembesaran aktif (*zoom percentage*), tombol perbesar/perkecil instan, dan satu tombol reset ke 100%.
-  - **Penyesuaian Gaya & Riwayat Lengkap:** Palet warna tematik Discere, pengaturan ketebalan goresan (2px, 4px, 8px, 14px), warna isian bentuk transparan/solid, transparansi objek (opacity slider 10%-100%), pemformatan teks tebal/miring, dan riwayat Undo/Redo tak terbatas (hingga 40 langkah).
-  - **Autosave Pintar & Pemulihan Sesi:** Penyimpanan otomatis dengan mekanisme debounce 1.5 detik ke database SQLite via Prisma ORM, indikator status live (*Menyimpan*, *Tersimpan*, *Gagal/Offline*), dan pemulihan seluruh objek kanvas secara utuh saat peramban dimuat ulang.
-  - **Integrasi Sidebar Game Tarik Tambang:** Menu laci samping pada kanvas yang memungkinkan guru membuka koleksi template soal, memilih mode (Solo Layar Bersama atau Multiplayer HP Siswa), dan langsung meluncurkan game kelas tanpa merusak atau mereset objek di kanvas.
-  - **Kolaborasi Multi-Pengguna Real-Time (`/b/:token`):** Guru dapat membagikan tautan ruang papan tulis ke siswa atau rekan pengajar dengan 2 tingkat izin:
-    - **Viewer (Hanya Baca):** Siswa melihat goresan dan anotasi guru secara live tanpa risiko merusak kanvas (keamanan digembok di level gateway server & HTTP).
-    - **Editor (Bisa Menggambar):** Kolaborator dapat bersama-sama menggambar materi dan menyiarkan objek baru secara instan.
-    - **Pencabutan Akses Real-Time:** Pemilik papan dapat mencabut tautan berbagi kapan saja; server seketika menonaktifkan token dan memutuskan hak akses peserta terkait secara real-time.
+- **Papan Tulis Digital Interaktif (Mesin Canvas 2D Buatan Sendiri):**
+  - **Mesin Kanvas 2D Murni (`/papan/:id`):** Dibangun dengan Canvas 2D buatan sendiri yang diadaptasi dari `referensi-desain/discere-v5.html` tanpa ketergantungan library kanvas eksternal. Performa tinggi dengan render loop `requestAnimationFrame` dan caching bounds teks.
+  - **Antarmuka Panel Melayang Elegan:** Desain panel melayang gelap di atas kanvas terang bertitik dengan warna tema ungu `--pu`, font lokal *Plus Jakarta Sans* via `@fontsource/plus-jakarta-sans`.
+  - **12 Alat Lengkap:**
+    - *Pilih (V):* Memilih dan menggeser objek bebas di kanvas, duplikasi instan (Ctrl+D), dan hapus objek.
+    - *Tangan (H):* Menggeser kanvas tanpa batas (pan), didukung pintasan Spasi dan roda tetikus.
+    - *Laser (L):* Jejak laser pointer beranimasi memudar halus selama 900 ms untuk presentasi mengajar.
+    - *Pena (P):* Goresan kurva kuadratik mulus dengan 3 gaya kuas: Pulpen halus, Spidol bergaris tebal persegi, dan Pensil bertekstur arsir.
+    - *Penghapus Pemotong (E):* Penghapus cerdas yang **memotong coretan** secara dinamis (`cutStroke` dan `eraseSeg`), bukan sekadar menghapus objek utuh.
+    - *Bentuk (S):* Koleksi lengkap bangun datar kategori Dasar (kotak, rounded, elips, segitiga, diamond, jajar genjang, garis), Poligon (pentagon, heksagon, heptagon, oktagon, dekagon), Bintang (bintang 4, 5, 6, 8, burst), dan Panah (kanan, kiri, atas, bawah, panah garis).
+    - *Teks (T):* Kotak teks dinamis dengan font Plus Jakarta Sans dan batas keamanan 5000 karakter.
+    - *Tabel (B):* Pembuat tabel fleksibel dengan pemilih grid 8x8 dan templat cepat; edit isi sel langsung di kanvas lewat klik dua kali.
+    - *Isi Warna (F):* Pewarnaan isian (fill) untuk bentuk, kotak teks, dan tabel.
+    - *Pipet (I):* Mengambil warna dari objek kanvas maupun layar via EyeDropper API.
+    - *Upload Gambar (U):* Mendukung unggah, tempel (paste), dan seret-lepas (drag-and-drop) gambar dengan pengecilan otomatis berbasis canvas (sisi terpanjang maks 1280px, JPEG kualitas 0.8).
+  - **Riwayat Undo / Redo Berbasis Operasi Lokal:** Menyimpan riwayat perubahan atomik `{tambah, hapus, ubah}` hingga 60 entri, memancarkan event `ubah` real-time, serta mendukung `terapkanOps(ops)` dari luar tanpa mencemari riwayat lokal.
+  - **Autosave & Cadangan Lokal:** Penyimpanan otomatis dengan debounce 2 detik ke basis data server melalui endpoint `PUT /api/papan/:id`, indikator status live (*Saved / Menyimpan… / Gagal simpan*), dan draf cadangan darurat otomatis ke `localStorage` jika server offline.
+  - **Mode Presentasi & Zoom Presisi:** Mode layar penuh (*fullscreen*) otomatis menyalakan laser pointer dengan tombol keluar presentasi cepat (Esc). Zoom bebas berskala 0.1x hingga 4x, persentase zoom, toggle grid titik, dan tombol pusatkan kanvas.
+  - **Ekspor & Impor Fleksibel:** Ekspor seluruh isi kanvas ke gambar PNG resolusi tinggi (*multiplier 2x*) dan ekspor/impor berkas JSON format `{ versi: 1, objs: [...] }`.
+  - **Daftar Papan Tulis Guru (`/papan`):** Halaman manajemen papan bagi guru untuk melihat daftar papan tersimpan, membuat papan baru, dan menghapus papan lama dengan modal konfirmasi aman.
 - **Efek Suara Prosedural Web Audio API (Nuansa Lomba 17-an):**
   - **100% Offline Tanpa Aset Eksternal:** Seluruh suara disintesis langsung menggunakan Web Audio API murni (tanpa file mp3 eksternal), menjamin kecepatan instan tanpa beban unduhan atau masalah CORS.
   - **Efek Suara Edukatif & Meriah:** Meliputi peluit wasit pembuka lomba, efek gesekan tarikan tali, denting nada mayor jawaban benar, nada dengung bersahabat jawaban salah, dan melodi fanfare selebrasi juara tarik tambang.

@@ -7,6 +7,7 @@ import Daftar from './pages/publik/Daftar';
 import Masuk from './pages/publik/Masuk';
 import MainSiswa from './pages/siswa/Main';
 import PapanTulis from './pages/papan/PapanTulis';
+import DaftarPapan from './pages/papan/DaftarPapan';
 import KolaborasiPublik from './pages/papan/KolaborasiPublik';
 
 import DashboardGuru from './pages/guru/Dashboard';
@@ -37,6 +38,7 @@ export default function App() {
               <Route path="/guru/template/:id/ubah" element={<TemplateForm />} />
               <Route path="/guru/sesi/:id" element={<LayarHost />} />
               <Route path="/guru/sesi/:id/hasil" element={<HasilSolo />} />
+              <Route path="/papan" element={<DaftarPapan />} />
               <Route path="/papan/:id" element={<PapanTulis />} />
             </Route>
 

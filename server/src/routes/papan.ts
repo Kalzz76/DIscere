@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import express, { Router, Response } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
 import os from 'os';
@@ -8,6 +8,9 @@ import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { roleMiddleware } from '../middleware/role.js';
 
 export const papanRouter = Router();
+
+// Batas body JSON khusus rute papan 8 MB
+papanRouter.use(express.json({ limit: '8mb' }));
 
 function getNetworkBaseUrl(req: any): string {
   const interfaces = os.networkInterfaces();
@@ -74,7 +77,13 @@ papanRouter.get('/share/:token', async (req, res: Response) => {
 
 // PUT /api/papan/share/:token - Simpan perubahan kanvas oleh Editor via token berbagi
 const simpanShareSchema = z.object({
-  data: z.string().min(1, 'Data kanvas tidak boleh kosong.'),
+  data: z.union([
+    z.string().min(1, 'Data kanvas tidak boleh kosong.'),
+    z.object({
+      versi: z.literal(1),
+      objs: z.array(z.any()),
+    }),
+  ]).transform((val) => (typeof val === 'string' ? val : JSON.stringify(val))),
 });
 
 papanRouter.put('/share/:token', async (req, res: Response) => {
@@ -92,7 +101,6 @@ papanRouter.put('/share/:token', async (req, res: Response) => {
       });
     }
 
-    // Pastikan hak akses adalah editor
     if (share.peran !== 'editor') {
       return res.status(403).json({
         pesan: 'Akses ditolak: Peran Anda hanya Viewer dan tidak diizinkan menyimpan perubahan.',
@@ -130,7 +138,7 @@ papanRouter.put('/share/:token', async (req, res: Response) => {
 papanRouter.use(authMiddleware);
 papanRouter.use(roleMiddleware('guru'));
 
-// GET /api/papan - Daftar papan tulis milik guru
+// GET /api/papan - Daftar papan tulis milik guru (id, judul, updatedAt)
 papanRouter.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const boards = await prisma.board.findMany({
@@ -141,11 +149,6 @@ papanRouter.get('/', async (req: AuthRequest, res: Response) => {
         judul: true,
         updatedAt: true,
         createdAt: true,
-        _count: {
-          select: {
-            shares: { where: { aktif: true } },
-          },
-        },
       },
     });
 
@@ -157,7 +160,7 @@ papanRouter.get('/', async (req: AuthRequest, res: Response) => {
 
 // POST /api/papan - Buat papan tulis baru
 const buatPapanSchema = z.object({
-  judul: z.string().trim().min(1, 'Judul papan wajib diisi.').optional(),
+  judul: z.string().trim().min(1).max(60).optional(),
 });
 
 papanRouter.post('/', async (req: AuthRequest, res: Response) => {
@@ -165,11 +168,10 @@ papanRouter.post('/', async (req: AuthRequest, res: Response) => {
     const parsed = buatPapanSchema.parse(req.body || {});
     const judul = parsed.judul || 'Papan Pembelajaran Baru';
 
-    // Inisialisasi kanvas kosong dalam format JSON Fabric standar
+    // Inisialisasi kanvas kosong dalam format versi 1
     const defaultData = JSON.stringify({
-      version: '7.4.0',
-      objects: [],
-      background: '#ffffff',
+      versi: 1,
+      objs: [],
     });
 
     const board = await prisma.board.create({
@@ -206,10 +208,6 @@ papanRouter.get('/:id', async (req: AuthRequest, res: Response) => {
       where: { id },
       include: {
         owner: { select: { id: true, nama: true } },
-        shares: {
-          where: { aktif: true },
-          select: { id: true, token: true, peran: true, createdAt: true },
-        },
       },
     });
 
@@ -217,16 +215,9 @@ papanRouter.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ pesan: 'Papan tulis tidak ditemukan.' });
     }
 
-    // Pastikan hanya pemilik yang bisa mengakses via rute guru terlindungi
     if (board.ownerId !== req.user!.id) {
       return res.status(403).json({ pesan: 'Anda tidak memiliki hak akses ke papan ini.' });
     }
-
-    const baseUrl = getNetworkBaseUrl(req);
-    const sharesWithUrl = board.shares.map((s) => ({
-      ...s,
-      joinUrl: `${baseUrl}/b/${s.token}`,
-    }));
 
     return res.json({
       board: {
@@ -236,7 +227,6 @@ papanRouter.get('/:id', async (req: AuthRequest, res: Response) => {
         ownerId: board.ownerId,
         ownerName: board.owner.nama,
         updatedAt: board.updatedAt,
-        shares: sharesWithUrl,
       },
     });
   } catch (err: any) {
@@ -244,16 +234,29 @@ papanRouter.get('/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// PUT /api/papan/:id - Autosave data kanvas oleh pemilik
-const autosaveSchema = z.object({
-  data: z.string().min(1, 'Data kanvas tidak boleh kosong.'),
-  judul: z.string().trim().min(1).optional(),
+// PUT /api/papan/:id - Simpan data kanvas / judul oleh pemilik
+const putPapanSchema = z.object({
+  judul: z.string().trim().min(1).max(60).optional(),
+  data: z.union([
+    z.string().refine((str) => {
+      try {
+        const parsed = JSON.parse(str);
+        return parsed && parsed.versi === 1 && Array.isArray(parsed.objs);
+      } catch {
+        return false;
+      }
+    }, 'Format data kanvas tidak valid'),
+    z.object({
+      versi: z.literal(1),
+      objs: z.array(z.any()),
+    }),
+  ]).transform((val) => (typeof val === 'string' ? val : JSON.stringify(val))).optional(),
 });
 
 papanRouter.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { data, judul } = autosaveSchema.parse(req.body);
+    const { data, judul } = putPapanSchema.parse(req.body);
 
     const board = await prisma.board.findUnique({
       where: { id },
@@ -271,7 +274,7 @@ papanRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     const updated = await prisma.board.update({
       where: { id },
       data: {
-        data,
+        ...(data ? { data } : {}),
         ...(judul ? { judul } : {}),
         updatedAt: new Date(),
       },
@@ -291,47 +294,6 @@ papanRouter.put('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ pesan: err.issues[0]?.message || 'Input tidak valid.' });
     }
     return res.status(500).json({ pesan: err.message || 'Gagal menyimpan perubahan papan.' });
-  }
-});
-
-// PATCH /api/papan/:id/judul - Ganti judul papan tulis
-const gantiJudulSchema = z.object({
-  judul: z.string().trim().min(1, 'Judul papan tidak boleh kosong.'),
-});
-
-papanRouter.patch('/:id/judul', async (req: AuthRequest, res: Response) => {
-  try {
-    const id = req.params.id as string;
-    const { judul } = gantiJudulSchema.parse(req.body);
-
-    const board = await prisma.board.findUnique({
-      where: { id },
-      select: { ownerId: true },
-    });
-
-    if (!board) {
-      return res.status(404).json({ pesan: 'Papan tulis tidak ditemukan.' });
-    }
-
-    if (board.ownerId !== req.user!.id) {
-      return res.status(403).json({ pesan: 'Anda tidak berwenang mengubah judul papan ini.' });
-    }
-
-    const updated = await prisma.board.update({
-      where: { id },
-      data: { judul, updatedAt: new Date() },
-      select: { id: true, judul: true, updatedAt: true },
-    });
-
-    return res.json({
-      pesan: 'Judul papan tulis berhasil diperbarui.',
-      board: updated,
-    });
-  } catch (err: any) {
-    if (err instanceof z.ZodError) {
-      return res.status(400).json({ pesan: err.issues[0]?.message || 'Input tidak valid.' });
-    }
-    return res.status(500).json({ pesan: err.message || 'Gagal mengubah judul papan.' });
   }
 });
 
@@ -363,7 +325,7 @@ papanRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// POST /api/papan/:id/bagikan - Buat atau dapatkan tautan berbagi (Viewer / Editor)
+// POST /api/papan/:id/bagikan - Buat tautan berbagi
 const bagikanSchema = z.object({
   peran: z.enum(['viewer', 'editor'], {
     message: "Peran harus berupa 'viewer' atau 'editor'.",
@@ -388,13 +350,11 @@ papanRouter.post('/:id/bagikan', async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ pesan: 'Anda tidak berwenang membagikan papan ini.' });
     }
 
-    // Cek apakah sudah ada token aktif untuk peran ini
     let share = await prisma.boardShare.findFirst({
       where: { boardId: id, peran, aktif: true },
     });
 
     if (!share) {
-      // Buat token acak yang aman (16 bytes hex)
       const token = crypto.randomBytes(12).toString('hex');
       share = await prisma.boardShare.create({
         data: {
@@ -425,30 +385,5 @@ papanRouter.post('/:id/bagikan', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ pesan: err.issues[0]?.message || 'Input tidak valid.' });
     }
     return res.status(500).json({ pesan: err.message || 'Gagal membuat tautan berbagi.' });
-  }
-});
-
-// DELETE /api/papan/:id/bagikan/:shareId - Cabut tautan berbagi
-papanRouter.delete('/:id/bagikan/:shareId', async (req: AuthRequest, res: Response) => {
-  try {
-    const { id, shareId } = req.params as { id: string; shareId: string };
-
-    const board = await prisma.board.findUnique({
-      where: { id },
-      select: { ownerId: true },
-    });
-
-    if (!board || board.ownerId !== req.user!.id) {
-      return res.status(403).json({ pesan: 'Anda tidak berwenang mencabut akses papan ini.' });
-    }
-
-    await prisma.boardShare.update({
-      where: { id: shareId },
-      data: { aktif: false },
-    });
-
-    return res.json({ pesan: 'Akses tautan berbagi berhasil dicabut.' });
-  } catch (err: any) {
-    return res.status(500).json({ pesan: err.message || 'Gagal mencabut tautan berbagi.' });
   }
 });
