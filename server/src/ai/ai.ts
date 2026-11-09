@@ -526,3 +526,353 @@ tanpa markdown; kalau bukan soal hitungan, bagian Rumus boleh dilewati; kalau ga
 
   return { hasil: hasilJawaban, dariCache: false };
 }
+
+// ----------------------------------------------------
+// Modul Obrolan Asisten AI di Papan Tulis
+// ----------------------------------------------------
+
+export interface AiPesanLampiran {
+  jenis: 'gambar' | 'pdf' | 'teks';
+  nama: string;
+  mt?: string;
+  data?: string; // base64
+  teks?: string;
+}
+
+export interface AiPesanItem {
+  role: 'user' | 'assistant';
+  teks: string;
+  lampiran?: AiPesanLampiran[];
+}
+
+export const PROMPT_SISTEM_OBROL = `Kamu adalah asisten AI untuk guru di papan tulis pembelajaran Discere. Jawab dalam bahasa Indonesia kecuali diminta lain. Jelas, ringkas, dan bantu langkah demi langkah bila perlu. Pengguna adalah guru SD sampai SMP, jadi gunakan bahasa yang cocok bila diminta membuat materi untuk siswa. Jangan meminta atau menyimpan data pribadi siswa. Kalau tidak yakin atau lampiran tidak terbaca, katakan terus terang.`;
+
+/**
+ * Periksa kuota harian berdasarkan jenis fitur AI (soal, jawab, obrol)
+ */
+export async function cekBatasHarian(
+  userId: string,
+  jenis: 'soal' | 'jawab' | 'obrol' = 'obrol'
+): Promise<{
+  bisaPakai: boolean;
+  sisaKuota: number;
+  totalTerpakai: number;
+  batasHarian: number;
+}> {
+  const tanggal = getTodayString();
+  const batasHarian = jenis === 'obrol' ? config.aiBatasObrol : config.aiBatasHarian;
+
+  const usage = await prisma.aiUsage.findUnique({
+    where: {
+      userId_tanggal: {
+        userId,
+        tanggal,
+      },
+    },
+  });
+
+  const totalTerpakai = usage ? usage.jumlah : 0;
+  const sisaKuota = Math.max(0, batasHarian - totalTerpakai);
+
+  return {
+    bisaPakai: totalTerpakai < batasHarian,
+    sisaKuota,
+    totalTerpakai,
+    batasHarian,
+  };
+}
+
+/**
+ * Catat pemakaian AI ke tabel ai_usage
+ */
+export async function catatPemakaianAi(userId: string): Promise<void> {
+  const tanggal = getTodayString();
+  await prisma.aiUsage.upsert({
+    where: {
+      userId_tanggal: {
+        userId,
+        tanggal,
+      },
+    },
+    update: {
+      jumlah: { increment: 1 },
+    },
+    create: {
+      userId,
+      tanggal,
+      jumlah: 1,
+    },
+  });
+}
+
+/**
+ * Fungsi pembungkus panggilAI generik dengan fetch, AbortSignal 60 detik,
+ * dan pemetaan error ramah Bahasa Indonesia.
+ */
+export async function panggilAI(params: {
+  sistem: string;
+  pesan: string;
+  maxToken?: number;
+}): Promise<string> {
+  if (!config.aiApiKey) {
+    return 'Kunci AI_API_KEY belum dikonfigurasi di server (.env).';
+  }
+
+  const model = config.aiModel || 'gemini-1.5-flash';
+  const maxToken = params.maxToken || 2000;
+
+  try {
+    const isClaude = model.includes('claude') || model.includes('anthropic');
+    if (!isClaude) {
+      // Endpoint Gemini
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.aiApiKey}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: params.sistem }],
+          },
+          contents: [{ parts: [{ text: params.pesan }] }],
+          generationConfig: {
+            maxOutputTokens: maxToken,
+          },
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (!res.ok) {
+        throw new Error(`API AI mengembalikan status ${res.status}`);
+      }
+      const data = (await res.json()) as any;
+      return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } else {
+      // Endpoint Claude
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': config.aiApiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          system: params.sistem,
+          max_tokens: maxToken,
+          messages: [{ role: 'user', content: params.pesan }],
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (!res.ok) {
+        throw new Error(`API AI mengembalikan status ${res.status}`);
+      }
+      const data = (await res.json()) as any;
+      return (data.content || []).map((c: any) => c.text || '').join('');
+    }
+  } catch (err: any) {
+    if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+      throw new Error('Permintaan ke AI terlalu lama atau batas waktu terlampaui.');
+    }
+    throw new Error('Gagal menghubungi layanan AI. Silakan coba sesaat lagi.');
+  }
+}
+
+/**
+ * Panggil AI untuk obrolan interaktif asisten papan tulis (POST /api/ai/obrol)
+ */
+export async function obrolDenganAI(params: {
+  pesan: AiPesanItem[];
+}): Promise<{ jawaban: string }> {
+  const { pesan } = params;
+
+  // 1. Pangkas ke 10 pesan terakhir dan wajib diawali oleh pesan role 'user'
+  let riwayat = pesan.slice(-10);
+  while (riwayat.length > 0 && riwayat[0].role !== 'user') {
+    riwayat.shift();
+  }
+
+  if (riwayat.length === 0) {
+    return {
+      jawaban: 'Silakan ajukan pertanyaan atau lampirkan materi pembelajaran.',
+    };
+  }
+
+  // 2. Jika API key belum diatur, kembalikan respon ramah tanpa error
+  if (!config.aiApiKey) {
+    const pesanTerakhir = riwayat[riwayat.length - 1];
+    const userPrompt = pesanTerakhir?.teks?.toLowerCase() || '';
+
+    let jawabanFallback =
+      'Halo Guru! Saya adalah Asisten AI Pembelajaran Discere di papan tulis. ' +
+      'Kunci `AI_API_KEY` belum dikonfigurasi di server (.env). Anda dapat mengatur `AI_API_KEY` dan `AI_MODEL` ' +
+      'agar saya dapat memberikan analisis cerdas dan materi lengkap secara real-time.';
+
+    if (userPrompt.includes('soal') || userPrompt.includes('kuis')) {
+      jawabanFallback += '\n\nContoh ide soal matematika:\n1. 15 x 6 = ? (Jawaban: 90)\n2. 125 : 5 = ? (Jawaban: 25)';
+    } else if (userPrompt.includes('ringkas') || userPrompt.includes('materi')) {
+      jawabanFallback += '\n\nTips Mengajar: Gunakan visual diagram atau tabel di papan tulis untuk memperjelas konsep bagi siswa.';
+    }
+
+    return { jawaban: jawabanFallback };
+  }
+
+  const model = config.aiModel || 'gemini-1.5-flash';
+  const isClaude = model.includes('claude') || model.includes('anthropic');
+
+  try {
+    if (!isClaude) {
+      // ----------------------------------------
+      // Implementasi Google Generative AI (Gemini)
+      // ----------------------------------------
+      const contents = riwayat.map((p) => {
+        const role = p.role === 'user' ? 'user' : 'model';
+        const parts: any[] = [];
+
+        // Gabungkan teks dengan lampiran teks jika ada
+        let teksUtuh = p.teks || '';
+        if (p.lampiran && p.lampiran.length > 0) {
+          for (const lamp of p.lampiran) {
+            if (lamp.jenis === 'teks' && lamp.teks) {
+              teksUtuh += `\n\n[File: ${lamp.nama}]\n${lamp.teks}`;
+            }
+          }
+        }
+
+        if (teksUtuh) {
+          parts.push({ text: teksUtuh });
+        }
+
+        // Lampiran gambar dan PDF (inlineData)
+        if (p.lampiran && p.lampiran.length > 0) {
+          for (const lamp of p.lampiran) {
+            if (lamp.data) {
+              const cleanBase64 = lamp.data.replace(/^data:[^;]+;base64,/, '');
+              const mime =
+                lamp.mt ||
+                (lamp.jenis === 'pdf' ? 'application/pdf' : 'image/png');
+
+              parts.push({
+                inlineData: {
+                  mimeType: mime,
+                  data: cleanBase64,
+                },
+              });
+            }
+          }
+        }
+
+        if (parts.length === 0) {
+          parts.push({ text: 'Jelaskan materi ini.' });
+        }
+
+        return { role, parts };
+      });
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.aiApiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: PROMPT_SISTEM_OBROL }],
+          },
+          contents,
+          generationConfig: {
+            maxOutputTokens: 2500,
+          },
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Layanan AI memberikan kode respon ${response.status}`);
+      }
+
+      const data = (await response.json()) as any;
+      const textOut = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!textOut) {
+        return { jawaban: 'Maaf, asisten AI tidak memberikan teks balasan.' };
+      }
+
+      return { jawaban: textOut.trim() };
+    } else {
+      // ----------------------------------------
+      // Implementasi Anthropic (Claude)
+      // ----------------------------------------
+      const messages = riwayat.map((p) => {
+        const role = p.role;
+        const content: any[] = [];
+        let teksUtuh = p.teks || '';
+
+        if (p.lampiran && p.lampiran.length > 0) {
+          for (const lamp of p.lampiran) {
+            if (lamp.jenis === 'teks' && lamp.teks) {
+              teksUtuh += `\n\n[File: ${lamp.nama}]\n${lamp.teks}`;
+            } else if (lamp.jenis === 'gambar' && lamp.data) {
+              const cleanBase64 = lamp.data.replace(/^data:[^;]+;base64,/, '');
+              content.push({
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: lamp.mt || 'image/png',
+                  data: cleanBase64,
+                },
+              });
+            } else if (lamp.jenis === 'pdf' && lamp.data) {
+              const cleanBase64 = lamp.data.replace(/^data:[^;]+;base64,/, '');
+              content.push({
+                type: 'document',
+                source: {
+                  type: 'base64',
+                  media_type: 'application/pdf',
+                  data: cleanBase64,
+                },
+              });
+            }
+          }
+        }
+
+        content.push({
+          type: 'text',
+          text: teksUtuh || 'Jelaskan materi ini.',
+        });
+
+        return { role, content };
+      });
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': config.aiApiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 2500,
+          system: PROMPT_SISTEM_OBROL,
+          messages,
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Layanan AI memberikan kode respon ${response.status}`);
+      }
+
+      const data = (await response.json()) as any;
+      const textOut = (data.content || []).map((c: any) => c.text || '').join('');
+      if (!textOut) {
+        return { jawaban: 'Maaf, asisten AI tidak memberikan teks balasan.' };
+      }
+
+      return { jawaban: textOut.trim() };
+    }
+  } catch (err: any) {
+    if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+      throw new Error('Waktu respon AI terlalu lama (melebihi 60 detik).');
+    }
+    throw new Error('Gagal menghubungi layanan AI. Silakan coba kembali.');
+  }
+}

@@ -8,13 +8,16 @@ import {
   solveQuestionFromBoard,
   periksaDanPakaiKuota,
   getInfoKuota,
+  cekBatasHarian,
+  catatPemakaianAi,
+  obrolDenganAI,
 } from '../ai/ai.js';
 import { config } from '../config.js';
 
 export const aiRouter = Router();
 
-// Batas body JSON khusus rute AI: 6 MB
-aiRouter.use(express.json({ limit: '6mb' }));
+// Batas body JSON khusus rute AI: 12 MB (mendukung lampiran gambar & dokumen)
+aiRouter.use(express.json({ limit: '12mb' }));
 
 // Rate limiter khusus endpoint AI: maksimal 25 request per 5 menit per IP
 const aiLimiter = rateLimit({
@@ -136,5 +139,114 @@ aiRouter.post('/jawab', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ pesan: err.issues[0]?.message || 'Data gambar tidak valid.' });
     }
     return res.status(500).json({ pesan: 'Gagal memproses Tanya AI dari kanvas. Silakan coba kembali.' });
+  }
+});
+
+// Skema validasi POST /api/ai/obrol
+const validImageMimes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
+
+const lampiranSchema = z.object({
+  jenis: z.enum(['gambar', 'pdf', 'teks']),
+  nama: z.string().min(1, 'Nama file lampiran wajib ada.').max(255),
+  mt: z.string().optional(),
+  data: z.string().optional(),
+  teks: z.string().max(30000, 'Teks lampiran maksimal 30.000 karakter.').optional(),
+}).superRefine((l, ctx) => {
+  if (l.jenis === 'gambar') {
+    if (!l.data) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Data gambar wajib disertakan.',
+      });
+      return;
+    }
+    const mt = l.mt?.toLowerCase() || '';
+    // Ekstrak MIME dari data URL jika mt tidak disertakan
+    let detectedMime = mt;
+    if (!detectedMime && l.data.startsWith('data:')) {
+      const match = l.data.match(/^data:([^;]+);/);
+      if (match) detectedMime = match[1].toLowerCase();
+    }
+    if (!detectedMime || !validImageMimes.includes(detectedMime)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Format gambar tidak didukung. Hanya gambar PNG, JPG, GIF, atau WebP yang diizinkan.',
+      });
+    }
+  } else if (l.jenis === 'pdf') {
+    if (!l.data) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Data dokumen PDF wajib disertakan.',
+      });
+    }
+  } else if (l.jenis === 'teks') {
+    if (typeof l.teks !== 'string') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Isi teks lampiran wajib berupa string.',
+      });
+    }
+  }
+});
+
+const pesanObrolItemSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  teks: z.string().max(8000, 'Teks pesan maksimal 8.000 karakter.'),
+  lampiran: z.array(lampiranSchema).max(4, 'Maksimal 4 lampiran diperbolehkan.').optional(),
+});
+
+const obrolRequestSchema = z.object({
+  pesan: z.array(pesanObrolItemSchema).min(1, 'Minimal satu pesan harus dikirim.').max(20, 'Maksimal 20 riwayat pesan.'),
+}).superRefine((data, ctx) => {
+  const n = data.pesan.length;
+  for (let i = 0; i < n; i++) {
+    const item = data.pesan[i];
+    const isLast = (i === n - 1);
+    const hasAttachments = Boolean(item.lampiran && item.lampiran.length > 0);
+    if (hasAttachments) {
+      // Tolak jika lampiran berada di pesan non-terakhir atau bukan pesan user
+      if (!isLast || item.role !== 'user') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Lampiran hanya boleh disertakan pada pesan pengguna terakhir.',
+          path: ['pesan', i, 'lampiran'],
+        });
+      }
+    }
+  }
+});
+
+// POST /api/ai/obrol - Obrolan interaktif asisten AI di papan tulis
+aiRouter.post('/obrol', async (req: AuthRequest, res: Response) => {
+  try {
+    const parsed = obrolRequestSchema.parse(req.body);
+
+    // 1. Periksa batas kuota harian khusus obrolan (AI_BATAS_OBROL, default 40)
+    const kuotaCheck = await cekBatasHarian(req.user!.id, 'obrol');
+    if (!kuotaCheck.bisaPakai) {
+      return res.status(429).json({
+        pesan: `Batas kuota harian obrolan AI (${kuotaCheck.batasHarian} request/hari) telah tercapai. Kuota akan direset besok hari.`,
+      });
+    }
+
+    // 2. Hubungi AI lewat orkestrator backend
+    const { jawaban } = await obrolDenganAI({
+      pesan: parsed.pesan,
+    });
+
+    // 3. Catat pemakaian jika berhasil
+    await catatPemakaianAi(req.user!.id);
+
+    return res.json({ jawaban });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      const firstIssue = err.issues[0]?.message || 'Format permintaan obrolan tidak valid.';
+      return res.status(400).json({ pesan: firstIssue });
+    }
+    const safeMessage = err?.message && !err.message.includes('at ')
+      ? err.message
+      : 'Gagal menghubungi asisten AI. Silakan coba kembali sesaat lagi.';
+    return res.status(500).json({ pesan: safeMessage });
   }
 });
