@@ -19,6 +19,7 @@ import {
 
 interface SoalData {
   id: string;
+  questionId?: string;
   nomorSoal: number;
   totalSoal: number;
   teks: string;
@@ -26,6 +27,7 @@ interface SoalData {
   opsiB: string;
   opsiC: string;
   endsAt?: number;
+  duration?: number;
 }
 
 interface SelesaiResult {
@@ -156,7 +158,12 @@ export default function MainSiswa() {
             if (res.status === 'jalan') {
               setStage('PLAYING');
               if (res.soalAktif) {
-                setSoalAktif(res.soalAktif);
+                const resolvedId = res.soalAktif.id || (res.soalAktif as any).questionId || '';
+                setSoalAktif({
+                  ...res.soalAktif,
+                  id: resolvedId,
+                  questionId: resolvedId,
+                });
                 startCountdown(res.soalAktif.endsAt);
                 if (res.sudahJawabSoalAktif) {
                   setSudahKirim(true);
@@ -193,9 +200,15 @@ export default function MainSiswa() {
     };
 
     // 3. Soal Baru Ditampilkan
-    const handleSoalTampil = (data: SoalData & { endsAt: number; duration: number }) => {
+    const handleSoalTampil = (data: any) => {
       setStage('PLAYING');
-      setSoalAktif(data);
+      const resolvedId = data.id || data.questionId || '';
+      const resolvedQuestionId = data.questionId || data.id || '';
+      setSoalAktif({
+        ...data,
+        id: resolvedId,
+        questionId: resolvedQuestionId,
+      });
       setJawabanDipilih(null);
       setSudahKirim(false);
       setFeedback(null);
@@ -229,18 +242,40 @@ export default function MainSiswa() {
 
       // Tampilkan feedback apakah jawaban pemain benar/salah
       setFeedback((prev) => {
-        if (prev?.benar) {
-          soundEffects.playCorrect();
-        } else if (prev?.benar === false) {
+        const isBenar = prev ? Boolean(prev.benar) : false;
+        if (!prev) {
+          // Siswa tidak sempat menjawab sebelum waktu berakhir
           soundEffects.playIncorrect();
         }
         return {
           tampil: true,
-          benar: prev?.benar,
-          jawabanBenar: data.jawabanBenar,
-          penjelasan: data.penjelasan,
+          benar: isBenar,
+          jawabanBenar: data.jawabanBenar || prev?.jawabanBenar,
+          penjelasan: data.penjelasan || prev?.penjelasan,
         };
       });
+    };
+
+    // 5b. Feedback Langsung Jawaban Personal
+    const handleJawabHasil = (data: {
+      success: boolean;
+      benar?: boolean;
+      jawabanBenar?: string;
+      penjelasan?: string;
+    }) => {
+      if (data?.success) {
+        if (data.benar) {
+          soundEffects.playCorrect();
+        } else {
+          soundEffects.playIncorrect();
+        }
+        setFeedback({
+          tampil: true,
+          benar: Boolean(data.benar),
+          jawabanBenar: data.jawabanBenar,
+          penjelasan: data.penjelasan,
+        });
+      }
     };
 
     // 6. Seluruh Permainan Selesai
@@ -259,6 +294,7 @@ export default function MainSiswa() {
     socket.on('soal:tampil', handleSoalTampil);
     socket.on('tali:update', handleTaliUpdate);
     socket.on('soal:selesai', handleSoalSelesai);
+    socket.on('jawab:hasil', handleJawabHasil);
     socket.on('sesi:selesai', handleSesiSelesai);
 
     return () => {
@@ -267,6 +303,7 @@ export default function MainSiswa() {
       socket.off('soal:tampil', handleSoalTampil);
       socket.off('tali:update', handleTaliUpdate);
       socket.off('soal:selesai', handleSoalSelesai);
+      socket.off('jawab:hasil', handleJawabHasil);
       socket.off('sesi:selesai', handleSesiSelesai);
     };
   }, [pesertaId, startCountdown]);
@@ -354,7 +391,12 @@ export default function MainSiswa() {
         if (res.status === 'jalan') {
           setStage('PLAYING');
           if (res.soalAktif) {
-            setSoalAktif(res.soalAktif);
+            const resolvedId = res.soalAktif.id || (res.soalAktif as any).questionId || '';
+            setSoalAktif({
+              ...res.soalAktif,
+              id: resolvedId,
+              questionId: resolvedId,
+            });
             startCountdown(res.soalAktif.endsAt);
           }
         } else {
@@ -371,23 +413,33 @@ export default function MainSiswa() {
     setJawabanDipilih(opsi);
     setSudahKirim(true);
 
+    const targetId = soalAktif.id || soalAktif.questionId || '';
+
     const socket = getSocket();
     socket.emit(
       'jawab:kirim',
       {
         sessionId,
         pesertaId,
-        questionId: soalAktif.id,
+        questionId: targetId,
+        id: targetId,
         jawaban: opsi,
       },
-      (res: { success: boolean; benar?: boolean; jawabanBenar?: string; penjelasan?: string }) => {
+      (res: { success: boolean; benar?: boolean; jawabanBenar?: string; penjelasan?: string; pesan?: string }) => {
         if (res?.success) {
+          if (res.benar) {
+            soundEffects.playCorrect();
+          } else {
+            soundEffects.playIncorrect();
+          }
           setFeedback({
             tampil: true,
-            benar: res.benar,
+            benar: Boolean(res.benar),
             jawabanBenar: res.jawabanBenar,
             penjelasan: res.penjelasan,
           });
+        } else {
+          console.error('Gagal mengirim jawaban:', res?.pesan);
         }
       }
     );

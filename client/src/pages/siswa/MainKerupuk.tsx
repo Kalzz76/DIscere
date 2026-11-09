@@ -15,6 +15,7 @@ import {
 
 interface SoalData {
   id: string;
+  questionId?: string;
   nomorSoal: number;
   totalSoal: number;
   teks: string;
@@ -22,6 +23,7 @@ interface SoalData {
   opsiB: string;
   opsiC: string;
   endsAt?: number;
+  duration?: number;
 }
 
 interface PesertaData {
@@ -86,7 +88,15 @@ export default function MainKerupuk({
   const [leaderboard, setLeaderboard] = useState<PesertaData[]>(initialLeaderboard);
 
   // In-Game states
-  const [soalAktif, setSoalAktif] = useState<SoalData | null>(initialSoalAktif);
+  const [soalAktif, setSoalAktif] = useState<SoalData | null>(
+    initialSoalAktif
+      ? {
+          ...initialSoalAktif,
+          id: initialSoalAktif.id || (initialSoalAktif as any).questionId || '',
+          questionId: (initialSoalAktif as any).questionId || initialSoalAktif.id || '',
+        }
+      : null
+  );
   const [sisaDetik, setSisaDetik] = useState<number>(15);
   const [jawabanDipilih, setJawabanDipilih] = useState<'A' | 'B' | 'C' | null>(null);
   const [sudahKirim, setSudahKirim] = useState(false);
@@ -164,9 +174,15 @@ export default function MainKerupuk({
     };
 
     // 3. Soal Baru Ditampilkan
-    const handleSoalTampil = (data: SoalData & { endsAt: number; duration: number }) => {
+    const handleSoalTampil = (data: any) => {
       setStage('PLAYING');
-      setSoalAktif(data);
+      const resolvedId = data.id || data.questionId || '';
+      const resolvedQuestionId = data.questionId || data.id || '';
+      setSoalAktif({
+        ...data,
+        id: resolvedId,
+        questionId: resolvedQuestionId,
+      });
       setJawabanDipilih(null);
       setSudahKirim(false);
       setFeedback(null);
@@ -210,16 +226,50 @@ export default function MainKerupuk({
         if (me) setMyState(me);
       }
 
-      setFeedback((prev) => ({
-        tampil: true,
-        benar: prev?.benar,
-        jawabanBenar: data.jawabanBenar,
-        penjelasan: data.penjelasan,
-        gacha: prev?.gacha,
-        poinDidapat: prev?.poinDidapat,
-        bonusStreak: prev?.bonusStreak,
-        bonusPenyelesaian: prev?.bonusPenyelesaian,
-      }));
+      setFeedback((prev) => {
+        const isBenar = prev ? Boolean(prev.benar) : false;
+        return {
+          tampil: true,
+          benar: isBenar,
+          jawabanBenar: data.jawabanBenar || prev?.jawabanBenar,
+          penjelasan: data.penjelasan || prev?.penjelasan,
+          gacha: prev?.gacha,
+          poinDidapat: prev?.poinDidapat,
+          bonusStreak: prev?.bonusStreak,
+          bonusPenyelesaian: prev?.bonusPenyelesaian,
+        };
+      });
+    };
+
+    // 5b. Feedback Langsung Jawaban Personal
+    const handleJawabHasil = (res: any) => {
+      if (res?.success) {
+        if (res.benar) {
+          if (res.gacha && res.gacha.tipe !== 'zonk') {
+            soundEffects.playCrunch();
+            setSedangAnimasiGigit(true);
+          } else {
+            soundEffects.playZonk();
+          }
+        } else {
+          soundEffects.playIncorrect();
+        }
+
+        if (res.pesertaUpdated) {
+          setMyState(res.pesertaUpdated);
+        }
+
+        setFeedback({
+          tampil: true,
+          benar: Boolean(res.benar),
+          jawabanBenar: res.jawabanBenar,
+          penjelasan: res.penjelasan,
+          gacha: res.gacha,
+          poinDidapat: res.poinDidapat,
+          bonusStreak: res.bonusStreak,
+          bonusPenyelesaian: res.bonusPenyelesaian,
+        });
+      }
     };
 
     // 6. Sesi Selesai (Podium & Hasil Akhir)
@@ -234,6 +284,7 @@ export default function MainKerupuk({
     socket.on('soal:tampil', handleSoalTampil);
     socket.on('kerupuk:update', handleKerupukUpdate);
     socket.on('soal:selesai', handleSoalSelesai);
+    socket.on('jawab:hasil', handleJawabHasil);
     socket.on('sesi:selesai', handleSesiSelesai);
 
     return () => {
@@ -242,6 +293,7 @@ export default function MainKerupuk({
       socket.off('soal:tampil', handleSoalTampil);
       socket.off('kerupuk:update', handleKerupukUpdate);
       socket.off('soal:selesai', handleSoalSelesai);
+      socket.off('jawab:hasil', handleJawabHasil);
       socket.off('sesi:selesai', handleSesiSelesai);
     };
   }, [pesertaId, startCountdown]);
@@ -253,13 +305,16 @@ export default function MainKerupuk({
     setJawabanDipilih(pilihan);
     setSudahKirim(true);
 
+    const targetId = soalAktif.id || soalAktif.questionId || '';
+
     const socket = getSocket();
     socket.emit(
       'jawab:kirim',
       {
         sessionId,
         pesertaId,
-        questionId: soalAktif.id,
+        questionId: targetId,
+        id: targetId,
         jawaban: pilihan,
       },
       (res: any) => {
@@ -282,7 +337,7 @@ export default function MainKerupuk({
 
           setFeedback({
             tampil: true,
-            benar: res.benar,
+            benar: Boolean(res.benar),
             jawabanBenar: res.jawabanBenar,
             penjelasan: res.penjelasan,
             gacha: res.gacha,
