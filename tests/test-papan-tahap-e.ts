@@ -277,7 +277,8 @@ async function runStepETests() {
     assert(imgAttachmentRes.status === 200, 'Permintaan dengan lampiran gambar PNG base64 berhasil');
 
     // G. Uji: Batas Kuota Harian Obrolan (AI_BATAS_OBROL)
-    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     await prisma.aiUsage.upsert({
       where: {
         userId_tanggal: {

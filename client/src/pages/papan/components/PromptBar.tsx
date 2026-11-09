@@ -327,3 +327,4 @@ export const PromptBar: React.FC<PromptBarProps> = ({
     </>
   );
 };
+
