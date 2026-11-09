@@ -5,10 +5,12 @@ export interface TopRightBarProps {
   canRedo: boolean;
   pesertaList?: PesertaItem[];
   hanyaLihat?: boolean;
+  isGameOpen?: boolean;
   onUndo: () => void;
   onRedo: () => void;
   onPresentation: () => void;
   onOpenShare?: () => void;
+  onOpenGame?: () => void;
 }
 
 export function TopRightBar({
@@ -16,10 +18,12 @@ export function TopRightBar({
   canRedo,
   pesertaList = [],
   hanyaLihat = false,
+  isGameOpen = false,
   onUndo,
   onRedo,
   onPresentation,
   onOpenShare,
+  onOpenGame,
 }: TopRightBarProps) {
   const totalPeserta = Math.max(1, pesertaList.length);
 
@@ -55,20 +59,22 @@ export function TopRightBar({
         </>
       )}
 
-      {/* Tombol Game (Segera) */}
-      <button
-        className="ib"
-        id="gm"
-        title="Template Game (Segera)"
-        aria-label="Template Game"
-        disabled
-        style={{ opacity: 0.5, cursor: 'not-allowed' }}
-      >
-        <svg viewBox="0 0 24 24">
-          <rect x="2" y="6" width="20" height="12" rx="4" />
-          <path d="M6 12h4M8 10v4M15 11h.01M18 13h.01" />
-        </svg>
-      </button>
+      {/* Tombol Template Game */}
+      {!hanyaLihat && (
+        <button
+          className={`ib ${isGameOpen ? 'active' : ''}`}
+          id="gm"
+          title="Template Game (Kuis Kelas)"
+          aria-label="Buka Template Game"
+          aria-expanded={isGameOpen}
+          onClick={onOpenGame}
+        >
+          <svg viewBox="0 0 24 24">
+            <rect x="2" y="6" width="20" height="12" rx="4" />
+            <path d="M6 12h4M8 10v4M15 11h.01M18 13h.01" />
+          </svg>
+        </button>
+      )}
 
       {/* Kolaborator / Akun */}
       <div

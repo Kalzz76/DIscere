@@ -22,6 +22,7 @@ import {
   ShareModal,
   PesertaItem,
   AiPopup,
+  GameTemplatesPanel,
   computeLassoBounds,
   formatAiResponseForCanvas,
 } from './components';
@@ -86,6 +87,7 @@ export default function PapanTulis() {
   const [textEditor, setTextEditor] = useState<TextEditorState | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [isGamePanelOpen, setIsGamePanelOpen] = useState(false);
 
   // File Inputs Ref
   const fileImgRef = useRef<HTMLInputElement>(null);
@@ -404,6 +406,31 @@ export default function PapanTulis() {
     }
   };
 
+  // Flush Simpan Otomatis Kanvas (Dipanggil sebelum beralih ke game)
+  const handleFlushSave = async () => {
+    const board = boardRef.current;
+    if (!board || !boardId) return;
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    const jsonString = toJson(board.objs);
+    try {
+      await apiRequest(`/papan/${boardId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ judul: title, data: jsonString }),
+      });
+      setSaveStatus('saved');
+    } catch {
+      // Cadangkan ke localStorage jika offline
+      try {
+        localStorage.setItem(
+          `discere-draft-${boardId}`,
+          JSON.stringify({ judul: title, data: jsonString, savedAt: Date.now() })
+        );
+      } catch {}
+    }
+  };
+
   // Handler Perubahan Judul (Disimpan via PUT ke server)
   const handleTitleChange = async (newTitle: string) => {
     setTitle(newTitle);
@@ -617,10 +644,21 @@ export default function PapanTulis() {
         canUndo={board ? board.canUndo() : false}
         canRedo={board ? board.canRedo() : false}
         pesertaList={pesertaList}
+        isGameOpen={isGamePanelOpen}
         onUndo={() => board?.undo()}
         onRedo={() => board?.redo()}
         onPresentation={() => board?.setPresentation(true)}
         onOpenShare={() => setIsShareOpen(true)}
+        onOpenGame={() => setIsGamePanelOpen((prev) => !prev)}
+      />
+
+      {/* Panel Template Game Interaktif */}
+      <GameTemplatesPanel
+        isOpen={isGamePanelOpen}
+        boardId={boardId || ''}
+        onClose={() => setIsGamePanelOpen(false)}
+        onBeforeStartGame={handleFlushSave}
+        onToast={showToast}
       />
 
       {/* Share Modal Dialog */}
