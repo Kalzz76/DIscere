@@ -275,7 +275,7 @@ export function drawScene({
     ctx.restore();
   }
 
-  // Kotak seleksi objek aktif
+  // Kotak seleksi objek aktif & Pegangan Resize di Sudut
   if (sel) {
     const s = objs.find((o) => o.id === sel);
     if (s) {
@@ -285,6 +285,25 @@ export function drawScene({
       ctx.setLineDash([6 / view.z, 4 / view.z]);
       ctx.strokeRect(b.x - 6, b.y - 6, b.w + 12, b.h + 12);
       ctx.setLineDash([]);
+
+      // Gambar handle sudut jika objek bisa diubah ukuran (bentuk, gambar, tabel, teks)
+      if (s.type !== 'stroke') {
+        const handleSize = 8 / view.z;
+        const hsHalf = handleSize / 2;
+        const corners = [
+          { x: b.x - 6, y: b.y - 6 },
+          { x: b.x + b.w + 6, y: b.y - 6 },
+          { x: b.x + b.w + 6, y: b.y + b.h + 6 },
+          { x: b.x - 6, y: b.y + b.h + 6 },
+        ];
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#9b17f5';
+        ctx.lineWidth = 2 / view.z;
+        for (const pt of corners) {
+          ctx.fillRect(pt.x - hsHalf, pt.y - hsHalf, handleSize, handleSize);
+          ctx.strokeRect(pt.x - hsHalf, pt.y - hsHalf, handleSize, handleSize);
+        }
+      }
     }
   }
 

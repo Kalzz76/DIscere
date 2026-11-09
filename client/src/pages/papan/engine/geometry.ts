@@ -119,3 +119,132 @@ export function move(o: CanvasObj, dx: number, dy: number): void {
   }
 }
 
+export type ResizeCorner = 'nw' | 'ne' | 'se' | 'sw';
+
+export function getResizeHandles(b: Bounds, offset = 6): Record<ResizeCorner, Pt> {
+  return {
+    nw: { x: b.x - offset, y: b.y - offset },
+    ne: { x: b.x + b.w + offset, y: b.y - offset },
+    se: { x: b.x + b.w + offset, y: b.y + b.h + offset },
+    sw: { x: b.x - offset, y: b.y + b.h + offset },
+  };
+}
+
+export function hitResizeCorner(b: Bounds, p: Pt, threshold = 8, offset = 6): ResizeCorner | null {
+  const handles = getResizeHandles(b, offset);
+  const corners: ResizeCorner[] = ['nw', 'ne', 'se', 'sw'];
+  for (const c of corners) {
+    const h = handles[c];
+    if (Math.abs(p.x - h.x) <= threshold && Math.abs(p.y - h.y) <= threshold) {
+      return c;
+    }
+  }
+  return null;
+}
+
+export function applyResize(
+  o: CanvasObj,
+  corner: ResizeCorner,
+  initial: CanvasObj,
+  startP: Pt,
+  curP: Pt,
+  keepAspect = false
+): void {
+  const initB = bounds(initial);
+  const dx = curP.x - startP.x;
+  const dy = curP.y - startP.y;
+
+  // Kasus Teks: resize mengubah skala ukuran font (fs)
+  if (o.type === 'text') {
+    const textObj = o as TextObj;
+    const initText = initial as TextObj;
+    let factor = 1;
+
+    if (corner === 'se') {
+      factor = Math.max(0.2, (initB.w + dx) / initB.w);
+    } else if (corner === 'sw') {
+      factor = Math.max(0.2, (initB.w - dx) / initB.w);
+    } else if (corner === 'ne') {
+      factor = Math.max(0.2, (initB.w + dx) / initB.w);
+    } else if (corner === 'nw') {
+      factor = Math.max(0.2, (initB.w - dx) / initB.w);
+    }
+
+    const newFs = Math.max(10, Math.min(160, Math.round(initText.fs * factor)));
+    textObj.fs = newFs;
+
+    const newB = bounds(textObj);
+    if (corner === 'nw' || corner === 'sw') {
+      textObj.x = initB.x + initB.w - newB.w;
+    } else {
+      textObj.x = initB.x;
+    }
+    if (corner === 'nw' || corner === 'ne') {
+      textObj.y = initB.y + initB.h - newB.h;
+    } else {
+      textObj.y = initB.y;
+    }
+    return;
+  }
+
+  // Kasus Bentuk, Gambar, dan Tabel
+  let newW = initB.w;
+  let newH = initB.h;
+  let newX = initB.x;
+  let newY = initB.y;
+
+  if (corner === 'se') {
+    newW = initB.w + dx;
+    newH = initB.h + dy;
+    if (keepAspect) {
+      const scale = Math.max(newW / initB.w, newH / initB.h);
+      newW = initB.w * scale;
+      newH = initB.h * scale;
+    }
+  } else if (corner === 'sw') {
+    newW = initB.w - dx;
+    newH = initB.h + dy;
+    if (keepAspect) {
+      const scale = Math.max(newW / initB.w, newH / initB.h);
+      newW = initB.w * scale;
+      newH = initB.h * scale;
+    }
+    newX = initB.x + initB.w - newW;
+  } else if (corner === 'ne') {
+    newW = initB.w + dx;
+    newH = initB.h - dy;
+    if (keepAspect) {
+      const scale = Math.max(newW / initB.w, newH / initB.h);
+      newW = initB.w * scale;
+      newH = initB.h * scale;
+    }
+    newY = initB.y + initB.h - newH;
+  } else if (corner === 'nw') {
+    newW = initB.w - dx;
+    newH = initB.h - dy;
+    if (keepAspect) {
+      const scale = Math.max(newW / initB.w, newH / initB.h);
+      newW = initB.w * scale;
+      newH = initB.h * scale;
+    }
+    newX = initB.x + initB.w - newW;
+    newY = initB.y + initB.h - newH;
+  }
+
+  newW = Math.max(16, newW);
+  newH = Math.max(16, newH);
+
+  if (o.type === 'shape' || o.type === 'image') {
+    o.x = newX;
+    o.y = newY;
+    o.w = newW;
+    o.h = newH;
+  } else if (o.type === 'table') {
+    o.x = newX;
+    o.y = newY;
+    o.cw = Math.max(16, Math.round(newW / o.cols));
+    o.ch = Math.max(14, Math.round(newH / o.rows));
+  }
+}
+
+

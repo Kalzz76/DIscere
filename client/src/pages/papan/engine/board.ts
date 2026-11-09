@@ -11,7 +11,7 @@ import {
   TableObj,
 } from './types';
 import { COL, LCOL } from './color';
-import { move, topAt } from './geometry';
+import { move, topAt, bounds, ResizeCorner, hitResizeCorner, applyResize } from './geometry';
 import { eraseSeg } from './eraser';
 import { HistoryManager, cloneObj } from './history';
 import { drawScene, ensureFontLoaded } from './render';
@@ -58,7 +58,7 @@ export class Board {
 
   private mouse: Pt | null = null;
   private drag: {
-    k: 'pan' | 'er' | 'ai' | 'mv' | 'ls';
+    k: 'pan' | 'er' | 'ai' | 'mv' | 'ls' | 'resize';
     x?: number;
     y?: number;
     vx?: number;
@@ -69,6 +69,9 @@ export class Board {
     initialObjBeforeMove?: CanvasObj;
     erasedRemoved?: CanvasObj[];
     erasedAdded?: CanvasObj[];
+    corner?: ResizeCorner;
+    initialObjBeforeResize?: CanvasObj;
+    resizeStartPt?: Pt;
   } | null = null;
 
   private spacePressed = false;
@@ -635,6 +638,26 @@ export class Board {
         this.drag.erasedRemoved!.push(...res.removed);
       }
     } else if (t === 'select') {
+      // Cek apakah kursor mengenai handle sudut resize objek aktif
+      if (this.sel) {
+        const selObj = this.objs.find((item) => item.id === this.sel);
+        if (selObj && selObj.type !== 'stroke') {
+          const b = bounds(selObj);
+          const corner = hitResizeCorner(b, p, 10 / this.view.z, 6);
+          if (corner) {
+            this.drag = {
+              k: 'resize',
+              corner,
+              resizeStartPt: p,
+              initialObjBeforeResize: cloneObj(selObj),
+              ch: false,
+            };
+            this.rd();
+            return;
+          }
+        }
+      }
+
       const o = topAt(this.objs, p, 6 / this.view.z);
       this.setSelection(o ? o.id : null);
       if (o) {
@@ -748,6 +771,25 @@ export class Board {
           this.drag.p = p;
           this.drag.ch = true;
         }
+      } else if (
+        this.drag.k === 'resize' &&
+        this.sel &&
+        this.drag.corner &&
+        this.drag.initialObjBeforeResize &&
+        this.drag.resizeStartPt
+      ) {
+        const o = this.objs.find((item) => item.id === this.sel);
+        if (o) {
+          applyResize(
+            o,
+            this.drag.corner,
+            this.drag.initialObjBeforeResize,
+            this.drag.resizeStartPt,
+            p,
+            e.shiftKey
+          );
+          this.drag.ch = true;
+        }
       } else if (this.drag.k === 'ls') {
         this.laser.push({ ...p, t: performance.now() });
       }
@@ -766,6 +808,20 @@ export class Board {
           const m = Math.max(Math.abs(this.cur.w), Math.abs(this.cur.h));
           this.cur.w = Math.sign(this.cur.w || 1) * m;
           this.cur.h = Math.sign(this.cur.h || 1) * m;
+        }
+      }
+    } else if (this.state.tool === 'select' && this.sel) {
+      // Hover kursor saat berada di atas handle resize
+      const selObj = this.objs.find((item) => item.id === this.sel);
+      if (selObj && selObj.type !== 'stroke') {
+        const b = bounds(selObj);
+        const corner = hitResizeCorner(b, p, 10 / this.view.z, 6);
+        if (corner === 'nw' || corner === 'se') {
+          this.canvas.style.cursor = 'nwse-resize';
+        } else if (corner === 'ne' || corner === 'sw') {
+          this.canvas.style.cursor = 'nesw-resize';
+        } else {
+          this.canvas.style.cursor = 'default';
         }
       }
     }
@@ -801,6 +857,15 @@ export class Board {
         if (movedObj) {
           this.history.commit({
             ubah: [{ sebelum: this.drag.initialObjBeforeMove, sesudah: cloneObj(movedObj) }],
+          });
+        }
+      }
+
+      if (this.drag.k === 'resize' && this.drag.ch && this.sel && this.drag.initialObjBeforeResize) {
+        const resizedObj = this.objs.find((item) => item.id === this.sel);
+        if (resizedObj) {
+          this.history.commit({
+            ubah: [{ sebelum: this.drag.initialObjBeforeResize, sesudah: cloneObj(resizedObj) }],
           });
         }
       }
