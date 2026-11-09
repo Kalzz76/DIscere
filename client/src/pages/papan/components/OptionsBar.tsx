@@ -5,6 +5,7 @@ import { STY } from '../engine/shapes';
 export interface OptionsBarProps {
   state: BoardState;
   hasSelection: boolean;
+  hanyaLihat?: boolean;
   onUpdateState: (patch: Partial<BoardState>) => void;
   onOpenColorPicker: (btnEl: HTMLElement) => void;
   onDuplicate: () => void;
@@ -14,12 +15,17 @@ export interface OptionsBarProps {
 export function OptionsBar({
   state,
   hasSelection,
+  hanyaLihat = false,
   onUpdateState,
   onOpenColorPicker,
   onDuplicate,
   onDelete,
 }: OptionsBarProps) {
   const t = state.tool;
+
+  if (hanyaLihat && t !== 'laser') {
+    return null;
+  }
 
   const toolLabels: Record<string, string> = {
     select: 'PILIH',

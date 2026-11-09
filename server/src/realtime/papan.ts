@@ -160,7 +160,16 @@ function broadcastPeserta(io: Server, boardId: string): void {
 // SOCKET HANDLER UTAMA
 // ============================================================================
 
+let boardIoServer: Server | null = null;
+
+export function broadcastTokenRevocation(boardId: string, token: string): void {
+  if (boardIoServer) {
+    boardIoServer.to(`papan:${boardId}`).emit('papan:akses_dicabut', { token });
+  }
+}
+
 export function setupBoardSocket(io: Server) {
+  boardIoServer = io;
   io.on('connection', (socket: Socket) => {
     // ------------------------------------------------------------------------
     // 1. papan:gabung {boardId ATAU token, nama}

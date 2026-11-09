@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import './papan.css';
 import { apiRequest } from '../../lib/api';
+import { getSocket } from '../../lib/socket';
+import { useAuth } from '../../lib/auth';
 import { Board } from './engine/board';
-import { CanvasObj, BoardState, BoardView, TextEditorState, ToolType, PenStyle } from './engine/types';
+import { CanvasObj, BoardState, BoardView, TextEditorState, ToolType, PenStyle, UbahEventPayload } from './engine/types';
 import { COL, LCOL } from './engine/color';
 import { downloadPng, downloadJson, toJson } from './engine/export';
 import {
@@ -17,10 +19,13 @@ import {
   TextEditor,
   MenuPopup,
   Toast,
+  ShareModal,
+  PesertaItem,
 } from './components';
 
 export default function PapanTulis() {
   const { id: boardId } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -32,6 +37,11 @@ export default function PapanTulis() {
   const [title, setTitle] = useState('Papan Pembelajaran Baru');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'busy' | 'error'>('saved');
   const [loadedObjs, setLoadedObjs] = useState<CanvasObj[] | null>(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+
+  // Kolaborasi Real-time & Share Modal
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [pesertaList, setPesertaList] = useState<PesertaItem[]>([]);
 
   // State UI Kanvas
   const [boardState, setBoardState] = useState<BoardState>({
@@ -200,7 +210,62 @@ export default function PapanTulis() {
     };
   }, [boardId, showToast]);
 
-  // 2. Inisialisasi engine Board ketika canvas siap dan data terambil
+  // 2. Hubungkan Socket.IO untuk kolaborasi real-time
+  useEffect(() => {
+    if (!boardId) return;
+
+    const socket = getSocket();
+
+    function gabungPapan() {
+      socket.emit(
+        'papan:gabung',
+        { boardId, nama: user?.nama || 'Guru' },
+        (res: any) => {
+          if (res?.success) {
+            setIsReconnecting(false);
+            if (res.data?.objs && !loadedObjs) {
+              setLoadedObjs(res.data.objs);
+            }
+            if (res.judul) {
+              setTitle(res.judul);
+            }
+          }
+        }
+      );
+    }
+
+    gabungPapan();
+
+    const handleUbah = (ops: UbahEventPayload) => {
+      boardRef.current?.terapkanOps(ops);
+    };
+
+    const handlePeserta = (list: PesertaItem[]) => {
+      setPesertaList(list);
+    };
+
+    const handleDisconnect = () => {
+      setIsReconnecting(true);
+    };
+
+    const handleConnect = () => {
+      gabungPapan();
+    };
+
+    socket.on('papan:ubah', handleUbah);
+    socket.on('papan:peserta', handlePeserta);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect', handleConnect);
+
+    return () => {
+      socket.off('papan:ubah', handleUbah);
+      socket.off('papan:peserta', handlePeserta);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect', handleConnect);
+    };
+  }, [boardId, user]);
+
+  // 3. Inisialisasi engine Board ketika canvas siap dan data terambil
   useEffect(() => {
     if (!loadedObjs || !canvasRef.current) return;
 
@@ -209,8 +274,16 @@ export default function PapanTulis() {
     }
 
     const board = new Board(canvasRef.current, loadedObjs, {
-      onUbah: () => {
-        triggerAutosave();
+      onUbah: (payload: UbahEventPayload) => {
+        // Kirim perubahan objek kanvas ke server lewat Socket.IO
+        const socket = getSocket();
+        socket.emit('papan:ubah', {
+          boardId,
+          tambah: payload.tambah || [],
+          ubah: payload.ubah || [],
+          hapus: payload.hapus || [],
+        });
+        setSaveStatus('saved');
       },
       onStateChange: (nextState) => {
         setBoardState({ ...nextState });
@@ -242,12 +315,22 @@ export default function PapanTulis() {
         boardRef.current = null;
       }
     };
-  }, [loadedObjs, triggerAutosave, showToast]);
+  }, [loadedObjs, boardId, showToast]);
 
-  // Handler Menu
-  const handleTitleChange = (newTitle: string) => {
+  // Handler Perubahan Judul (Disimpan via PUT ke server)
+  const handleTitleChange = async (newTitle: string) => {
     setTitle(newTitle);
-    triggerAutosave(newTitle);
+    if (!boardId) return;
+    setSaveStatus('busy');
+    try {
+      await apiRequest(`/papan/${boardId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ judul: newTitle }),
+      });
+      setSaveStatus('saved');
+    } catch {
+      setSaveStatus('error');
+    }
   };
 
   const handleToolSelect = (tool: ToolType, buttonEl: HTMLElement) => {
@@ -409,6 +492,7 @@ export default function PapanTulis() {
       <TopLeftBar
         title={title}
         saveStatus={saveStatus}
+        isReconnecting={isReconnecting}
         onTitleChange={handleTitleChange}
         onOpenMenu={() => setIsMenuOpen(true)}
         onExportPng={() => {
@@ -445,9 +529,20 @@ export default function PapanTulis() {
       <TopRightBar
         canUndo={board ? board.canUndo() : false}
         canRedo={board ? board.canRedo() : false}
+        pesertaList={pesertaList}
         onUndo={() => board?.undo()}
         onRedo={() => board?.redo()}
         onPresentation={() => board?.setPresentation(true)}
+        onOpenShare={() => setIsShareOpen(true)}
+      />
+
+      {/* Share Modal Dialog */}
+      <ShareModal
+        isOpen={isShareOpen}
+        boardId={boardId || ''}
+        pesertaList={pesertaList}
+        onClose={() => setIsShareOpen(false)}
+        onToast={showToast}
       />
 
       {/* Zoom Bar: Zoom in/out, 100%, Grid, Center */}

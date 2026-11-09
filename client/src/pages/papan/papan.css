@@ -890,6 +890,212 @@ body.pres .papan .btn-exit-pres {
   font-size: 14px;
 }
 
+/* Panel Bagikan / Share (#shr) */
+.papan #shr,
+.papan .share-panel {
+  position: fixed;
+  top: 84px;
+  right: 20px;
+  width: min(380px, calc(100vw - 40px));
+  border-radius: 20px;
+  padding: 22px;
+  background: #1c1d24;
+  color: #fff;
+  border: 1px solid var(--ln);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  z-index: 50;
+}
+
+.papan #shr b,
+.papan .share-panel b {
+  font-size: 18px;
+  color: #fff;
+}
+
+.papan #shr .sl,
+.papan .share-panel .sl {
+  font-size: 13px;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin: 16px 0 8px;
+  font-weight: 700;
+}
+
+.papan .si {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #12131a;
+  border: 1px solid var(--ln);
+  border-radius: 12px;
+  padding: 0 12px;
+  height: 44px;
+  margin-top: 10px;
+  color: var(--mu);
+}
+
+.papan .si input {
+  flex: 1;
+  background: none;
+  border: 0;
+  outline: 0;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  user-select: text;
+}
+
+.papan .av2 {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.papan .av2 span,
+.papan .av2 button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.papan .sr {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #15161e;
+  border: 1px solid var(--ln);
+  border-radius: 14px;
+  padding: 10px 14px;
+  margin-top: 8px;
+}
+
+.papan .gi {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #2a2c38;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: #a78bfa;
+}
+
+.papan .sx {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.papan .sx small {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.papan .shs {
+  background: #222430;
+  border: 1px solid var(--ln);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  outline: none;
+}
+
+.papan .shs option {
+  background: #1c1d24;
+  color: #fff;
+}
+
+.papan .shb {
+  width: 100%;
+  margin-top: 14px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #8b3dff, #6d28d9);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.papan .shb:hover {
+  filter: brightness(1.12);
+}
+
+.papan .shb:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.papan .shb-cabut {
+  width: 100%;
+  margin-top: 8px;
+  height: 38px;
+  border-radius: 10px;
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.papan .shb-cabut:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+}
+
+/* Badge mode viewer di header */
+.papan .viewer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #334155;
+  color: #f1f5f9;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  border: 1px solid #475569;
+}
+
+/* Status koneksi reconnecting */
+.papan .reconnect-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #854d0e;
+  color: #fef08a;
+  font-size: 12px;
+  font-weight: 700;
+  animation: pulse 1.5s infinite;
+}
+
 /* Responsif */
 @media (max-width: 900px) {
   .papan #ttl,

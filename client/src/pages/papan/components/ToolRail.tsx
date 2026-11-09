@@ -4,13 +4,19 @@ import { TOOLS } from '../engine/shapes';
 
 export interface ToolRailProps {
   activeTool: ToolType;
+  hanyaLihat?: boolean;
   onSelectTool: (tool: ToolType, buttonEl: HTMLElement) => void;
 }
 
-export function ToolRail({ activeTool, onSelectTool }: ToolRailProps) {
+export function ToolRail({ activeTool, hanyaLihat = false, onSelectTool }: ToolRailProps) {
+  // Jika hanyaLihat, tampilkan hanya alat yang diizinkan (Tangan & Laser)
+  const availableTools = hanyaLihat
+    ? TOOLS.filter(([id]) => id === 'hand' || id === 'laser')
+    : TOOLS;
+
   return (
     <nav className="pn tool-rail" aria-label="Alat gambar">
-      {TOOLS.map(([id, name, shortcut, iconSvg]) => {
+      {availableTools.map(([id, name, shortcut, iconSvg]) => {
         const isUpload = id === 'upload';
         const isAi = id === 'ai';
         const isOn = activeTool === id;
@@ -43,4 +49,3 @@ export function ToolRail({ activeTool, onSelectTool }: ToolRailProps) {
     </nav>
   );
 }
-

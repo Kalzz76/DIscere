@@ -6,7 +6,7 @@ import { prisma } from '../db.js';
 import { config } from '../config.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { roleMiddleware } from '../middleware/role.js';
-import { io } from '../index.js';
+import { broadcastTokenRevocation } from '../realtime/papan.js';
 
 export const papanRouter = Router();
 
@@ -477,7 +477,7 @@ papanRouter.delete('/bagi/:token', async (req: AuthRequest, res: Response) => {
 
     // Beritahu ruang kolaborasi Socket.IO bahwa token ini telah dicabut
     try {
-      io.to(`papan:${share.boardId}`).emit('papan:akses_dicabut', { token });
+      broadcastTokenRevocation(share.boardId, token);
     } catch (err) {
       console.error('Gagal menyiarkan pembatalan akses socket:', err);
     }

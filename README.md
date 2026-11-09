@@ -74,6 +74,13 @@ Tagline: *"Belajar seru, tarik kemenangan bersama."*
   - **Mode Presentasi & Zoom Presisi:** Mode layar penuh (*fullscreen*) otomatis menyalakan laser pointer dengan tombol keluar presentasi cepat (Esc). Zoom bebas berskala 0.1x hingga 4x, persentase zoom, toggle grid titik, dan tombol pusatkan kanvas.
   - **Ekspor & Impor Fleksibel:** Ekspor seluruh isi kanvas ke gambar PNG resolusi tinggi (*multiplier 2x*) dan ekspor/impor berkas JSON format `{ versi: 1, objs: [...] }`.
   - **Daftar Papan Tulis Guru (`/papan`):** Halaman manajemen papan bagi guru untuk melihat daftar papan tersimpan, membuat papan baru, dan menghapus papan lama dengan modal konfirmasi aman.
+  - **Kolaborasi Real-Time Lewat Tautan (`/b/:token`):**
+    - *Panel Bagikan Interaktif:* Tombol **Share** membuka panel konfigurasi tautan yang menghasilkan token acak 32-karakter unik dengan pilihan peran **Editor** (bisa menggambar) atau **Viewer** (hanya melihat), tombol salin tautan berformat IP jaringan lokal, dan tombol pencabutan akses instan.
+    - *Akses Siswa/Kolaborator Tanpa Akun:* Peserta cukup memasukkan nama panggilan (2-20 karakter) tanpa registrasi akun untuk langsung bergabung ke kanvas.
+    - *Sinkronisasi Socket.IO Instan:* Room berbasis `papan:{id}` menyiarkan operasi atomik `{tambah, ubah, hapus}` secara instan tanpa menduplikasi riwayat undo peserta lain. Aturan resolusi konflik *last-write-wins* per objek.
+    - *Keamanan Ketat di Server:* Server memverifikasi peran di setiap pesan Socket.IO; perubahan yang dipaksakan oleh Viewer ditolak dengan aman.
+    - *Persistensi Cerdas di Memori & Database:* Perubahan kanvas ditampung dalam cache memori per papan dan disimpan otomatis (*debounce* 2 detik serta saat peserta terakhir keluar) langsung ke database SQLite/Prisma.
+    - *Indikator Status & Avatar Kolaborator:* Avatar live dengan inisial dan palet warna unik, badge *Mode lihat* bagi viewer, lencana *Menyambung ulang…* saat jaringan terganggu, dan modal penutupan sesi otomatis saat tautan dicabut pemilik.
 - **Efek Suara Prosedural Web Audio API (Nuansa Lomba 17-an):**
   - **100% Offline Tanpa Aset Eksternal:** Seluruh suara disintesis langsung menggunakan Web Audio API murni (tanpa file mp3 eksternal), menjamin kecepatan instan tanpa beban unduhan atau masalah CORS.
   - **Efek Suara Edukatif & Meriah:** Meliputi peluit wasit pembuka lomba, efek gesekan tarikan tali, denting nada mayor jawaban benar, nada dengung bersahabat jawaban salah, dan melodi fanfare selebrasi juara tarik tambang.
