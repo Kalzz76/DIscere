@@ -10,7 +10,7 @@ Ada 2 jenis pengguna utama: **Guru** (daftar dan login) dan **Siswa** (tanpa aku
 
 1. Baca `CLAUDE.md` ini sampai selesai.
 2. Jalankan `git status` dan `git log --oneline -5`. Pastikan tidak ada perubahan yang belum di-commit dari pekerjaan sebelumnya.
-3. Buka folder `referensi/`: `PRD.md` (dokumen kebutuhan lengkap) dan `prototipe-lomba-pintar.html` (prototipe lama). Prototipe dipakai **hanya** untuk memahami alur interaksi dan aturan game. **Jangan meniru tampilannya**, karena desain final mengikuti bagian "Desain dan Tampilan" di bawah.
+3. Buka folder `referensi-desain/`: `PRD.md` (dokumen kebutuhan lengkap), `discere-v5.html` (referensi desain dan mesin kanvas 2D), dan `prototipe-lomba-pintar.html` (prototipe lama). Prototipe dipakai **hanya** untuk memahami alur interaksi dan aturan game. **Jangan meniru tampilannya**, karena desain papan tulis mengikuti `referensi-desain/discere-v5.html`.
 4. Kerjakan **satu tahap saja** sesuai "Urutan Pengerjaan Modul". Jangan melompat ke tahap berikutnya sebelum tahap ini jalan dan di-commit.
 5. Tulis kode mengikuti ATURAN PENULISAN KODE.
 6. Setelah selesai: jalankan aplikasi, uji alurnya, lalu **commit** sesuai ATURAN GIT DAN TRANSPARANSI.
@@ -53,7 +53,7 @@ Peraturan lomba mewajibkan karya yang transparan dan bisa dipertanggungjawabkan,
 10. Komentar boleh dipakai **singkat dalam Bahasa Indonesia** untuk logika yang tidak jelas (misalnya aturan perhitungan tali). Jangan berlebihan, jangan mengomentari hal yang sudah jelas dari kodenya.
 11. Library tambahan di luar daftar "Tech Stack" harus **ditanyakan dulu** ke pemilik project.
 12. Fitur yang tidak ada di `CLAUDE.md` ini tidak boleh ditambahkan hanya karena kelihatan bagus. Prototipe dan PRD dipakai untuk memahami, bukan untuk menambah fitur.
-13. Cek dokumentasi resmi **versi yang terpasang** untuk library yang API-nya berubah antar versi mayor (terutama **Fabric.js**, **Prisma**, **React Router**). Jangan mencampur gaya import atau API versi lama.
+13. Cek dokumentasi resmi **versi yang terpasang** untuk library yang API-nya berubah antar versi mayor (terutama **Prisma**, **React Router**). Jangan mencampur gaya import atau API versi lama.
 
 Aturan ini berlaku untuk semua perubahan berikutnya, tanpa perlu diingatkan lagi.
 
@@ -106,7 +106,7 @@ Gunakan **versi stabil terbaru** dari setiap paket, dan cek dokumentasinya. Semu
 | Frontend        | **Vite + React + TypeScript**, `react-router`                           |
 | Styling         | **Tailwind CSS** (build lewat Vite, bukan CDN), ikon `lucide-react`     |
 | Font            | `@fontsource` (Baloo 2 untuk judul, Inter untuk isi), dipaket lokal     |
-| Kanvas          | **Fabric.js**                                                           |
+| Kanvas          | **Canvas 2D buatan sendiri (mesin dari referensi-desain/discere-v5.html)** |
 | Backend         | **Node.js + Express + TypeScript**                                      |
 | Real-time       | **Socket.IO** (server dan client)                                       |
 | Database        | **SQLite** (`better-sqlite3`) lewat **Prisma ORM**                      |
@@ -130,7 +130,7 @@ discere/
 ├── .env.example                    contoh isi .env (tanpa nilai rahasia)
 ├── .gitignore
 ├── package.json                    workspaces: client dan server, skrip dev/build/start
-├── referensi/                      PRD.md dan prototipe lama (tidak ikut dikembangkan)
+├── referensi-desain/               discere-v5.html, PRD.md, prototipe lama (tidak ikut dikembangkan)
 ├── client/
 │   ├── index.html
 │   └── src/
@@ -141,7 +141,7 @@ discere/
 │       ├── pages/
 │       │   ├── publik/             Landing, Fitur, Kelebihan, Dokumentasi, Daftar, Login
 │       │   ├── guru/               Dashboard, Template, TemplateForm, Riwayat, Pengaturan
-│       │   ├── papan/              PapanTulis (Fabric.js), toolbar, sidebar game
+│       │   ├── papan/              PapanTulis, engine/, components/, papan.css, sidebar game
 │       │   ├── game/               LayarHost (layar guru), Lobi, TarikTambang
 │       │   ├── siswa/              Masuk (token + nama), Main (layar HP siswa)
 │       │   └── admin/              Statistik, KelolaGuru, PustakaTemplate, PemakaianAI
@@ -176,7 +176,7 @@ Gaya **modern, bersih, dan ramah anak**, bernuansa 17 Agustusan tanpa terlihat n
 | Bentuk                | Sudut membulat besar (`rounded-2xl`), bayangan halus, ruang kosong yang lega    |
 | Tombol                | Utama merah penuh, sekunder outline, tinggi nyaman disentuh (minimal 44px)      |
 | Mode gelap            | Didukung lewat `prefers-color-scheme` untuk halaman publik dan dashboard; kanvas papan tulis tetap terang |
-| Gaya papan tulis      | Ala Miro/FigJam: latar bertitik, panel melayang putih, tools di kiri            |
+| Gaya papan tulis      | panel melayang gelap di atas kanvas terang bertitik, ikuti discere-v5.html     |
 | Animasi               | Halus, hormati `prefers-reduced-motion`                                         |
 | Aksesibilitas         | Kontras jelas, fokus keyboard terlihat, `aria-label` pada tombol ikon           |
 
@@ -225,15 +225,31 @@ Layout: sidebar kiri (Ringkasan, Template, Papan Tulis, Riwayat, Pengaturan) dan
 
 ## Papan Tulis (`/papan/:id`)
 
-Layar penuh, kanvas **tak terbatas** (pan dan zoom), dibangun dengan **Fabric.js**.
+Layar penuh, kanvas **tak terbatas** (pan dan zoom), dibangun dengan **Canvas 2D buatan sendiri** (mesin dari `referensi-desain/discere-v5.html`). Semua ID objek memakai UUID (`crypto.randomUUID()`).
 
-**Tools di sisi kiri (ikon + label kecil):** Tanya AI (kuning, paling atas), Pilih, Laser, Gambar (3 jenis pena), Penghapus (per objek), Bentuk (kotak, lingkaran, panah), Teks, Tabel (3x3 dari garis dan kotak), Isi warna, Geser (hand), Zoom, Unggah gambar/slide, Urung dan Ulang.
+**Tools di sisi kiri (ikon + label kecil):** Tanya AI (kuning, paling atas), Pilih, Tangan, Laser, Pena (3 gaya: pulpen, spidol, pensil), Hapus (pemotong coretan), Bentuk (dasar, poligon, bintang, panah), Teks, Tabel, Isi warna, Pipet, Upload gambar.
 
-**Bar atas kontekstual:** muncul sesuai objek atau tool aktif. Untuk teks: font, ukuran (- / +), tebal, miring, rata kiri/tengah/kanan, warna teks, warna isi, transparansi (slider), tombol hapus. Untuk bentuk atau coretan: warna garis, warna isi, ketebalan, transparansi, hapus.
+**Bar atas kontekstual:** muncul sesuai tool/objek aktif. Untuk pena: warna, ukuran kuas, opasitas, gaya pena. Untuk penghapus: ukuran penghapus. Untuk bentuk: warna, tebal garis, opasitas. Untuk teks: warna, ukuran font. Untuk tabel: warna garis. Untuk isi: palet warna. Untuk laser: pilihan warna laser. Untuk pilih: hint, tombol Duplikat dan Hapus.
 
-**Pojok kanan atas:** tombol **Bagikan** dan daftar orang yang sedang membuka. **Pojok kanan bawah:** kontrol zoom dan persentase. **Sidebar kanan:** tombol panah yang membuka panel **Template Game** (daftar template guru dan pustaka resmi).
+**Pojok kanan atas:** tombol Undo, Redo, Game, Avatar peserta, Presentasi, dan tombol Bagikan (Share). **Pojok kanan bawah:** kontrol zoom (perkecil, persentase / reset 100%, perbesar, toggle grid, pusatkan).
 
-**Fitur wajib:** pan dan zoom (scroll, Ctrl+scroll, tool Geser), pilih/geser/ubah ukuran/putar objek, edit teks langsung di kanvas, gambar bebas, unggah gambar, undo/redo (riwayat JSON, maksimal 40 langkah), simpan otomatis ke database (ditunda 2 detik setelah perubahan), dan kalkulator melayang (prioritas P1).
+**Fitur papan tulis:**
+- View pan & zoom (0.1x hingga 4x, scroll, wheel, tool Tangan, spasi untuk geser).
+- Grid titik yang menyesuaikan level zoom.
+- Pena/spidol/pensil dengan kurva kuadratik halus.
+- Penghapus cerdas yang **memotong coretan** (`cutStroke` dan `eraseSeg`), bukan sekadar menghapus per objek utuh.
+- Bentuk lengkap (UP, SHP: poligon, bintang, panah, kurva, kotak, elips).
+- Teks dengan font "Plus Jakarta Sans" (dimuat lokal via `@fontsource/plus-jakarta-sans`). Batas teks maksimal 5000 karakter.
+- Tabel dengan ukuran dinamis dan edit sel lewat klik dua kali.
+- Isi warna (fill) untuk bentuk, kotak teks, dan tabel.
+- Pipet warna (EyeDropper API dengan fallback pemilih HSV).
+- Unggah, seret-lepas (drag-and-drop), dan tempel (paste) gambar dengan pengecilan otomatis (maksimal 1280px JPEG 0.8 sebelum disimpan).
+- Jejak laser pointer interaktif yang memudar halus (900 ms).
+- Mode presentasi layar penuh.
+- Pintasan keyboard lengkap (V H L P E S T B F I A U, Ctrl+Z, Ctrl+Y, Ctrl+D, Ctrl+/-, Spasi untuk pan, Delete, Esc).
+- Undo / redo berbasis **operasi lokal** `{tambah: Obj[], hapus: Obj[], ubah: {sebelum: Obj, sesudah: Obj}[]}`, batas 60 entri, dengan pemancaran event `ubah` `{tambah, ubah, hapus: string[]}` dan fungsi `terapkanOps(ops)` untuk sinkronisasi external.
+- Properti `hanyaLihat` pada Board untuk mode Viewer (hanya Tangan, Laser, dan Zoom yang diizinkan).
+- Format penyimpanan data kanvas: `{ versi: 1, objs: Obj[] }` (tidak menyimpan properti internal cache). Autosave ke database dengan debounce 2 detik, plus cadangan ke localStorage jika simpan server gagal.
 
 **Fitur AI di papan (Tanya AI):**
 1. Guru menekan tombol **Tanya AI**, lalu **melingkari** soal atau area di kanvas.
@@ -287,6 +303,7 @@ Pertama dan wajib: **Tarik Tambang**. Game lain (balap karung, panjat pinang) ha
 | `jawab:hasil`      | server → siswa    | Benar/salah + penjelasan                 |
 | `tali:update`      | server → semua    | Posisi tali terbaru                      |
 | `sesi:selesai`     | server → semua    | Pemenang dan skor akhir                  |
+| `papan:gabung`     | klien → server    | Masuk ke ruang kolaborasi papan          |
 | `papan:ubah`       | klien ↔ server    | Perubahan objek papan (kolaborasi)       |
 | `papan:peserta`    | server → semua    | Daftar orang yang membuka papan          |
 
@@ -335,7 +352,7 @@ Skema ditulis di `server/prisma/schema.prisma`. Nama model dan field memakai Bah
 | `sessions`        | id, templateId, hostId, token, mode, status (`lobi`/`jalan`/`selesai`), mulaiPada, selesaiPada         |
 | `session_results` | id, sessionId, timMenang (`merah`/`putih`/`seri`), posisiAkhir, skorMerah, skorPutih                   |
 | `question_stats`  | id, sessionId, questionId, jumlahBenar, jumlahSalah                                                    |
-| `boards`          | id, ownerId, judul, data (JSON Fabric), updatedAt                                                      |
+| `boards`          | id, ownerId, judul, data (JSON { versi: 1, objs: [...] }), updatedAt                  |
 | `board_shares`    | id, boardId, token (unik), peran (`viewer`/`editor`), aktif (boolean)                                  |
 | `ai_cache`        | hash (unik), jenis, hasil (JSON), createdAt                                                            |
 | `ai_usage`        | id, userId, tanggal, jumlah                                                                            |
@@ -400,7 +417,7 @@ Kerjakan bertahap. Setelah tiap fitur selesai: jalankan, uji, **commit**. Setela
 | Senin, 9 Nov   | **3. Dashboard guru dan template**      | Ringkasan, CRUD template dan soal manual, duplikat, pustaka resmi          |
 | Selasa, 10 Nov | **4. Game Solo**                        | Tarik tambang Mode Solo penuh dari awal sampai layar hasil, riwayat tersimpan |
 | Rabu, 11 Nov   | **5. Multiplayer**                      | Token, QR, lobi, 2 HP nyata bermain, tali real-time, penjelasan jawaban    |
-| Kamis, 12 Nov  | **6. Papan tulis dan kolaborasi**       | Kanvas Fabric.js tak terbatas, semua tools, simpan otomatis, sidebar game, tautan Viewer/Editor |
+| Kamis, 12 Nov  | **6. Papan tulis dan kolaborasi**       | Kanvas Canvas 2D tak terbatas, semua tools, simpan otomatis, sidebar game, tautan Viewer/Editor |
 | Jumat, 13 Nov  | **7. AI dan Admin**                     | Soal dari AI, Tanya AI (lingkari soal), cache dan batas harian, dashboard admin minimal |
 | Sabtu, 14 Nov  | **8. Poles dan submit**                 | Perbaiki bug, README + diagram, rekam video demo 3 sampai 5 menit, submit **sebelum batas** |
 
