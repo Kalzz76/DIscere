@@ -247,13 +247,14 @@ export default function TemplateForm() {
                 </label>
                 <select
                   value={mode}
-                  disabled
-                  className="w-full h-11 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 cursor-not-allowed font-medium"
+                  onChange={(e) => setMode(e.target.value as 'solo' | 'multi')}
+                  className="w-full h-11 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-[#D7262E]"
                 >
                   <option value="solo">Mode Solo (Satu Layar Bersama)</option>
+                  <option value="multi">Mode Multiplayer (HP Siswa Masing-Masing)</option>
                 </select>
                 <span className="text-xs text-slate-400 mt-1 block">
-                  Mode Multiplayer akan aktif pada tahap berikutnya.
+                  Pilih cara siswa berpartisipasi dalam permainan.
                 </span>
               </div>
             </div>

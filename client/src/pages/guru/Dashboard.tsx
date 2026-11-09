@@ -140,13 +140,13 @@ export default function DashboardGuru() {
     loadInitial();
   }, [fetchRingkasan, fetchTemplates, fetchRiwayat]);
 
-  // Handler: Mulai Game Solo dari Template
-  const handleMulaiGame = async (templateId: string) => {
+  // Handler: Mulai Game dari Template
+  const handleMulaiGame = async (templateId: string, mode?: string) => {
     try {
       setActionLoadingId(templateId);
       const res = await apiRequest<{ session: { id: string } }>('/sesi', {
         method: 'POST',
-        body: JSON.stringify({ templateId }),
+        body: JSON.stringify({ templateId, mode }),
       });
       navigate(`/guru/sesi/${res.session.id}`);
     } catch (err: any) {
@@ -472,7 +472,7 @@ export default function DashboardGuru() {
                             variant="utama"
                             size="sm"
                             icon={<Play className="w-4 h-4 fill-current" />}
-                            onClick={() => handleMulaiGame(tmpl.id)}
+                            onClick={() => handleMulaiGame(tmpl.id, tmpl.mode)}
                             loading={actionLoadingId === tmpl.id}
                           >
                             Mulai
@@ -537,8 +537,8 @@ export default function DashboardGuru() {
                               <Badge variant="merah" size="sm">
                                 Tarik Tambang
                               </Badge>
-                              <Badge variant="biru" size="sm">
-                                Mode Solo
+                              <Badge variant={tmpl.mode === 'multi' ? 'kuning' : 'biru'} size="sm">
+                                {tmpl.mode === 'multi' ? 'Mode Multiplayer' : 'Mode Solo'}
                               </Badge>
                             </div>
                             <h3 className="font-extrabold text-xl text-slate-900 dark:text-white">
@@ -558,10 +558,10 @@ export default function DashboardGuru() {
                                 variant="utama"
                                 size="sm"
                                 icon={<Play className="w-4 h-4 fill-current" />}
-                                onClick={() => handleMulaiGame(tmpl.id)}
+                                onClick={() => handleMulaiGame(tmpl.id, tmpl.mode)}
                                 loading={actionLoadingId === tmpl.id}
                               >
-                                Mulai Game Solo
+                                {tmpl.mode === 'multi' ? 'Mulai Lomba' : 'Mulai Game Solo'}
                               </Button>
 
                               <div className="flex items-center gap-1">
