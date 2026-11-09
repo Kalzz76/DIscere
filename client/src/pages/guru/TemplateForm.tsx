@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { apiRequest } from '../../lib/api';
-import { Button, Card, Input, Modal } from '../../components';
+import { Modal } from '../../components';
 import {
   ArrowLeft,
   Plus,
@@ -124,55 +124,44 @@ export default function TemplateForm() {
     try {
       setAiLoading(true);
       setAiError(null);
-
       const res = await apiRequest<{
-        pesan: string;
-        soal: Array<{
+        sukses: boolean;
+        questions: Array<{
+          urutan: number;
           teks: string;
           opsiA: string;
           opsiB: string;
           opsiC: string;
           jawabanBenar: 'A' | 'B' | 'C';
           penjelasan: string;
-          dibuatAi: boolean;
         }>;
-        kuota: any;
-      }>('/ai/soal', {
+      }>('/ai/generate-soal', {
         method: 'POST',
         body: JSON.stringify({
-          materi: aiMateri,
-          jumlah: aiJumlah,
-          tingkat: aiTingkat,
+          materi: aiMateri.trim(),
+          jumlahSoal: aiJumlah,
+          jenjang: aiTingkat,
         }),
       });
 
-      if (res.soal && res.soal.length > 0) {
-        // Jika soal pertama masih kosong bawaan, gantikan dengan soal baru
-        const isDefaultFirstOnly =
-          questions.length === 1 &&
-          !questions[0].teks.trim() &&
-          !questions[0].opsiA.trim();
-
-        const baseQuestions = isDefaultFirstOnly ? [] : questions;
-
-        const newItems: QuestionFormItem[] = res.soal.map((s, idx) => ({
-          urutan: baseQuestions.length + idx + 1,
-          teks: s.teks,
-          opsiA: s.opsiA,
-          opsiB: s.opsiB,
-          opsiC: s.opsiC,
-          jawabanBenar: s.jawabanBenar,
-          penjelasan: s.penjelasan || '',
-          dibuatAi: true,
-        }));
-
-        setQuestions([...baseQuestions, ...newItems]);
-        setAiSuksesPesan(
-          `✨ Berhasil membuat ${res.soal.length} soal dengan AI! Soal telah ditambahkan ke form. Silakan tinjau dan edit sebelum menyimpan.`
+      if (res.sukses && res.questions) {
+        const aiQuestionsFormatted: QuestionFormItem[] = res.questions.map(
+          (q, idx) => ({
+            urutan: idx + 1,
+            teks: q.teks,
+            opsiA: q.opsiA,
+            opsiB: q.opsiB,
+            opsiC: q.opsiC,
+            jawabanBenar: q.jawabanBenar,
+            penjelasan: q.penjelasan || '',
+            dibuatAi: true,
+          })
         );
-        if (res.kuota) {
-          setAiKuota(res.kuota);
-        }
+
+        setQuestions(aiQuestionsFormatted);
+        setAiSuksesPesan(
+          `Berhasil menghasilkan ${aiQuestionsFormatted.length} soal kuis!`
+        );
 
         setTimeout(() => {
           setModalAiOpen(false);
@@ -228,7 +217,7 @@ export default function TemplateForm() {
     e.preventDefault();
     setErrorPesan(null);
 
-    // Validasi sederhana
+    // Validasi
     if (!judul.trim()) {
       setErrorPesan('Judul materi wajib diisi.');
       return;
@@ -260,7 +249,6 @@ export default function TemplateForm() {
           opsiC: q.opsiC.trim(),
           jawabanBenar: q.jawabanBenar,
           penjelasan: q.penjelasan.trim() || null,
-          dibuatAi: Boolean(q.dibuatAi),
         })),
       };
 
@@ -286,127 +274,133 @@ export default function TemplateForm() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
-        <Loader2 className="w-10 h-10 animate-spin text-[#D7262E] mb-3" />
-        <p className="font-medium">Memuat form template...</p>
+      <div className="portal-bg min-h-screen flex flex-col items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-[#f2c230] mb-3" />
+        <p className="portal-cv text-2xl text-[#f4ecd8]">Memuat formulir template...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 p-6 md:p-10">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="portal-bg">
+      <div className="max-w-4xl mx-auto w-full p-6 md:p-10 space-y-6">
         {/* Header Bar */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={() => navigate('/guru?tab=template')}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-          >
-            <ArrowLeft className="w-4 h-4" /> Kembali ke Daftar Template
-          </button>
-          <span className="text-xs uppercase font-extrabold tracking-wider px-3 py-1 bg-red-100 dark:bg-red-950/60 text-[#D7262E] rounded-full">
-            {isEdit ? 'Ubah Template' : 'Template Baru'}
-          </span>
+        <div className="portal-head">
+          <div>
+            <h1>{isEdit ? 'Ubah Template Kuis' : 'Buat Template Kuis Baru'}</h1>
+            <p>Susun materi soal untuk dimainkan dalam game tarik tambang interaktif.</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/guru?tab=template')}
+              className="portal-btn ghost sm"
+            >
+              <ArrowLeft className="w-4 h-4" /> Kembali ke Daftar Template
+            </button>
+          </div>
         </div>
 
         {errorPesan && (
-          <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-red-900 dark:text-red-200 text-sm font-semibold">
-            {errorPesan}
+          <div className="portal-banner error">
+            <AlertTriangle className="w-5 h-5 shrink-0 text-[#c8362f]" />
+            <span className="font-bold text-[#c8362f]">{errorPesan}</span>
           </div>
         )}
 
         <form onSubmit={handleSimpan} className="space-y-6">
-          {/* Metadata Template */}
-          <Card padding="md" className="space-y-4">
-            <h2 className="text-xl font-bold">Informasi Utama Template</h2>
+          {/* Metadata Template dalam Card Kertas Krem */}
+          <div className="portal-card p-6 space-y-4">
+            <h2 className="portal-cv text-2xl text-[#1d3b2e]">Informasi Utama Materi</h2>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+              <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1.5">
                 Judul Materi / Topik Soal
               </label>
-              <Input
-                placeholder="Contoh: Pecahan Campuran Kelas 5 atau Pahlawan Kemerdekaan"
+              <input
+                type="text"
+                placeholder="Contoh: Pecahan Campuran Kelas 5 atau Sejarah Proklamasi"
                 value={judul}
                 onChange={(e) => setJudul(e.target.value)}
+                className="portal-input font-bold text-base"
                 required
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1.5">
                   Jenis Game
                 </label>
                 <select
                   value={game}
                   disabled
-                  className="w-full h-11 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 cursor-not-allowed font-medium"
+                  className="portal-select opacity-75 cursor-not-allowed"
                 >
                   <option value="tarik_tambang">Tarik Tambang (Aktif)</option>
                 </select>
-                <span className="text-xs text-slate-400 mt-1 block">
+                <span className="text-[11px] text-[#6b7d6c] mt-1 block">
                   Game lomba 17-an standar untuk Discere.
                 </span>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1.5">
                   Mode Permainan
                 </label>
                 <select
                   value={mode}
                   onChange={(e) => setMode(e.target.value as 'solo' | 'multi')}
-                  className="w-full h-11 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-[#D7262E]"
+                  className="portal-select"
                 >
                   <option value="solo">Mode Solo (Satu Layar Bersama)</option>
                   <option value="multi">Mode Multiplayer (HP Siswa Masing-Masing)</option>
                 </select>
-                <span className="text-xs text-slate-400 mt-1 block">
-                  Pilih cara siswa berpartisipasi dalam permainan.
+                <span className="text-[11px] text-[#6b7d6c] mt-1 block">
+                  Pilih cara siswa berpartisipasi dalam sesi kelas.
                 </span>
               </div>
             </div>
-          </Card>
+          </div>
 
           {/* Daftar Soal */}
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <h2 className="text-xl font-bold">
+              <h2 className="portal-cv text-3xl text-[#f4ecd8]">
                 Daftar Soal ({questions.length})
               </h2>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={bukaModalAi}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-sm shadow-sm transition-all cursor-pointer"
+                  className="portal-btn sm"
+                  style={{ background: '#f2c230', color: '#1d3b2e' }}
                 >
                   <Sparkles className="w-4 h-4" />
-                  Buat Soal dengan AI
+                  <span>Buat Soal dengan AI</span>
                 </button>
-                <Button
+                <button
                   type="button"
-                  variant="sekunder"
-                  size="sm"
-                  icon={<Plus className="w-4 h-4" />}
                   onClick={handleTambahSoal}
+                  className="portal-btn ghost sm"
                 >
-                  Tambah Manual
-                </Button>
+                  <Plus className="w-4 h-4" />
+                  <span>Tambah Manual</span>
+                </button>
               </div>
             </div>
 
             {questions.map((soal, index) => (
-              <Card key={index} padding="md" className="space-y-4 relative">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div key={index} className="portal-card p-6 space-y-4 relative">
+                <div className="flex items-center justify-between border-b-2 border-dashed border-[#e0d5b8] pb-3">
                   <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-base text-[#D7262E]">
+                    <span className="portal-cv text-2xl text-[#c8362f]">
                       Soal #{index + 1}
                     </span>
                     {soal.dibuatAi && (
-                      <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
-                        <Sparkles className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                        Dibuat AI
+                      <span className="portal-tag yellow">
+                        <Sparkles className="w-3 h-3 text-[#8a6a00]" /> Dibuat AI
                       </span>
                     )}
                   </div>
@@ -414,22 +408,22 @@ export default function TemplateForm() {
                     <button
                       type="button"
                       onClick={() => handleHapusSoal(index)}
-                      className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                      className="portal-btn ghost-red sm"
                       title="Hapus Soal"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    Teks Pertanyaan
+                  <label className="block text-xs font-bold text-[#6b7d6c] uppercase tracking-wider mb-1">
+                    Teks Pertanyaan Kuis
                   </label>
                   <textarea
                     rows={2}
-                    className="w-full p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D7262E] font-medium"
-                    placeholder={`Tuliskan soal nomor ${index + 1}...`}
+                    className="portal-input font-medium"
+                    placeholder={`Tuliskan pertanyaan soal nomor ${index + 1}...`}
                     value={soal.teks}
                     onChange={(e) =>
                       handleUpdateSoal(index, 'teks', e.target.value)
@@ -440,8 +434,8 @@ export default function TemplateForm() {
 
                 {/* 3 Opsi Jawaban */}
                 <div className="space-y-3 pt-1">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Pilihan Jawaban & Kunci Benar
+                  <label className="block text-xs font-bold text-[#6b7d6c] uppercase tracking-wider">
+                    Pilihan Jawaban & Kunci Benar (Klik Huruf untuk Menjadikan Kunci)
                   </label>
 
                   {(['A', 'B', 'C'] as const).map((opsiKey) => {
@@ -455,18 +449,18 @@ export default function TemplateForm() {
                           onClick={() =>
                             handleUpdateSoal(index, 'jawabanBenar', opsiKey)
                           }
-                          className={`w-10 h-10 rounded-xl font-bold flex items-center justify-center shrink-0 transition-all ${
+                          className={`w-10 h-10 rounded-xl font-extrabold flex items-center justify-center shrink-0 transition-all cursor-pointer ${
                             isSelected
-                              ? 'bg-emerald-500 text-white shadow-sm ring-2 ring-emerald-300'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                              ? 'bg-[#1f4a37] text-[#f4ecd8] shadow-md ring-2 ring-[#f2c230]'
+                              : 'bg-[#f4ecd9] text-[#1d3b2e] hover:bg-[#e0d5b8]'
                           }`}
-                          title={`Jadikan Opsi ${opsiKey} Jawaban Benar`}
+                          title={`Jadikan Opsi ${opsiKey} sebagai Kunci Jawaban`}
                         >
                           {opsiKey}
                         </button>
                         <input
                           type="text"
-                          className="flex-1 h-11 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#D7262E] text-sm font-medium"
+                          className="portal-input flex-1"
                           placeholder={`Jawaban untuk Pilihan ${opsiKey}...`}
                           value={soal[fieldKey] as string}
                           onChange={(e) =>
@@ -475,8 +469,8 @@ export default function TemplateForm() {
                           required
                         />
                         {isSelected && (
-                          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 shrink-0 hidden sm:inline">
-                            Kunci Benar
+                          <span className="portal-tag green shrink-0">
+                            ✓ Kunci Benar
                           </span>
                         )}
                       </div>
@@ -485,52 +479,50 @@ export default function TemplateForm() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    Penjelasan Jawaban (Opsional)
+                  <label className="block text-xs font-bold text-[#6b7d6c] uppercase tracking-wider mb-1">
+                    Penjelasan Pembahasan (Opsional)
                   </label>
                   <input
                     type="text"
-                    className="w-full h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 text-xs"
-                    placeholder="Contoh: Mengapa jawaban ini benar..."
+                    className="portal-input text-xs"
+                    placeholder="Contoh: Penjelasan materi mengapa jawaban ini benar..."
                     value={soal.penjelasan}
                     onChange={(e) =>
                       handleUpdateSoal(index, 'penjelasan', e.target.value)
                     }
                   />
                 </div>
-              </Card>
+              </div>
             ))}
 
-            <Button
+            <button
               type="button"
-              variant="sekunder"
-              size="md"
-              icon={<Plus className="w-4 h-4" />}
               onClick={handleTambahSoal}
-              className="w-full border-dashed"
+              className="portal-btn ghost w-full justify-center py-3"
             >
-              Tambah Soal Baru
-            </Button>
+              <Plus className="w-4 h-4" />
+              <span>Tambah Soal Berikutnya</span>
+            </button>
           </div>
 
           {/* Submit Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-            <Button
+          <div className="flex items-center justify-end gap-3 pt-4 border-t-2 border-dashed border-[#f4ecd8]/30">
+            <button
               type="button"
-              variant="hantu"
               onClick={() => navigate('/guru?tab=template')}
               disabled={submitting}
+              className="portal-btn ghost"
             >
               Batal
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
-              variant="utama"
-              icon={<Save className="w-4 h-4" />}
-              loading={submitting}
+              disabled={submitting}
+              className="portal-btn red"
             >
-              Simpan Template
-            </Button>
+              <Save className="w-4 h-4" />
+              <span>{submitting ? 'Menyimpan...' : 'Simpan Template'}</span>
+            </button>
           </div>
         </form>
 
@@ -541,59 +533,54 @@ export default function TemplateForm() {
           title="Buat Soal Otomatis dengan AI"
           maxWidth="lg"
         >
-          <div className="space-y-5">
+          <div className="space-y-4">
             {/* Kuota & Warning */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-900 dark:text-amber-200">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                <span>
-                  Sisa Kuota AI Hari Ini:{' '}
-                  <strong>
-                    {aiKuota ? `${aiKuota.sisaKuota} / ${aiKuota.batasHarian}` : '30'} kali
-                  </strong>
+            <div className="portal-banner warn">
+              <Sparkles className="w-5 h-5 text-[#8a6a00] shrink-0" />
+              <div className="text-xs space-y-0.5">
+                <span className="font-bold block text-[#1d3b2e]">
+                  Sisa Kuota AI Hari Ini: {aiKuota ? `${aiKuota.sisaKuota} / ${aiKuota.batasHarian}` : '30'} kali
                 </span>
+                <span className="text-[#8a6a00] block">Reset otomatis setiap tengah malam</span>
               </div>
-              <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
-                Reset otomatis setiap tengah malam
-              </span>
             </div>
 
             {/* Peringatan Privasi UU PDP */}
-            <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-200">
-              <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-              <p>
-                <strong>Etika & Privasi Guru:</strong> Dilarang memasukkan data pribadi, nama siswa, atau informasi rahasia ke dalam teks materi. Soal hasil AI wajib ditinjau guru sebelum disimpan.
+            <div className="portal-banner info">
+              <Info className="w-5 h-5 text-[#f2c230] shrink-0 mt-0.5" />
+              <p className="text-xs text-[#cfd9c3] leading-relaxed">
+                <strong className="text-[#f4ecd8]">Privasi Terisolasi:</strong> Jangan memasukkan nama siswa atau data pribadi ke dalam teks materi. Soal hasil AI wajib ditinjau guru sebelum disimpan.
               </p>
             </div>
 
             {aiError && (
-              <div className="flex items-center gap-2 p-3 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-red-900 dark:text-red-200 text-xs font-semibold">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>{aiError}</span>
+              <div className="portal-banner error">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-[#c8362f]" />
+                <span className="text-xs font-bold text-[#c8362f]">{aiError}</span>
               </div>
             )}
 
             {aiSuksesPesan && (
-              <div className="flex items-center gap-2 p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs font-semibold">
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                <span>{aiSuksesPesan}</span>
+              <div className="portal-banner success">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-[#1f4a37]" />
+                <span className="text-xs font-bold text-[#1d3b2e]">{aiSuksesPesan}</span>
               </div>
             )}
 
             {/* Input Materi */}
             <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Teks Materi Pembelajaran
+              <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1.5">
+                Teks Rangkuman Materi Pembelajaran
               </label>
               <textarea
                 rows={5}
                 disabled={aiLoading}
-                className="w-full p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-medium leading-relaxed"
+                className="portal-input text-xs leading-relaxed"
                 placeholder="Tempelkan ringkasan materi pembelajaran, bab buku, atau catatan konsep di sini (minimal 20 karakter)... Contoh: Perkembangbiakan tumbuhan secara generatif melibatkan penyerbukan dan pembuahan melalui serbuk sari dan putik..."
                 value={aiMateri}
                 onChange={(e) => setAiMateri(e.target.value)}
               />
-              <span className="text-[11px] text-slate-400 mt-1 block">
+              <span className="text-[11px] text-[#6b7d6c] mt-1 block">
                 {aiMateri.length} karakter (minimal 20 karakter)
               </span>
             </div>
@@ -601,14 +588,14 @@ export default function TemplateForm() {
             {/* Pilihan Pengaturan AI */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1">
                   Jumlah Soal
                 </label>
                 <select
                   disabled={aiLoading}
                   value={aiJumlah}
                   onChange={(e) => setAiJumlah(parseInt(e.target.value, 10))}
-                  className="w-full h-11 px-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="portal-select"
                 >
                   <option value={5}>5 Soal (Rekomendasi Cepat)</option>
                   <option value={8}>8 Soal</option>
@@ -618,14 +605,14 @@ export default function TemplateForm() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1">
                   Jenjang / Tingkat
                 </label>
                 <select
                   disabled={aiLoading}
                   value={aiTingkat}
                   onChange={(e) => setAiTingkat(e.target.value as 'SD' | 'SMP')}
-                  className="w-full h-11 px-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="portal-select"
                 >
                   <option value="SD">Sekolah Dasar (SD Kelas 4 - 6)</option>
                   <option value="SMP">Sekolah Menengah Pertama (SMP)</option>
@@ -634,29 +621,40 @@ export default function TemplateForm() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-              <Button
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#e0d5b8]">
+              <button
                 type="button"
-                variant="hantu"
+                className="portal-btn ghost sm"
                 onClick={() => setModalAiOpen(false)}
                 disabled={aiLoading}
               >
                 Batal
-              </Button>
-              <Button
+              </button>
+              <button
                 type="button"
-                variant="utama"
+                className="portal-btn red sm"
                 onClick={handleGenerateAi}
-                loading={aiLoading}
                 disabled={aiLoading || aiMateri.trim().length < 20}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
-                icon={<Sparkles className="w-4 h-4" />}
               >
-                Buat Soal Sekarang
-              </Button>
+                <Sparkles className="w-4 h-4" />
+                <span>{aiLoading ? 'Menyusun Soal...' : 'Buat Soal Sekarang'}</span>
+              </button>
             </div>
           </div>
         </Modal>
+      </div>
+
+      {/* DUDUKAN PAPAN TULIS COKLAT DI PALING BAWAH (MEMANJANG FULL DARI UJUNG KANAN KE KIRI) */}
+      <div className="portal-ledge" aria-hidden="true">
+        <svg viewBox="0 0 1440 80" preserveAspectRatio="none">
+          <path d="M0 34C240 6 480 62 720 34S1200 6 1440 34V80H0z" fill="#a6783c" />
+          <path d="M0 56C260 34 520 80 760 56S1220 36 1440 58V80H0z" fill="#8d6444" />
+        </svg>
+        <div className="portal-chalks">
+          <i style={{ width: '84px', background: '#7a9c85' }} />
+          <i style={{ width: '70px', background: '#7a9c85' }} />
+          <i style={{ width: '92px', background: '#7a9c85' }} />
+        </div>
       </div>
     </div>
   );

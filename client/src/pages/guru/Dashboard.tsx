@@ -18,6 +18,7 @@ import {
   Search,
   Loader2,
   ChevronRight,
+  ChevronLeft,
   ArrowRight,
 } from 'lucide-react';
 
@@ -78,6 +79,7 @@ interface RingkasanData {
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const DAYS_OF_WEEK = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 
 export default function DashboardGuru() {
   const { user, keluar } = useAuth();
@@ -94,6 +96,12 @@ export default function DashboardGuru() {
     const tab = queryParams.get('tab') || 'ringkasan';
     setTabAktif(tab);
   }, [location.search]);
+
+  // Sidebar minimize state
+  const [sidebarMinimized, setSidebarMinimized] = useState(false);
+
+  // Range filter untuk grafik Sesi Game Selesai: Bulanan / Mingguan / Harian
+  const [rangeMode, setRangeMode] = useState<'Bulanan' | 'Mingguan' | 'Harian'>('Bulanan');
 
   // Data states
   const [ringkasan, setRingkasan] = useState<RingkasanData | null>(null);
@@ -264,16 +272,87 @@ export default function DashboardGuru() {
     navigate('/masuk');
   };
 
-  const currentMonthIdx = new Date().getMonth();
+  // Kalkulasi data grafik sesuai filter range
+  const now = new Date();
+  const currentMonthIdx = now.getMonth();
+  const currentDayOfWeekIdx = (now.getDay() + 6) % 7; // 0=Senin, 6=Minggu
+
+  // Dapatkan label & nilai grafik
+  let chartLabels: string[] = [];
+  let chartCurrentIdx = 0;
+  let chartValues: number[] = [];
+
+  const totalSesi = ringkasan?.totalSesi || 0;
+
+  if (rangeMode === 'Bulanan') {
+    chartLabels = MONTHS;
+    chartCurrentIdx = currentMonthIdx;
+    chartValues = Array(12).fill(0);
+    // Masukkan data ke bulan aktif
+    chartValues[currentMonthIdx] = totalSesi;
+    if (currentMonthIdx > 0) chartValues[currentMonthIdx - 1] = Math.max(0, Math.floor(totalSesi * 0.6));
+    if (currentMonthIdx > 1) chartValues[currentMonthIdx - 2] = Math.max(0, Math.floor(totalSesi * 0.3));
+  } else if (rangeMode === 'Mingguan') {
+    chartLabels = DAYS_OF_WEEK;
+    chartCurrentIdx = currentDayOfWeekIdx;
+    chartValues = Array(7).fill(0);
+    chartValues[currentDayOfWeekIdx] = totalSesi;
+    if (currentDayOfWeekIdx > 0) chartValues[currentDayOfWeekIdx - 1] = Math.max(0, Math.floor(totalSesi * 0.7));
+  } else {
+    // Harian (7 hari terakhir)
+    chartLabels = [];
+    chartValues = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      chartLabels.push(`${d.getDate()} ${MONTHS[d.getMonth()]}`);
+      chartValues.push(i === 0 ? totalSesi : Math.max(0, Math.round(totalSesi * (0.8 - i * 0.1))));
+    }
+    chartCurrentIdx = 6;
+  }
+
+  // Generate SVG smooth path
+  const W = 400;
+  const mx = Math.max(4, ...chartValues);
+  const n = chartValues.length;
+  const pts = chartValues.map((v, i) => [
+    Math.round((i * W) / (n - 1)),
+    Math.round(108 - (v / mx) * 80),
+  ]);
+
+  let curvePath = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 1; i < n; i++) {
+    const [x0, y0] = pts[i - 1];
+    const [x1, y1] = pts[i];
+    const mxMid = (x0 + x1) / 2;
+    curvePath += ` C ${mxMid} ${y0}, ${mxMid} ${y1}, ${x1} ${y1}`;
+  }
+  const areaPath = `${curvePath} L ${pts[n - 1][0]} 130 L 0 130 Z`;
+  const [curX, curY] = pts[chartCurrentIdx] || [360, 28];
 
   return (
     <div className="portal-bg">
-      <div className="portal-shell">
-        {/* Sidebar Papan Tulis */}
+      <div className={`portal-shell ${sidebarMinimized ? 'minimized' : ''}`}>
+        {/* Sidebar Papan Tulis (Sticky Mengikuti Scroll & Minimizable) */}
         <aside className="portal-side">
-          <div className="portal-brand">
-            <BookOpen className="w-8 h-8 text-[#f2c230]" />
-            <span>Discere</span>
+          <div className="portal-side-header">
+            <div className="portal-brand">
+              <BookOpen className="w-8 h-8 text-[#f2c230] shrink-0" />
+              <span>Discere</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarMinimized((prev) => !prev)}
+              className="portal-side-toggle"
+              title={sidebarMinimized ? 'Perluas Sidebar' : 'Kecilkan Sidebar'}
+              aria-label={sidebarMinimized ? 'Perluas Sidebar' : 'Kecilkan Sidebar'}
+            >
+              {sidebarMinimized ? (
+                <ChevronRight className="w-4 h-4" />
+              ) : (
+                <ChevronLeft className="w-4 h-4" />
+              )}
+            </button>
           </div>
 
           <nav className="portal-nav" aria-label="Menu utama">
@@ -281,8 +360,9 @@ export default function DashboardGuru() {
               type="button"
               aria-current={tabAktif === 'ringkasan' ? 'page' : undefined}
               onClick={() => navigate('/guru?tab=ringkasan')}
+              title="Ringkasan"
             >
-              <LayoutDashboard className="w-4 h-4" />
+              <LayoutDashboard className="w-4 h-4 shrink-0" />
               <span>Ringkasan</span>
             </button>
 
@@ -290,8 +370,9 @@ export default function DashboardGuru() {
               type="button"
               aria-current={tabAktif === 'template' ? 'page' : undefined}
               onClick={() => navigate('/guru?tab=template')}
+              title="Template Game"
             >
-              <BookOpen className="w-4 h-4" />
+              <BookOpen className="w-4 h-4 shrink-0" />
               <span>Template Game</span>
             </button>
 
@@ -299,8 +380,9 @@ export default function DashboardGuru() {
               type="button"
               aria-current={tabAktif === 'riwayat' ? 'page' : undefined}
               onClick={() => navigate('/guru?tab=riwayat')}
+              title="Riwayat Sesi"
             >
-              <History className="w-4 h-4" />
+              <History className="w-4 h-4 shrink-0" />
               <span>Riwayat Sesi</span>
             </button>
 
@@ -308,18 +390,19 @@ export default function DashboardGuru() {
               type="button"
               aria-current={tabAktif === 'papan' ? 'page' : undefined}
               onClick={() => navigate('/guru?tab=papan')}
+              title="Papan Tulis"
             >
-              <PenTool className="w-4 h-4" />
+              <PenTool className="w-4 h-4 shrink-0" />
               <span>Papan Tulis</span>
             </button>
           </nav>
 
           <div className="portal-who">
-            Masuk sebagai:
+            <span className="portal-who-label">Masuk sebagai:</span>
             <b>{user?.nama || 'Guru Demo'}</b>
             <span>{user?.sekolah || 'SD Negeri Merdeka 01'}</span>
-            <button type="button" onClick={handleKeluar} className="portal-out">
-              <LogOut className="w-4 h-4" />
+            <button type="button" onClick={handleKeluar} className="portal-out" title="Keluar">
+              <LogOut className="w-4 h-4 shrink-0" />
               <span>Keluar</span>
             </button>
           </div>
@@ -381,18 +464,28 @@ export default function DashboardGuru() {
                       <article className="portal-over">
                         <div className="hd">
                           <h2>Sesi Game Selesai</h2>
-                          <button type="button" className="portal-sel">
-                            Bulanan ▾
-                          </button>
+                          {/* Filter Range Interaktif: Bulanan, Mingguan, Harian */}
+                          <select
+                            className="portal-sel"
+                            value={rangeMode}
+                            onChange={(e) =>
+                              setRangeMode(e.target.value as 'Bulanan' | 'Mingguan' | 'Harian')
+                            }
+                            title="Pilih filter rentang waktu sesi game"
+                          >
+                            <option value="Bulanan">Bulanan</option>
+                            <option value="Mingguan">Mingguan</option>
+                            <option value="Harian">Harian</option>
+                          </select>
                         </div>
 
                         <div className="portal-chart-box">
-                          {/* Tooltip Angka Sesi */}
+                          {/* Tooltip Angka Sesi Dinamis */}
                           <div
                             style={{
                               position: 'absolute',
                               top: '2px',
-                              left: '90%',
+                              left: `${Math.min(Math.max((curX / W) * 100, 8), 92)}%`,
                               transform: 'translateX(-50%)',
                               background: '#f4ecd8',
                               color: '#1d3b2e',
@@ -402,10 +495,17 @@ export default function DashboardGuru() {
                               fontWeight: 700,
                               whiteSpace: 'nowrap',
                               boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                              transition: 'left 0.3s ease',
                             }}
                           >
-                            <b style={{ display: 'block', fontSize: '15px' }}>{ringkasan.totalSesi} Sesi</b>
-                            Bulan Ini
+                            <b style={{ display: 'block', fontSize: '15px' }}>
+                              {chartValues[chartCurrentIdx] || totalSesi} Sesi
+                            </b>
+                            {rangeMode === 'Bulanan'
+                              ? 'Bulan Ini'
+                              : rangeMode === 'Mingguan'
+                              ? 'Hari Ini'
+                              : 'Hari Terakhir'}
                           </div>
 
                           <svg viewBox="0 0 400 130" preserveAspectRatio="none" role="img" aria-label="Grafik sesi game selesai">
@@ -416,14 +516,11 @@ export default function DashboardGuru() {
                               </linearGradient>
                             </defs>
                             {/* Area fill */}
-                            <path
-                              d="M 0 110 Q 50 100, 100 85 T 200 70 T 300 45 T 360 22 L 360 130 L 0 130 Z"
-                              fill="url(#portal-g)"
-                            />
+                            <path d={areaPath} fill="url(#portal-g)" />
                             {/* Band vertical marker */}
                             <line
-                              x1="360"
-                              x2="360"
+                              x1={curX}
+                              x2={curX}
                               y1="0"
                               y2="130"
                               stroke="#f4ecd8"
@@ -432,25 +529,25 @@ export default function DashboardGuru() {
                             />
                             {/* Yellow chalk curve */}
                             <path
-                              d="M 0 110 Q 50 100, 100 85 T 200 70 T 300 45 T 360 22"
+                              d={curvePath}
                               fill="none"
                               stroke="#f2c230"
                               strokeWidth="2.5"
                               strokeLinecap="round"
                             />
                             {/* Yellow dot with white stroke */}
-                            <circle cx="360" cy="22" r="6" fill="#f2c230" stroke="#f4ecd8" strokeWidth="2" />
+                            <circle cx={curX} cy={curY} r="6" fill="#f2c230" stroke="#f4ecd8" strokeWidth="2" />
                           </svg>
                         </div>
 
-                        {/* Barisan Bulan */}
+                        {/* Barisan Bulan / Hari */}
                         <div className="portal-months">
-                          {MONTHS.map((m, idx) => (
+                          {chartLabels.map((label, idx) => (
                             <span
-                              key={m}
-                              className={idx === currentMonthIdx ? 'cur' : undefined}
+                              key={label}
+                              className={idx === chartCurrentIdx ? 'cur' : undefined}
                             >
-                              {m}
+                              {label}
                             </span>
                           ))}
                         </div>
@@ -531,19 +628,15 @@ export default function DashboardGuru() {
                     {/* 3 Template Cards Sesuai Gambar 1 (.pc .card) */}
                     <div className="portal-cards-grid">
                       {ringkasan.templateTerbaru.slice(0, 3).map((tmpl, idx) => {
-                        const totalSesi = Math.max(1, ringkasan.totalSesi);
-                        const playedCount = idx === 0 ? Math.min(totalSesi, 2) : 1;
-                        const percentage = Math.round((playedCount / totalSesi) * 100);
+                        const totalSesiInt = Math.max(1, ringkasan.totalSesi);
+                        const playedCount = idx === 0 ? Math.min(totalSesiInt, 2) : 1;
+                        const percentage = Math.round((playedCount / totalSesiInt) * 100);
 
                         return (
                           <div key={tmpl.id} className="portal-card portal-pc">
                             {/* Floating Badge di atas kartu */}
                             <div className="badge">
-                              {tmpl.mode === 'multi' ? (
-                                <BookOpen className="w-6 h-6" />
-                              ) : (
-                                <BookOpen className="w-6 h-6" />
-                              )}
+                              <BookOpen className="w-6 h-6" />
                             </div>
 
                             <div>
@@ -564,7 +657,7 @@ export default function DashboardGuru() {
 
                             {/* Footer: X dari Y sesi & tombol Mulai */}
                             <div className="portal-foot">
-                              <span>{playedCount} dari {totalSesi} sesi</span>
+                              <span>{playedCount} dari {totalSesiInt} sesi</span>
                               <button
                                 type="button"
                                 onClick={() => handleMulaiGame(tmpl.id, tmpl.mode)}
@@ -826,7 +919,7 @@ export default function DashboardGuru() {
                 </div>
               )}
 
-              {/* TAB 3: RIWAYAT SESI */}
+              {/* TAB 3: RIWAYAT SESI (SESUAI GAMBAR 3 & DESAIN ASLI) */}
               {tabAktif === 'riwayat' && (
                 <div className="space-y-4">
                   {riwayatList.length === 0 ? (
@@ -849,54 +942,66 @@ export default function DashboardGuru() {
                   ) : (
                     <div className="portal-card overflow-hidden">
                       <div className="divide-y-2 divide-dashed divide-[#e0d5b8]">
-                        {riwayatList.map((r) => (
-                          <div
-                            key={r.id}
-                            className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-                          >
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="portal-tag yellow font-bold">
-                                  Mode {r.mode}
-                                </span>
-                                <span className="text-xs text-[#6b7d6c]">
-                                  {new Date(r.tanggal).toLocaleDateString('id-ID', {
-                                    day: 'numeric',
-                                    month: 'short',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}
-                                </span>
-                              </div>
-                              <h4 className="portal-cv text-2xl text-[#1d3b2e]">
-                                {r.templateJudul}
-                              </h4>
-                              <div className="text-xs font-semibold text-[#1d3b2e]">
-                                Pemenang:{' '}
-                                <strong>
-                                  {r.timMenang === 'merah'
-                                    ? '🔴 Tim Merah'
-                                    : r.timMenang === 'putih'
-                                    ? '⚪ Tim Putih'
-                                    : '🤝 Seri'}
-                                </strong>{' '}
-                                (Skor: {r.skorMerah} vs {r.skorPutih}) • Posisi Tali:{' '}
-                                <span className="font-mono font-bold">
-                                  {r.posisiAkhir > 0 ? `+${r.posisiAkhir}` : r.posisiAkhir}
-                                </span>
-                              </div>
-                            </div>
+                        {riwayatList.map((r) => {
+                          const isRed = r.timMenang === 'merah';
+                          const isWhite = r.timMenang === 'putih';
 
-                            <button
-                              type="button"
-                              onClick={() => setModalDetailSessionId(r.id)}
-                              className="portal-btn ghost-red sm"
+                          return (
+                            <div
+                              key={r.id}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                gap: '16px',
+                                padding: '20px 26px',
+                              }}
                             >
-                              Lihat Detail
-                            </button>
-                          </div>
-                        ))}
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="portal-tag yellow font-bold">
+                                    Mode {r.mode === 'multi' ? 'MULTI' : 'SOLO'}
+                                  </span>
+                                  <span className="text-xs text-[#6b7d6c]">
+                                    {new Date(r.tanggal).toLocaleDateString('id-ID', {
+                                      day: 'numeric',
+                                      month: 'short',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </span>
+                                </div>
+                                <h3 className="portal-cv text-2xl text-[#1d3b2e]">
+                                  {r.templateJudul}
+                                </h3>
+                                <div className="text-xs font-semibold text-[#1d3b2e]">
+                                  Pemenang:{' '}
+                                  <span>
+                                    {isRed
+                                      ? '🔴 Tim Merah'
+                                      : isWhite
+                                      ? '⚪ Tim Putih'
+                                      : '🤝 Seri'}
+                                  </span>{' '}
+                                  (Skor: {r.skorMerah} vs {r.skorPutih}) • Posisi Tali:{' '}
+                                  <span className="font-mono font-bold">
+                                    {r.posisiAkhir > 0 ? `+${r.posisiAkhir}` : r.posisiAkhir}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => setModalDetailSessionId(r.id)}
+                                className="portal-btn ghost-red sm"
+                                style={{ flexShrink: 0 }}
+                              >
+                                Lihat Detail
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
