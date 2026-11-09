@@ -186,6 +186,7 @@ papanRouter.post('/', async (req: AuthRequest, res: Response) => {
         id: board.id,
         judul: board.judul,
         data: board.data,
+        ownerId: board.ownerId,
         updatedAt: board.updatedAt,
       },
     });

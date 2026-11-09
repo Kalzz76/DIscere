@@ -10,6 +10,8 @@ import Privasi from './pages/publik/Privasi';
 import Daftar from './pages/publik/Daftar';
 import Masuk from './pages/publik/Masuk';
 import MainSiswa from './pages/siswa/Main';
+import PapanTulis from './pages/papan/PapanTulis';
+import KolaborasiPublik from './pages/papan/KolaborasiPublik';
 
 import DashboardGuru from './pages/guru/Dashboard';
 import TemplateForm from './pages/guru/TemplateForm';
@@ -33,6 +35,7 @@ export default function App() {
             <Route path="/daftar" element={<Daftar />} />
             <Route path="/masuk" element={<Masuk />} />
             <Route path="/main" element={<MainSiswa />} />
+            <Route path="/b/:token" element={<KolaborasiPublik />} />
 
             {/* Rute Terlindungi Guru */}
             <Route element={<RequireRole allowedRole="guru" />}>
@@ -41,6 +44,7 @@ export default function App() {
               <Route path="/guru/template/:id/ubah" element={<TemplateForm />} />
               <Route path="/guru/sesi/:id" element={<LayarHost />} />
               <Route path="/guru/sesi/:id/hasil" element={<HasilSolo />} />
+              <Route path="/papan/:id" element={<PapanTulis />} />
             </Route>
 
             {/* Rute Terlindungi Admin */}
