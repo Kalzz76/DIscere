@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router';
 import { apiRequest } from '../../lib/api';
 import { VisualisasiTali } from './VisualisasiTali';
 import { Button, Card, Modal } from '../../components';
+import { soundEffects } from '../../lib/soundEffects';
 import {
   Play,
   Pause,
@@ -11,6 +12,8 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 interface SoalAktif {
@@ -57,6 +60,7 @@ export default function LayarHostSolo() {
   // State modal konfirmasi akhiri permainan
   const [modalAkhiriOpen, setModalAkhiriOpen] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
+  const [isMuted, setIsMuted] = useState(soundEffects.getMuted());
 
   // Ambil data sesi dari server
   const fetchSesi = useCallback(async () => {
@@ -96,6 +100,7 @@ export default function LayarHostSolo() {
             }
           : null
       );
+      soundEffects.playWhistle();
     } catch (err: any) {
       alert(err.pesan || 'Gagal memulai permainan.');
     } finally {
@@ -159,6 +164,13 @@ export default function LayarHostSolo() {
         penjelasan: res.penjelasan,
       });
 
+      if (res.benar) {
+        soundEffects.playCorrect();
+        soundEffects.playRopeTug();
+      } else {
+        soundEffects.playIncorrect();
+      }
+
       // Perbarui posisi tali dan skor di layar
       setSesi((prev) =>
         prev
@@ -174,6 +186,7 @@ export default function LayarHostSolo() {
       // Jeda 1.8 detik untuk visualisasi sebelum berpindah giliran/selesai
       setTimeout(() => {
         if (res.isFinished) {
+          soundEffects.playVictoryFanfare();
           navigate(`/guru/sesi/${id}/hasil`, { replace: true });
         } else {
           setSesi((prev) =>
@@ -291,6 +304,20 @@ export default function LayarHostSolo() {
             >
               Akhiri
             </Button>
+
+            {/* Tombol Efek Suara Web Audio */}
+            <button
+              onClick={() => setIsMuted(soundEffects.toggleMute())}
+              className="p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              title={isMuted ? 'Nyalakan Efek Suara' : 'Bisukan Efek Suara'}
+              aria-label={isMuted ? 'Nyalakan Efek Suara' : 'Bisukan Efek Suara'}
+            >
+              {isMuted ? (
+                <VolumeX className="w-5 h-5 text-rose-500" />
+              ) : (
+                <Volume2 className="w-5 h-5 text-emerald-600" />
+              )}
+            </button>
           </div>
         </header>
 

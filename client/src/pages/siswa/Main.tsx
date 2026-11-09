@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router';
 import { getSocket } from '../../lib/socket';
 import { Button, Card } from '../../components';
+import { soundEffects } from '../../lib/soundEffects';
 import {
   Users,
   Trophy,
@@ -213,18 +214,26 @@ export default function MainSiswa() {
       setSkorPutih(data.skorPutih);
 
       // Tampilkan feedback apakah jawaban pemain benar/salah
-      setFeedback((prev) => ({
-        tampil: true,
-        benar: prev?.benar,
-        jawabanBenar: data.jawabanBenar,
-        penjelasan: data.penjelasan,
-      }));
+      setFeedback((prev) => {
+        if (prev?.benar) {
+          soundEffects.playCorrect();
+        } else if (prev?.benar === false) {
+          soundEffects.playIncorrect();
+        }
+        return {
+          tampil: true,
+          benar: prev?.benar,
+          jawabanBenar: data.jawabanBenar,
+          penjelasan: data.penjelasan,
+        };
+      });
     };
 
     // 6. Seluruh Permainan Selesai
     const handleSesiSelesai = (data: { hasil: SelesaiResult }) => {
       setHasilAkhir(data.hasil);
       setStage('SELESAI');
+      soundEffects.playVictoryFanfare();
       // Hapus data session agar siswa bisa join game baru berikutnya jika diinginkan
       sessionStorage.removeItem('discere_multi_token');
       sessionStorage.removeItem('discere_multi_peserta_id');

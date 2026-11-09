@@ -4,6 +4,7 @@ import { apiRequest } from '../../lib/api';
 import { getSocket } from '../../lib/socket';
 import { VisualisasiTali } from './VisualisasiTali';
 import { Button, Card, Modal } from '../../components';
+import { soundEffects } from '../../lib/soundEffects';
 import {
   Trophy,
   Users,
@@ -13,6 +14,8 @@ import {
   RotateCcw,
   Loader2,
   ShieldAlert,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 interface PesertaItem {
@@ -80,6 +83,7 @@ export default function LayarHostMulti() {
   // Modal Akhiri
   const [modalAkhiriOpen, setModalAkhiriOpen] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
+  const [isMuted, setIsMuted] = useState(soundEffects.getMuted());
   const [isMainLagiLoading, setIsMainLagiLoading] = useState(false);
 
   // Timer interval ref
@@ -194,6 +198,7 @@ export default function LayarHostMulti() {
       setAnsweredCount(0);
       setRekapSoal(null);
       startCountdown(data.endsAt);
+      soundEffects.playWhistle();
     };
 
     // Listener Pergerakan Tali & Progress Jawaban
@@ -209,6 +214,7 @@ export default function LayarHostMulti() {
       if (data.answeredCount !== undefined) {
         setAnsweredCount(data.answeredCount);
       }
+      soundEffects.playRopeTug();
     };
 
     // Listener Penutupan Soal (Intermission)
@@ -233,12 +239,17 @@ export default function LayarHostMulti() {
         benarCount: data.stats?.benar,
         salahCount: data.stats?.salah,
       });
+
+      if (data.stats && data.stats.benar > 0) {
+        soundEffects.playCorrect();
+      }
     };
 
     // Listener Sesi Selesai
     const handleSesiSelesai = (data: { hasil: HasilPermainan }) => {
       setHasilAkhir(data.hasil);
       setStatus('selesai');
+      soundEffects.playVictoryFanfare();
     };
 
     socket.on('lobi:update', handleLobiUpdate);
@@ -348,6 +359,18 @@ export default function LayarHostMulti() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsMuted(soundEffects.toggleMute())}
+              className="p-2.5 rounded-2xl border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors cursor-pointer"
+              title={isMuted ? 'Nyalakan Efek Suara' : 'Bisukan Efek Suara'}
+              aria-label={isMuted ? 'Nyalakan Efek Suara' : 'Bisukan Efek Suara'}
+            >
+              {isMuted ? (
+                <VolumeX className="w-5 h-5 text-rose-500" />
+              ) : (
+                <Volume2 className="w-5 h-5 text-emerald-400" />
+              )}
+            </button>
             <Button
               variant="sekunder"
               onClick={() => navigate('/guru')}
@@ -478,7 +501,19 @@ export default function LayarHostMulti() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsMuted(soundEffects.toggleMute())}
+              className="p-2.5 rounded-2xl border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors cursor-pointer"
+              title={isMuted ? 'Nyalakan Efek Suara' : 'Bisukan Efek Suara'}
+              aria-label={isMuted ? 'Nyalakan Efek Suara' : 'Bisukan Efek Suara'}
+            >
+              {isMuted ? (
+                <VolumeX className="w-5 h-5 text-rose-500" />
+              ) : (
+                <Volume2 className="w-5 h-5 text-emerald-400" />
+              )}
+            </button>
             <Button
               variant="sekunder"
               onClick={() => setModalAkhiriOpen(true)}
