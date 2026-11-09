@@ -7,7 +7,7 @@ import {
   BarChart3,
   Users,
   BookOpen,
-  Sparkles,
+  Cpu,
   History,
   Search,
   CheckCircle2,
@@ -88,6 +88,9 @@ export default function DashboardAdmin() {
 
   // 5. Data Audit Log Admin
   const [adminLogs, setAdminLogs] = useState<any[]>([]);
+
+  // Konfirmasi Keluar Modal
+  const [modalKeluarOpen, setModalKeluarOpen] = useState(false);
 
   const handleKeluar = async () => {
     await keluar();
@@ -397,7 +400,7 @@ export default function DashboardAdmin() {
               onClick={() => setActiveTab('ai')}
               title="Monitoring AI"
             >
-              <Sparkles className="w-4 h-4 text-[#f2c230] shrink-0" />
+              <Cpu className="w-4 h-4 shrink-0" />
               <span>Monitoring AI</span>
             </button>
 
@@ -416,7 +419,12 @@ export default function DashboardAdmin() {
             <span className="portal-who-label">Masuk sebagai:</span>
             <b>{user?.nama || 'Administrator'}</b>
             <span>{user?.email}</span>
-            <button type="button" onClick={handleKeluar} className="portal-out" title="Keluar">
+            <button
+              type="button"
+              onClick={() => setModalKeluarOpen(true)}
+              className="portal-out"
+              title="Keluar"
+            >
               <LogOut className="w-4 h-4 shrink-0" />
               <span>Keluar</span>
             </button>
@@ -704,69 +712,69 @@ export default function DashboardAdmin() {
               {/* ========================================================= */}
               {activeTab === 'pustaka' && (
                 <div className="space-y-5">
-                  <div className="portal-over flex items-center justify-between">
-                    <div>
-                      <h2 className="portal-cv text-2xl text-[#f4ecd8]">Bank Soal Resmi Platform</h2>
+                  {daftarPustaka.length === 0 ? (
+                    <div className="portal-over text-center py-12 px-4 space-y-3">
+                      <h2 className="portal-cv text-2xl text-[#f4ecd8]">Belum Ada Template Resmi Tersimpan</h2>
                       <p className="text-xs text-[#cfd9c3]">
-                        Template materi terverifikasi yang langsung dapat disalin oleh seluruh guru
+                        Susun template materi terverifikasi yang langsung dapat disalin dan dimainkan oleh seluruh guru.
                       </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleBukaModalTemplateBaru}
-                      className="portal-btn red sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Buat Baru</span>
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {daftarPustaka.map((tmpl) => (
-                      <div
-                        key={tmpl.id}
-                        className="portal-card p-5 flex flex-col justify-between gap-4"
+                      <button
+                        type="button"
+                        onClick={handleBukaModalTemplateBaru}
+                        className="portal-btn red sm inline-flex items-center gap-2"
                       >
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="portal-tag blue">Resmi Platform</span>
-                            <span className="text-xs font-bold text-[#6b7d6c] uppercase">
-                              Mode {tmpl.mode}
-                            </span>
+                        <Plus className="w-4 h-4" />
+                        <span>Buat Template Pertama</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {daftarPustaka.map((tmpl) => (
+                        <div
+                          key={tmpl.id}
+                          className="portal-card p-5 flex flex-col justify-between gap-4"
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="portal-tag blue">Resmi Platform</span>
+                              <span className="text-xs font-bold text-[#6b7d6c] uppercase">
+                                Mode {tmpl.mode}
+                              </span>
+                            </div>
+                            <h3 className="portal-cv text-2xl text-[#1d3b2e] leading-snug">
+                              {tmpl.judul}
+                            </h3>
+                            <div className="text-xs text-[#6b7d6c] flex items-center gap-1.5 pt-1">
+                              <Gamepad2 className="w-4 h-4 text-[#c8362f]" />
+                              <span className="font-bold">
+                                Tarik Tambang • {tmpl.questions?.length || 0} Soal
+                              </span>
+                            </div>
                           </div>
-                          <h3 className="portal-cv text-2xl text-[#1d3b2e] leading-snug">
-                            {tmpl.judul}
-                          </h3>
-                          <div className="text-xs text-[#6b7d6c] flex items-center gap-1.5 pt-1">
-                            <Gamepad2 className="w-4 h-4 text-[#c8362f]" />
-                            <span className="font-bold">
-                              Tarik Tambang • {tmpl.questions?.length || 0} Soal
-                            </span>
-                          </div>
-                        </div>
 
-                        <div className="pt-3 border-t-2 border-dashed border-[#e0d5b8] flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleBukaModalEditTemplate(tmpl)}
-                            className="portal-btn ghost sm"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" /> Ubah
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTargetHapusTemplate(tmpl);
-                              setModalHapusTemplateOpen(true);
-                            }}
-                            className="portal-btn ghost-red sm"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Hapus
-                          </button>
+                          <div className="pt-3 border-t-2 border-dashed border-[#e0d5b8] flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleBukaModalEditTemplate(tmpl)}
+                              className="portal-btn ghost sm"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" /> Ubah
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTargetHapusTemplate(tmpl);
+                                setModalHapusTemplateOpen(true);
+                              }}
+                              className="portal-btn ghost-red sm"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Hapus
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1234,6 +1242,36 @@ export default function DashboardAdmin() {
               disabled={submittingTemplate}
             >
               Ya, Hapus
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Konfirmasi Keluar Akun Admin */}
+      <Modal
+        isOpen={modalKeluarOpen}
+        onClose={() => setModalKeluarOpen(false)}
+        title="Konfirmasi Keluar"
+        maxWidth="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-[#1d3b2e] leading-relaxed">
+            Apakah Anda yakin ingin keluar dari akun?
+          </p>
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#e0d5b8]">
+            <button
+              type="button"
+              onClick={() => setModalKeluarOpen(false)}
+              className="portal-btn ghost sm"
+            >
+              Tidak
+            </button>
+            <button
+              type="button"
+              onClick={handleKeluar}
+              className="portal-btn red sm"
+            >
+              Ya, Keluar
             </button>
           </div>
         </div>

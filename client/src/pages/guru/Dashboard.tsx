@@ -163,6 +163,7 @@ export default function DashboardGuru() {
     totalSoal: number;
   } | null>(null);
   const [kerupukCreating, setKerupukCreating] = useState(false);
+  const [modalKeluarOpen, setModalKeluarOpen] = useState(false);
 
   const fetchRingkasan = useCallback(async () => {
     try {
@@ -543,7 +544,12 @@ export default function DashboardGuru() {
             <span className="portal-who-label">Masuk sebagai:</span>
             <b>{user?.nama || 'Guru Demo'}</b>
             <span>{user?.sekolah || 'SD Negeri Merdeka 01'}</span>
-            <button type="button" onClick={handleKeluar} className="portal-out" title="Keluar">
+            <button
+              type="button"
+              onClick={() => setModalKeluarOpen(true)}
+              className="portal-out"
+              title="Keluar"
+            >
               <LogOut className="w-4 h-4 shrink-0" />
               <span>Keluar</span>
             </button>
@@ -793,7 +799,7 @@ export default function DashboardGuru() {
                             className="portal-tag yellow font-bold cursor-pointer hover:opacity-90 transition-opacity"
                             title="Klik untuk membuka pustaka resmi admin"
                           >
-                            ⭐ {pustakaResmi.length} Pustaka Admin
+                            Resmi Admin ({pustakaResmi.length})
                           </button>
                         )}
                       </div>
@@ -948,7 +954,7 @@ export default function DashboardGuru() {
                               <b>{t.judul}</b>
                               <small>
                                 {t.jumlahSoal || t._count?.questions || 0} Soal • {t.mode}
-                                {t.resmi ? ' • ⭐ Admin' : ''}
+                                {t.resmi ? ' • Resmi Admin' : ''}
                               </small>
                             </div>
                             <button
@@ -1073,8 +1079,8 @@ export default function DashboardGuru() {
                                   : 'Mode Solo'}
                               </span>
                               {isAdminOfficial && (
-                                <span className="portal-tag yellow font-bold flex items-center gap-1">
-                                  ⭐ Resmi Admin
+                                <span className="portal-tag blue font-bold">
+                                  Resmi Platform
                                 </span>
                               )}
                             </div>
@@ -1323,10 +1329,10 @@ export default function DashboardGuru() {
                                 {riwayatFilterMenang === 'semua'
                                   ? 'Semua Hasil'
                                   : riwayatFilterMenang === 'merah'
-                                  ? '🔴 Tim Merah'
+                                  ? 'Tim Merah'
                                   : riwayatFilterMenang === 'putih'
-                                  ? '⚪ Tim Putih'
-                                  : '🤝 Seri'}
+                                  ? 'Tim Putih'
+                                  : 'Seri'}
                               </span>
                               <ChevronDown
                                 className={`w-3.5 h-3.5 transition-transform duration-200 ${
@@ -1339,9 +1345,9 @@ export default function DashboardGuru() {
                               <div className="portal-dropdown-menu">
                                 {[
                                   { val: 'semua', label: 'Semua Hasil' },
-                                  { val: 'merah', label: '🔴 Tim Merah Menang' },
-                                  { val: 'putih', label: '⚪ Tim Putih Menang' },
-                                  { val: 'seri', label: '🤝 Seri' },
+                                  { val: 'merah', label: 'Tim Merah Menang' },
+                                  { val: 'putih', label: 'Tim Putih Menang' },
+                                  { val: 'seri', label: 'Seri' },
                                 ].map((item) => (
                                   <button
                                     key={item.val}
@@ -1423,12 +1429,12 @@ export default function DashboardGuru() {
                                       </h3>
                                       <div className="text-xs font-semibold text-[#1d3b2e]">
                                         Pemenang:{' '}
-                                        <span>
+                                        <span className="font-bold">
                                           {isRed
-                                            ? '🔴 Tim Merah'
+                                            ? 'Tim Merah'
                                             : isWhite
-                                            ? '⚪ Tim Putih'
-                                            : '🤝 Seri'}
+                                            ? 'Tim Putih'
+                                            : 'Seri'}
                                         </span>{' '}
                                         (Skor: {r.skorMerah} vs {r.skorPutih}) • Posisi Tali:{' '}
                                         <span className="font-mono font-bold">
@@ -1755,6 +1761,36 @@ export default function DashboardGuru() {
         onMulai={handleKonfirmasiKerupuk}
         loading={kerupukCreating}
       />
+
+      {/* Modal Konfirmasi Keluar Akun Guru */}
+      <Modal
+        isOpen={modalKeluarOpen}
+        onClose={() => setModalKeluarOpen(false)}
+        title="Konfirmasi Keluar"
+        maxWidth="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-[#1d3b2e] leading-relaxed">
+            Apakah Anda yakin ingin keluar dari akun?
+          </p>
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#e0d5b8]">
+            <button
+              type="button"
+              onClick={() => setModalKeluarOpen(false)}
+              className="portal-btn ghost sm"
+            >
+              Tidak
+            </button>
+            <button
+              type="button"
+              onClick={handleKeluar}
+              className="portal-btn red sm"
+            >
+              Ya, Keluar
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
