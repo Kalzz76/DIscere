@@ -175,9 +175,10 @@ export default function DashboardGuru() {
 
   const fetchTemplates = useCallback(async () => {
     try {
+      const q = encodeURIComponent(pencarian);
       const [resSaya, resPustaka] = await Promise.all([
-        apiRequest<{ templates: TemplateItem[] }>(`/template?q=${encodeURIComponent(pencarian)}`),
-        apiRequest<{ templates: TemplateItem[] }>('/template/pustaka'),
+        apiRequest<{ templates: TemplateItem[] }>(`/template?q=${q}`),
+        apiRequest<{ templates: TemplateItem[] }>(`/template/pustaka?q=${q}`),
       ]);
       setTemplates(resSaya.templates);
       setPustakaResmi(resPustaka.templates);
@@ -438,6 +439,15 @@ export default function DashboardGuru() {
   }
   const areaPath = `${curvePath} L ${pts[n - 1][0]} 130 L 0 130 Z`;
   const [curX, curY] = pts[chartCurrentIdx] || [360, 28];
+
+  // Template filtering calculations (live client-side + server-synced)
+  const qClean = pencarian.toLowerCase().trim();
+  const templatesTersaring = templates.filter(
+    (t) => !qClean || t.judul.toLowerCase().includes(qClean)
+  );
+  const pustakaTersaring = pustakaResmi.filter(
+    (t) => !qClean || t.judul.toLowerCase().includes(qClean)
+  );
 
   // Riwayat filtering & pagination calculations
   const riwayatTersaring = riwayatList.filter((r) => {
@@ -769,16 +779,49 @@ export default function DashboardGuru() {
                       </div>
                     </div>
 
-                    {/* Section: Template Game Terbaru */}
-                    <div className="portal-sec" style={{ margin: '4px 0 -6px' }}>
-                      <span>Template Game Terbaru</span>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/guru?tab=template')}
-                        style={{ color: '#f2c230' }}
-                      >
-                        Lihat Semua
-                      </button>
+                    {/* Section: Template Game Terbaru & Quick Search */}
+                    <div className="portal-sec flex flex-wrap items-center justify-between gap-3" style={{ margin: '4px 0 -6px' }}>
+                      <div className="flex items-center gap-2">
+                        <span>Template Game Terbaru</span>
+                        {pustakaResmi.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSubTabTemplate('pustaka');
+                              navigate('/guru?tab=template');
+                            }}
+                            className="portal-tag yellow font-bold cursor-pointer hover:opacity-90 transition-opacity"
+                            title="Klik untuk membuka pustaka resmi admin"
+                          >
+                            ⭐ {pustakaResmi.length} Pustaka Admin
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="portal-srch" style={{ minWidth: '200px', height: '34px' }}>
+                          <Search className="w-3.5 h-3.5 text-[#6b7d6c]" />
+                          <input
+                            type="search"
+                            placeholder="Cari materi kuis..."
+                            value={pencarian}
+                            onChange={(e) => setPencarian(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                navigate('/guru?tab=template');
+                              }
+                            }}
+                            aria-label="Cari template materi"
+                            style={{ fontSize: '12px' }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/guru?tab=template')}
+                          style={{ color: '#f2c230' }}
+                        >
+                          Lihat Semua
+                        </button>
+                      </div>
                     </div>
 
                     {/* 3 Template Cards Sesuai Gambar 1 (.pc .card) */}
@@ -896,14 +939,17 @@ export default function DashboardGuru() {
                           );
                         })
                       ) : (
-                        templates.slice(0, 4).map((t) => (
+                        (templates.length > 0 ? templates : pustakaResmi).slice(0, 4).map((t) => (
                           <div key={t.id} className="portal-fr">
                             <div className="portal-av b">
                               <BookOpen className="w-4 h-4 text-[#f4ecd8]" />
                             </div>
                             <div className="t">
                               <b>{t.judul}</b>
-                              <small>{t.jumlahSoal || t._count?.questions || 0} Soal • {t.mode}</small>
+                              <small>
+                                {t.jumlahSoal || t._count?.questions || 0} Soal • {t.mode}
+                                {t.resmi ? ' • ⭐ Admin' : ''}
+                              </small>
                             </div>
                             <button
                               type="button"
@@ -968,14 +1014,14 @@ export default function DashboardGuru() {
                         className={subTabTemplate === 'saya' ? 'on' : ''}
                         onClick={() => setSubTabTemplate('saya')}
                       >
-                        Template Saya ({templates.length})
+                        Template Saya ({templatesTersaring.length})
                       </button>
                       <button
                         type="button"
                         className={subTabTemplate === 'pustaka' ? 'on' : ''}
                         onClick={() => setSubTabTemplate('pustaka')}
                       >
-                        Pustaka Resmi ({pustakaResmi.length})
+                        Pustaka Resmi Admin ({pustakaTersaring.length})
                       </button>
                     </div>
 
@@ -983,24 +1029,39 @@ export default function DashboardGuru() {
                       <Search className="w-4 h-4 text-[#6b7d6c]" />
                       <input
                         type="search"
-                        placeholder="Cari materi kuis..."
+                        placeholder={
+                          subTabTemplate === 'saya'
+                            ? 'Cari di template saya...'
+                            : 'Cari di pustaka resmi admin...'
+                        }
                         value={pencarian}
                         onChange={(e) => setPencarian(e.target.value)}
                         aria-label="Cari materi"
                       />
+                      {pencarian && (
+                        <button
+                          type="button"
+                          onClick={() => setPencarian('')}
+                          className="text-sm font-bold text-[#6b7d6c] hover:text-[#1d3b2e]"
+                          title="Hapus pencarian"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {(subTabTemplate === 'saya' ? templates : pustakaResmi).map((tmpl) => {
+                    {(subTabTemplate === 'saya' ? templatesTersaring : pustakaTersaring).map((tmpl) => {
                       const jumlahSoal = tmpl._count?.questions ?? tmpl.jumlahSoal ?? 0;
+                      const isAdminOfficial = tmpl.resmi || subTabTemplate === 'pustaka';
                       return (
                         <div
                           key={tmpl.id}
                           className="portal-card p-5 flex flex-col justify-between gap-4"
                         >
                           <div className="space-y-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <span className={`portal-tag ${tmpl.game === 'makan_kerupuk' ? 'yellow font-bold' : 'red'}`}>
                                 {tmpl.game === 'makan_kerupuk' ? 'Makan Kerupuk' : 'Tarik Tambang'}
                               </span>
@@ -1011,12 +1072,18 @@ export default function DashboardGuru() {
                                   ? 'Mode Multiplayer'
                                   : 'Mode Solo'}
                               </span>
+                              {isAdminOfficial && (
+                                <span className="portal-tag yellow font-bold flex items-center gap-1">
+                                  ⭐ Resmi Admin
+                                </span>
+                              )}
                             </div>
                             <h3 className="portal-cv text-2xl text-[#1d3b2e] leading-snug">
                               {tmpl.judul}
                             </h3>
                             <p className="text-xs text-[#6b7d6c] font-bold">
                               {jumlahSoal} Soal Tersedia
+                              {isAdminOfficial && ' • Dibuat oleh Admin Kurikulum'}
                             </p>
                           </div>
 
@@ -1066,14 +1133,32 @@ export default function DashboardGuru() {
                                 </div>
                               </>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleDuplikat(tmpl.id)}
-                                className="portal-btn red sm"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                                <span>Salin ke Template Saya</span>
-                              </button>
+                              <div className="w-full flex flex-wrap items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMulaiGame(tmpl.id, tmpl.mode, tmpl.game)}
+                                  className="portal-btn red sm"
+                                  title="Gunakan langsung template buatan admin ini"
+                                >
+                                  <Play className="w-3.5 h-3.5 fill-current" />
+                                  <span>
+                                    {tmpl.game === 'makan_kerupuk'
+                                      ? 'Makan Kerupuk'
+                                      : tmpl.mode === 'multi'
+                                      ? 'Mulai Lomba'
+                                      : 'Mulai Solo'}
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDuplikat(tmpl.id)}
+                                  className="portal-btn ghost sm"
+                                  title="Salin ke Template Saya untuk dimodifikasi"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Salin ke Koleksi</span>
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1081,11 +1166,45 @@ export default function DashboardGuru() {
                     })}
                   </div>
 
-                  {(subTabTemplate === 'saya' ? templates : pustakaResmi).length === 0 && (
-                    <div className="portal-over text-center py-12">
-                      <p className="portal-cv text-2xl text-[#f4ecd8]">
-                        Belum ada template materi yang sesuai.
-                      </p>
+                  {(subTabTemplate === 'saya' ? templatesTersaring : pustakaTersaring).length === 0 && (
+                    <div className="portal-over text-center py-12 px-4 space-y-3">
+                      {subTabTemplate === 'saya' && pustakaTersaring.length > 0 && qClean ? (
+                        <>
+                          <p className="portal-cv text-2xl text-[#f4ecd8]">
+                            Tidak ditemukan di Template Saya
+                          </p>
+                          <p className="text-sm text-[#cfd9c3]">
+                            Ditemukan <b>{pustakaTersaring.length} template serupa</b> yang dibuat oleh Admin!
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setSubTabTemplate('pustaka')}
+                            className="portal-btn red sm inline-flex items-center gap-2"
+                          >
+                            <BookOpen className="w-4 h-4" />
+                            <span>Gunakan Template Buatan Admin ({pustakaTersaring.length})</span>
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="portal-cv text-2xl text-[#f4ecd8]">
+                            {qClean
+                              ? `Materi "${pencarian}" tidak ditemukan.`
+                              : subTabTemplate === 'saya'
+                              ? 'Belum ada template. Buat yang pertama atau gunakan template resmi admin!'
+                              : 'Belum ada template resmi di pustaka admin.'}
+                          </p>
+                          {qClean && (
+                            <button
+                              type="button"
+                              onClick={() => setPencarian('')}
+                              className="portal-btn ghost sm"
+                            >
+                              Bersihkan Pencarian
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
