@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiRequest } from '../../lib/api';
-import { Modal, Button, Badge } from '../../components';
+import { Modal } from '../../components';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -83,38 +83,42 @@ export function RiwayatDetailModal({
     fetchDetail();
   }, [sessionId, isOpen]);
 
+  // Posisi visual tali (-5 sampai +5) dipetakan ke persentase 10% - 90%
+  const ropePos = detail ? Math.max(-5, Math.min(5, detail.posisiAkhir)) : 0;
+  const ropeLeftPercent = 50 + ropePos * 8;
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Detail Hasil Pertandingan Sesi"
+      title="Detail Analisis Pertandingan Sesi"
       maxWidth="lg"
     >
       {loading ? (
-        <div className="py-12 flex flex-col items-center justify-center text-slate-500">
-          <Loader2 className="w-8 h-8 animate-spin text-[#D7262E] mb-3" />
-          <p className="text-sm font-medium">Memuat rincian statistik sesi...</p>
+        <div className="py-12 flex flex-col items-center justify-center text-[#6b7d6c]">
+          <Loader2 className="w-8 h-8 animate-spin text-[#c8362f] mb-3" />
+          <p className="portal-cv text-xl text-[#1d3b2e]">Menyiapkan rekapitulasi nilai...</p>
         </div>
       ) : errorPesan || !detail ? (
-        <div className="py-6 text-center text-slate-600 dark:text-slate-300">
+        <div className="py-6 text-center text-[#6b7d6c]">
           <p>{errorPesan || 'Data tidak tersedia.'}</p>
         </div>
       ) : (
-        <div className="space-y-6 max-h-[75vh] overflow-y-auto pr-1">
+        <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1">
           {/* Header Ringkasan */}
-          <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+          <div className="bg-[#f4ecd9] p-4 rounded-2xl border border-[#e0d5b8] space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Materi Permainan
+              <span className="text-xs font-bold uppercase tracking-wider text-[#6b7d6c]">
+                Materi Kuis Tarik Tambang
               </span>
-              <Badge variant="slate" size="sm">
-                Mode {detail.mode}
-              </Badge>
+              <span className="portal-tag yellow font-bold">
+                Mode {detail.mode === 'multi' ? 'Multiplayer' : 'Solo'}
+              </span>
             </div>
-            <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
+            <h3 className="portal-cv text-2xl text-[#1d3b2e] leading-snug">
               {detail.templateJudul}
             </h3>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-[#6b7d6c]">
               Dimainkan pada:{' '}
               {new Date(detail.tanggal).toLocaleDateString('id-ID', {
                 day: 'numeric',
@@ -126,25 +130,42 @@ export function RiwayatDetailModal({
             </div>
           </div>
 
-          {/* Kartu Pemenang & Posisi Akhir */}
+          {/* Indikator Visual Tali Tarik Tambang */}
+          <div className="bg-[#fbf6e9] p-4 rounded-2xl border border-[#e0d5b8] space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-[#1d3b2e]">
+              <span>Visualisasi Tali Pertandingan</span>
+              <span className="font-mono">
+                Posisi Akhir: {detail.posisiAkhir > 0 ? `+${detail.posisiAkhir}` : detail.posisiAkhir}
+              </span>
+            </div>
+            <div className="portal-rope">
+              <i style={{ left: `${ropeLeftPercent}%` }} />
+            </div>
+            <div className="portal-rl">
+              <span className="text-[#c8362f]">Tim Merah (Kiri)</span>
+              <span className="text-[#1d3b2e]">Tim Putih (Kanan)</span>
+            </div>
+          </div>
+
+          {/* Kartu Skor & Pemenang */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/40 rounded-xl">
-              <div className="text-xs font-semibold text-slate-500">Skor Merah</div>
-              <div className="text-2xl font-black text-[#D7262E]">
+            <div className="p-3 bg-[#f6d9d3] border border-[#d9544c]/30 rounded-xl">
+              <div className="text-xs font-bold text-[#c8362f]">Skor Merah</div>
+              <div className="portal-cv text-3xl text-[#c8362f]">
                 {detail.skorMerah}
               </div>
             </div>
 
-            <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/40 rounded-xl">
-              <div className="text-xs font-semibold text-slate-500">Skor Putih</div>
-              <div className="text-2xl font-black text-[#1E2A5A] dark:text-blue-300">
+            <div className="p-3 bg-[#dbeafe] border border-blue-200 rounded-xl">
+              <div className="text-xs font-bold text-[#1e40af]">Skor Putih</div>
+              <div className="portal-cv text-3xl text-[#1e40af]">
                 {detail.skorPutih}
               </div>
             </div>
 
-            <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
-              <div className="text-xs font-semibold text-slate-500">Pemenang</div>
-              <div className="text-base font-extrabold uppercase text-slate-800 dark:text-slate-100">
+            <div className="p-3 bg-[#f4ecd9] border border-[#e0d5b8] rounded-xl">
+              <div className="text-xs font-bold text-[#6b7d6c]">Pemenang</div>
+              <div className="text-sm font-extrabold uppercase text-[#1d3b2e] mt-1">
                 {detail.timMenang === 'merah'
                   ? '🔴 Merah'
                   : detail.timMenang === 'putih'
@@ -153,36 +174,40 @@ export function RiwayatDetailModal({
               </div>
             </div>
 
-            <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
-              <div className="text-xs font-semibold text-slate-500">Posisi Akhir Tali</div>
-              <div className="text-2xl font-black text-slate-800 dark:text-slate-100 font-mono">
-                {detail.posisiAkhir > 0 ? `+${detail.posisiAkhir}` : detail.posisiAkhir}
+            <div className="p-3 bg-[#f4ecd9] border border-[#e0d5b8] rounded-xl">
+              <div className="text-xs font-bold text-[#6b7d6c]">Akurasi Soal</div>
+              <div className="portal-cv text-3xl text-[#1d3b2e]">
+                {Math.round(
+                  (detail.totalBenar /
+                    Math.max(1, detail.totalBenar + detail.totalSalah)) *
+                    100
+                )}%
               </div>
             </div>
           </div>
 
           {/* Evaluasi Materi Guru: Soal Paling Sering Salah */}
           {detail.soalPalingSeringSalah && (
-            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200">
-              <div className="flex items-center gap-2 font-bold mb-1 text-sm">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Materi yang Perlu Evaluasi (Paling Banyak Salah)</span>
+            <div className="p-4 rounded-2xl bg-[#f8e7b0] border-2 border-[#f2c230] text-[#1d3b2e]">
+              <div className="flex items-center gap-2 font-bold mb-1 text-sm text-[#8a6a00]">
+                <AlertTriangle className="w-4 h-4 text-[#8a6a00] shrink-0" />
+                <span>Materi yang Perlu Evaluasi (Paling Banyak Dijawab Keliru)</span>
               </div>
-              <p className="text-base font-bold text-slate-900 dark:text-white mt-2">
+              <p className="portal-cv text-xl text-[#1d3b2e] mt-2">
                 Soal #{detail.soalPalingSeringSalah.urutan}:{' '}
                 {detail.soalPalingSeringSalah.teks}
               </p>
-              <div className="text-xs mt-2 flex gap-4">
-                <span className="text-red-600 font-semibold">
+              <div className="text-xs mt-2 flex gap-4 font-bold">
+                <span className="text-[#c8362f]">
                   Dijawab Salah: {detail.soalPalingSeringSalah.jumlahSalah}x
                 </span>
-                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
+                <span className="text-[#1f4a37]">
                   Dijawab Benar: {detail.soalPalingSeringSalah.jumlahBenar}x
                 </span>
               </div>
               {detail.soalPalingSeringSalah.penjelasan && (
-                <p className="text-xs mt-2 italic text-slate-600 dark:text-slate-400">
-                  Penjelasan: {detail.soalPalingSeringSalah.penjelasan}
+                <p className="text-xs mt-2 italic text-[#6b7d6c]">
+                  Penjelasan Kunci: {detail.soalPalingSeringSalah.penjelasan}
                 </p>
               )}
             </div>
@@ -190,28 +215,28 @@ export function RiwayatDetailModal({
 
           {/* Rincian Jawaban Per Soal */}
           <div className="space-y-3">
-            <h4 className="font-bold text-base">Rincian Hasil Seluruh Soal:</h4>
+            <h4 className="portal-cv text-xl text-[#1d3b2e]">Rincian Hasil Seluruh Soal:</h4>
             <div className="space-y-2">
               {detail.statsPerSoal.map((soal) => (
                 <div
                   key={soal.questionId}
-                  className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-start justify-between gap-4"
+                  className="p-3.5 rounded-xl border border-[#e0d5b8] bg-[#fbf6e9] flex items-start justify-between gap-4"
                 >
                   <div className="space-y-1">
-                    <div className="font-semibold text-sm">
+                    <div className="font-bold text-sm text-[#1d3b2e]">
                       #{soal.urutan}: {soal.teks}
                     </div>
-                    <div className="text-xs text-slate-500">
-                      Kunci: <strong>Opsi {soal.jawabanBenar}</strong>
+                    <div className="text-xs text-[#6b7d6c]">
+                      Kunci Jawaban: <strong className="text-[#1d3b2e]">Opsi {soal.jawabanBenar}</strong>
                       {soal.penjelasan && ` • ${soal.penjelasan}`}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    <span className="portal-tag green">
                       <CheckCircle2 className="w-3.5 h-3.5" /> {soal.jumlahBenar}
                     </span>
-                    <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300">
+                    <span className="portal-tag red">
                       <XCircle className="w-3.5 h-3.5" /> {soal.jumlahSalah}
                     </span>
                   </div>
@@ -221,9 +246,9 @@ export function RiwayatDetailModal({
           </div>
 
           <div className="pt-2 flex justify-end">
-            <Button variant="hantu" onClick={onClose}>
+            <button type="button" className="portal-btn ghost sm" onClick={onClose}>
               Tutup
-            </Button>
+            </button>
           </div>
         </div>
       )}

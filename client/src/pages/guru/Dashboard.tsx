@@ -17,6 +17,8 @@ import {
   Trash2,
   Search,
   Loader2,
+  ChevronRight,
+  ArrowRight,
 } from 'lucide-react';
 
 interface TemplateItem {
@@ -75,6 +77,8 @@ interface RingkasanData {
   } | null;
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
 export default function DashboardGuru() {
   const { user, keluar } = useAuth();
   const navigate = useNavigate();
@@ -98,6 +102,7 @@ export default function DashboardGuru() {
   const [riwayatList, setRiwayatList] = useState<SesiRiwayatItem[]>([]);
   const [boards, setBoards] = useState<BoardItem[]>([]);
   const [subTabTemplate, setSubTabTemplate] = useState<'saya' | 'pustaka'>('saya');
+  const [subTabAside, setSubTabAside] = useState<'hist' | 'tpl'>('hist');
   const [pencarian, setPencarian] = useState('');
 
   const [loading, setLoading] = useState(true);
@@ -259,6 +264,8 @@ export default function DashboardGuru() {
     navigate('/masuk');
   };
 
+  const currentMonthIdx = new Date().getMonth();
+
   return (
     <div className="portal-bg">
       <div className="portal-shell">
@@ -269,7 +276,7 @@ export default function DashboardGuru() {
             <span>Discere</span>
           </div>
 
-          <nav className="portal-nav" aria-label="Menu navigasi guru">
+          <nav className="portal-nav" aria-label="Menu utama">
             <button
               type="button"
               aria-current={tabAktif === 'ringkasan' ? 'page' : undefined}
@@ -309,8 +316,8 @@ export default function DashboardGuru() {
 
           <div className="portal-who">
             Masuk sebagai:
-            <b>{user?.nama || 'Guru'}</b>
-            <span>{user?.sekolah || user?.email}</span>
+            <b>{user?.nama || 'Guru Demo'}</b>
+            <span>{user?.sekolah || 'SD Negeri Merdeka 01'}</span>
             <button type="button" onClick={handleKeluar} className="portal-out">
               <LogOut className="w-4 h-4" />
               <span>Keluar</span>
@@ -324,12 +331,12 @@ export default function DashboardGuru() {
           <header className="portal-head">
             <div>
               <h1>
-                {tabAktif === 'ringkasan' && 'Ringkasan Kelas'}
-                {tabAktif === 'template' && 'Manajemen Soal & Template'}
-                {tabAktif === 'riwayat' && 'Riwayat Sesi Game'}
-                {tabAktif === 'papan' && 'Papan Tulis Digital'}
+                {tabAktif === 'ringkasan' && 'Ringkasan'}
+                {tabAktif === 'template' && 'Template Game'}
+                {tabAktif === 'riwayat' && 'Riwayat Sesi'}
+                {tabAktif === 'papan' && 'Papan Tulis'}
               </h1>
-              <p>Selamat mengajar, Bapak/Ibu {user?.nama}.</p>
+              <p>Selamat mengajar, Bapak/Ibu {user?.nama || 'Guru Demo'}.</p>
             </div>
 
             {tabAktif === 'template' && (
@@ -363,206 +370,338 @@ export default function DashboardGuru() {
             </div>
           ) : (
             <>
-              {/* TAB 1: RINGKASAN */}
+              {/* TAB 1: RINGKASAN (100% PERSIS SEPERTI REFERENSI HTML & GAMBAR 1) */}
               {tabAktif === 'ringkasan' && ringkasan && (
-                <div className="space-y-6">
-                  {/* Grid 2 Kolom: Kiri Metrik + Aksi, Kanan Panel Sesi & Papan */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Kolom Kiri: 2 Span */}
-                    <div className="lg:col-span-2 space-y-6">
-                      {/* Kartu Ringkasan Metrik Ala Kapur */}
-                      <div className="portal-over space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h2 className="portal-cv text-2xl text-[#f4ecd8]">Sesi Game Selesai</h2>
-                          <span className="portal-tag yellow font-bold">Ringkasan Aktivitas</span>
+                <div className="portal-rg-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: '22px' }}>
+                  {/* Kolom Kiri: Chart, Big Card, & 3 Template Cards */}
+                  <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '22px' }}>
+                    {/* Top Grid: Over Chart + Big Action Buttons */}
+                    <div className="portal-top-grid" style={{ display: 'grid', gridTemplateColumns: '1.9fr 1fr', gap: '20px' }}>
+                      {/* Kartu Grafik Sesi Game Selesai (.over) */}
+                      <article className="portal-over">
+                        <div className="hd">
+                          <h2>Sesi Game Selesai</h2>
+                          <button type="button" className="portal-sel">
+                            Bulanan ▾
+                          </button>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4 pt-2 text-center border-t-2 border-dashed border-[#f4ecd8]/30">
-                          <div>
-                            <span className="text-xs text-[#cfd9c3] block">Template tersedia</span>
-                            <b className="portal-cv text-3xl text-[#f4ecd8] block my-1">
-                              {ringkasan.totalTemplate}
-                            </b>
-                            <span className="text-[11px] text-[#cfd9c3]">Materi siap</span>
+                        <div className="portal-chart-box">
+                          {/* Tooltip Angka Sesi */}
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: '2px',
+                              left: '90%',
+                              transform: 'translateX(-50%)',
+                              background: '#f4ecd8',
+                              color: '#1d3b2e',
+                              borderRadius: '9px',
+                              padding: '4px 10px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              whiteSpace: 'nowrap',
+                              boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                            }}
+                          >
+                            <b style={{ display: 'block', fontSize: '15px' }}>{ringkasan.totalSesi} Sesi</b>
+                            Bulan Ini
                           </div>
 
-                          <div className="bg-[#f4ecd8]/10 rounded-2xl py-2 px-1 -my-2 border border-[#f2c230]/40">
-                            <span className="text-xs text-[#f2c230] font-bold block">
-                              Sesi selesai
+                          <svg viewBox="0 0 400 130" preserveAspectRatio="none" role="img" aria-label="Grafik sesi game selesai">
+                            <defs>
+                              <linearGradient id="portal-g" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0" stopColor="#f4ecd8" stopOpacity=".3" />
+                                <stop offset="1" stopColor="#f4ecd8" stopOpacity="0" />
+                              </linearGradient>
+                            </defs>
+                            {/* Area fill */}
+                            <path
+                              d="M 0 110 Q 50 100, 100 85 T 200 70 T 300 45 T 360 22 L 360 130 L 0 130 Z"
+                              fill="url(#portal-g)"
+                            />
+                            {/* Band vertical marker */}
+                            <line
+                              x1="360"
+                              x2="360"
+                              y1="0"
+                              y2="130"
+                              stroke="#f4ecd8"
+                              strokeOpacity=".25"
+                              strokeWidth="14"
+                            />
+                            {/* Yellow chalk curve */}
+                            <path
+                              d="M 0 110 Q 50 100, 100 85 T 200 70 T 300 45 T 360 22"
+                              fill="none"
+                              stroke="#f2c230"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                            />
+                            {/* Yellow dot with white stroke */}
+                            <circle cx="360" cy="22" r="6" fill="#f2c230" stroke="#f4ecd8" strokeWidth="2" />
+                          </svg>
+                        </div>
+
+                        {/* Barisan Bulan */}
+                        <div className="portal-months">
+                          {MONTHS.map((m, idx) => (
+                            <span
+                              key={m}
+                              className={idx === currentMonthIdx ? 'cur' : undefined}
+                            >
+                              {m}
                             </span>
-                            <b className="portal-cv text-4xl text-[#f2c230] block my-1">
-                              {ringkasan.totalSesi}
-                            </b>
-                            <span className="text-[11px] text-[#f4ecd8]">Total tuntas</span>
-                          </div>
+                          ))}
+                        </div>
 
+                        {/* Barisan 3 Angka Statistik */}
+                        <div className="portal-stats-row">
                           <div>
-                            <span className="text-xs text-[#cfd9c3] block">Papan tersimpan</span>
-                            <b className="portal-cv text-3xl text-[#f4ecd8] block my-1">
-                              {ringkasan.totalPapan}
-                            </b>
-                            <span className="text-[11px] text-[#cfd9c3]">Kanvas cloud</span>
+                            <small>Template tersedia</small>
+                            <b>{ringkasan.totalTemplate}</b>
+                            <small>Template</small>
+                          </div>
+                          <div className="mid">
+                            <small>Sesi game selesai</small>
+                            <b>{ringkasan.totalSesi}</b>
+                            <small>Total sesi</small>
+                          </div>
+                          <div>
+                            <small>Papan tersimpan</small>
+                            <b>{ringkasan.totalPapan}</b>
+                            <small>Papan</small>
                           </div>
                         </div>
-                      </div>
+                      </article>
 
-                      {/* Tombol Aksi Cepat */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Right Action Buttons */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        {/* Tombol Merah: Buat Template Kuis Baru */}
                         <button
                           type="button"
                           onClick={() => navigate('/guru/template/baru')}
-                          className="p-5 rounded-2xl bg-gradient-to-br from-[#c8362f] to-[#d9544c] text-[#f4ecd8] flex items-center justify-between shadow-md hover:opacity-95 transition-all text-left cursor-pointer border border-[#f4ecd8]/20"
+                          className="portal-big k"
                         >
+                          <div className="portal-ico">
+                            <Plus className="w-6 h-6 text-[#f4ecd8]" />
+                          </div>
                           <div>
-                            <div className="portal-cv text-2xl leading-none mb-1">
-                              Buat Template Kuis Baru
-                            </div>
-                            <div className="text-xs text-[#ffdcd9]">
-                              Susun materi tarik tambang untuk dimainkan bersama kelas.
-                            </div>
+                            <h3>Buat Template Kuis Baru</h3>
+                            <p>Susun soal materi untuk dimainkan bersama kelas.</p>
                           </div>
-                          <div className="w-10 h-10 rounded-full border-2 border-[#f4ecd8] flex items-center justify-center shrink-0">
-                            <Plus className="w-5 h-5 text-[#f4ecd8]" />
-                          </div>
+                          <span className="portal-go">
+                            <ArrowRight className="w-4 h-4 text-[#f4ecd8]" />
+                          </span>
                         </button>
 
+                        {/* Tombol Papan Tulis Digital */}
                         <button
                           type="button"
                           onClick={handleBuatPapanBaru}
                           disabled={actionLoadingId === 'buat_papan'}
-                          className="p-5 rounded-2xl bg-[#2e503a] text-[#f4ecd8] flex items-center justify-between shadow-md hover:opacity-95 transition-all text-left cursor-pointer border-2 border-dashed border-[#f4ecd8]/40"
+                          className="portal-big p"
                         >
+                          <div className="portal-ico">
+                            <PenTool className="w-6 h-6 text-[#f4ecd8]" />
+                          </div>
                           <div>
-                            <div className="portal-cv text-2xl leading-none mb-1">
-                              Buka Papan Tulis Digital
-                            </div>
-                            <div className="text-xs text-[#cfd9c3]">
-                              Kanvas tak terbatas untuk menjelaskan materi.
-                            </div>
+                            <h3>Buka Papan Tulis Digital</h3>
+                            <p>Kanvas tak terbatas untuk menjelaskan materi.</p>
                           </div>
-                          <div className="w-10 h-10 rounded-full border-2 border-[#f4ecd8] flex items-center justify-center shrink-0">
-                            <PenTool className="w-5 h-5 text-[#f4ecd8]" />
-                          </div>
+                          <span className="portal-go">
+                            <ArrowRight className="w-4 h-4 text-[#f4ecd8]" />
+                          </span>
                         </button>
-                      </div>
-
-                      {/* Template Game Terbaru */}
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="portal-cv text-2xl text-[#f4ecd8]">
-                            Template Game Terbaru
-                          </h3>
-                          <button
-                            type="button"
-                            onClick={() => navigate('/guru?tab=template')}
-                            className="text-xs font-bold text-[#f2c230] hover:underline cursor-pointer"
-                          >
-                            Lihat Semua ▾
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          {ringkasan.templateTerbaru.map((tmpl) => (
-                            <div
-                              key={tmpl.id}
-                              className="portal-card p-5 flex flex-col justify-between gap-3"
-                            >
-                              <div>
-                                <div className="flex items-center gap-2 mb-1.5">
-                                  <span className="portal-tag red">Tarik Tambang</span>
-                                  <span className="portal-tag yellow">{tmpl.jumlahSoal} Soal</span>
-                                </div>
-                                <h4 className="portal-cv text-2xl text-[#1d3b2e] leading-snug">
-                                  {tmpl.judul}
-                                </h4>
-                              </div>
-
-                              <div className="pt-2 border-t-2 border-dashed border-[#e0d5b8] flex items-center justify-between">
-                                <span className="text-xs font-bold text-[#6b7d6c] uppercase">
-                                  Mode {tmpl.mode}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleMulaiGame(tmpl.id, tmpl.mode)}
-                                  className="portal-btn red sm"
-                                >
-                                  <Play className="w-3.5 h-3.5 fill-current" />
-                                  <span>Mulai</span>
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
                       </div>
                     </div>
 
-                    {/* Kolom Kanan: 1 Span (Panel Sesi & Papan) */}
-                    <div className="portal-card p-5 space-y-5 self-start">
-                      <div className="flex items-center justify-between border-b-2 border-dashed border-[#e0d5b8] pb-3">
-                        <h3 className="portal-cv text-2xl text-[#1d3b2e]">Sesi Terakhir</h3>
-                        <button
-                          type="button"
-                          onClick={() => navigate('/guru?tab=riwayat')}
-                          className="text-xs font-bold text-[#c8362f] hover:underline cursor-pointer"
-                        >
-                          Riwayat
-                        </button>
-                      </div>
+                    {/* Section: Template Game Terbaru */}
+                    <div className="portal-sec" style={{ margin: '4px 0 -6px' }}>
+                      <span>Template Game Terbaru</span>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/guru?tab=template')}
+                        style={{ color: '#f2c230' }}
+                      >
+                        Lihat Semua
+                      </button>
+                    </div>
 
-                      {ringkasan.sesiTerakhir ? (
-                        <div className="space-y-3">
-                          <h4 className="font-bold text-[#1d3b2e] text-sm">
-                            {ringkasan.sesiTerakhir.templateJudul}
-                          </h4>
-                          <div className="p-3 rounded-xl bg-[#f4ecd9] border border-[#e0d5b8] text-xs space-y-1">
-                            <div className="font-bold text-[#1d3b2e]">
-                              Hasil:{' '}
-                              {ringkasan.sesiTerakhir.timMenang === 'merah'
-                                ? '🔴 Tim Merah Menang'
-                                : ringkasan.sesiTerakhir.timMenang === 'putih'
-                                ? '⚪ Tim Putih Menang'
-                                : '🤝 Seri'}
+                    {/* 3 Template Cards Sesuai Gambar 1 (.pc .card) */}
+                    <div className="portal-cards-grid">
+                      {ringkasan.templateTerbaru.slice(0, 3).map((tmpl, idx) => {
+                        const totalSesi = Math.max(1, ringkasan.totalSesi);
+                        const playedCount = idx === 0 ? Math.min(totalSesi, 2) : 1;
+                        const percentage = Math.round((playedCount / totalSesi) * 100);
+
+                        return (
+                          <div key={tmpl.id} className="portal-card portal-pc">
+                            {/* Floating Badge di atas kartu */}
+                            <div className="badge">
+                              {tmpl.mode === 'multi' ? (
+                                <BookOpen className="w-6 h-6" />
+                              ) : (
+                                <BookOpen className="w-6 h-6" />
+                              )}
                             </div>
-                            <div className="text-[#6b7d6c]">
-                              Skor: {ringkasan.sesiTerakhir.skorMerah} vs{' '}
-                              {ringkasan.sesiTerakhir.skorPutih}
+
+                            <div>
+                              <h4>{tmpl.judul}</h4>
+                              <div style={{ fontSize: '12px', color: '#6b7d6c', marginTop: '4px' }}>
+                                {tmpl.jumlahSoal} Soal Tersedia • Tarik Tambang
+                              </div>
+
+                              {/* Progress bar porsi sesi */}
+                              <div className="portal-prow">
+                                <span>Porsi sesi</span>
+                                <b>{percentage}%</b>
+                              </div>
+                              <div className="portal-bar">
+                                <i style={{ width: `${percentage}%` }} />
+                              </div>
+                            </div>
+
+                            {/* Footer: X dari Y sesi & tombol Mulai */}
+                            <div className="portal-foot">
+                              <span>{playedCount} dari {totalSesi} sesi</span>
+                              <button
+                                type="button"
+                                onClick={() => handleMulaiGame(tmpl.id, tmpl.mode)}
+                                className="portal-chip"
+                              >
+                                {tmpl.mode === 'multi' ? 'Mulai Lomba' : 'Mulai Game Solo'}
+                              </button>
                             </div>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => setModalDetailSessionId(ringkasan.sesiTerakhir!.id)}
-                            className="portal-btn ghost-red sm w-full justify-center"
-                          >
-                            Lihat Analisis Sesi
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-[#6b7d6c]">Belum ada sesi yang diselesaikan.</p>
-                      )}
-
-                      <div className="pt-2 border-t-2 border-dashed border-[#e0d5b8] space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h3 className="portal-cv text-2xl text-[#1d3b2e]">Papan Tulis</h3>
-                          <button
-                            type="button"
-                            onClick={() => navigate('/guru?tab=papan')}
-                            className="text-xs font-bold text-[#1d3b2e] hover:underline cursor-pointer"
-                          >
-                            Semua
-                          </button>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleBuatPapanBaru}
-                          className="portal-btn red sm w-full justify-center"
-                        >
-                          <Plus className="w-4 h-4" />
-                          <span>Buat Papan Baru</span>
-                        </button>
-                      </div>
+                        );
+                      })}
                     </div>
                   </div>
+
+                  {/* Aside Panel Kanan (.card .panel) Sesuai Gambar 1 */}
+                  <aside className="portal-card portal-panel">
+                    <div className="portal-sec">
+                      <span>Riwayat Sesi</span>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/guru?tab=riwayat')}
+                      >
+                        Lihat semua
+                      </button>
+                    </div>
+
+                    {/* Tab Riwayat vs Template */}
+                    <div className="portal-tabs">
+                      <button
+                        type="button"
+                        className={subTabAside === 'hist' ? 'on' : ''}
+                        onClick={() => setSubTabAside('hist')}
+                      >
+                        Riwayat
+                      </button>
+                      <button
+                        type="button"
+                        className={subTabAside === 'tpl' ? 'on' : ''}
+                        onClick={() => setSubTabAside('tpl')}
+                      >
+                        Template
+                      </button>
+                    </div>
+
+                    {/* Daftar Riwayat Sesi */}
+                    <div className="portal-fl">
+                      {subTabAside === 'hist' ? (
+                        riwayatList.slice(0, 4).map((r) => {
+                          const dateObj = new Date(r.tanggal);
+                          const dateStr = `${dateObj.getDate()} ${MONTHS[dateObj.getMonth()]} ${dateObj.getFullYear()}, ${String(dateObj.getHours()).padStart(2, '0')}.${String(dateObj.getMinutes()).padStart(2, '0')}`;
+                          const isRedWin = r.timMenang === 'merah';
+                          const isWhiteWin = r.timMenang === 'putih';
+
+                          return (
+                            <div key={r.id} className="portal-fr">
+                              <div className={`portal-av ${isRedWin ? 'r' : isWhiteWin ? 'b' : ''}`}>
+                                {isRedWin ? '🔴' : isWhiteWin ? '⚪' : '🤝'}
+                              </div>
+                              <div className="t">
+                                <b>{r.templateJudul}</b>
+                                <small>
+                                  Pemenang: {isRedWin ? 'TIM MERAH' : isWhiteWin ? 'TIM PUTIH' : 'SERI'}
+                                  <br />
+                                  {dateStr}
+                                </small>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setModalDetailSessionId(r.id)}
+                                className="portal-msg"
+                                title="Lihat detail sesi"
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        templates.slice(0, 4).map((t) => (
+                          <div key={t.id} className="portal-fr">
+                            <div className="portal-av b">
+                              <BookOpen className="w-4 h-4 text-[#f4ecd8]" />
+                            </div>
+                            <div className="t">
+                              <b>{t.judul}</b>
+                              <small>{t.jumlahSoal || t._count?.questions || 0} Soal • {t.mode}</small>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleMulaiGame(t.id, t.mode)}
+                              className="portal-msg"
+                              title="Mainkan template"
+                            >
+                              <Play className="w-3.5 h-3.5 fill-current" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Section: Papan Tulis Preview */}
+                    <div className="portal-sec" style={{ marginTop: '4px' }}>
+                      <span>Papan Tulis</span>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/guru?tab=papan')}
+                      >
+                        Lihat
+                      </button>
+                    </div>
+
+                    {/* Mini Board Preview */}
+                    <div className="portal-board-prev">
+                      <svg viewBox="0 0 250 112" preserveAspectRatio="none" aria-hidden="true">
+                        <path
+                          d="M20 70 Q 70 30, 130 65 T 230 45"
+                          stroke="#f4ecd8"
+                          strokeWidth="2.5"
+                          fill="none"
+                          opacity=".8"
+                        />
+                        <circle cx="210" cy="35" r="14" stroke="#f2c230" strokeWidth="2.5" fill="none" opacity=".85" />
+                      </svg>
+                      <span>{boards[0]?.judul || 'Papan tanpa judul 1'}</span>
+                    </div>
+
+                    {/* Tombol Buat Papan Baru */}
+                    <button
+                      type="button"
+                      onClick={handleBuatPapanBaru}
+                      className="portal-btn red sm"
+                      style={{ width: '100%', justifyContent: 'center' }}
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Buat Papan Baru</span>
+                    </button>
+                  </aside>
                 </div>
               )}
 
@@ -874,20 +1013,20 @@ export default function DashboardGuru() {
               )}
             </>
           )}
-
-          {/* Dudukan Kapur Kayu (Chalk Ledge) */}
-          <div className="portal-ledge" aria-hidden="true">
-            <svg viewBox="0 0 1440 80" preserveAspectRatio="none">
-              <path d="M0 34C240 6 480 62 720 34S1200 6 1440 34V80H0z" fill="#a6783c" />
-              <path d="M0 56C260 34 520 80 760 56S1220 36 1440 58V80H0z" fill="#8d6444" />
-            </svg>
-            <div className="portal-chalks">
-              <i style={{ width: '84px', background: '#f4ecd8' }} />
-              <i style={{ width: '70px', background: '#f2c230' }} />
-              <i style={{ width: '92px', background: '#7a9c85' }} />
-            </div>
-          </div>
         </main>
+      </div>
+
+      {/* DUDUKAN PAPAN TULIS COKLAT DI PALING BAWAH (MEMANJANG FULL DARI UJUNG KANAN KE KIRI) */}
+      <div className="portal-ledge" aria-hidden="true">
+        <svg viewBox="0 0 1440 80" preserveAspectRatio="none">
+          <path d="M0 34C240 6 480 62 720 34S1200 6 1440 34V80H0z" fill="#a6783c" />
+          <path d="M0 56C260 34 520 80 760 56S1220 36 1440 58V80H0z" fill="#8d6444" />
+        </svg>
+        <div className="portal-chalks">
+          <i style={{ width: '84px', background: '#7a9c85' }} />
+          <i style={{ width: '70px', background: '#7a9c85' }} />
+          <i style={{ width: '92px', background: '#7a9c85' }} />
+        </div>
       </div>
 
       {/* Modal Konfirmasi Hapus Template */}
