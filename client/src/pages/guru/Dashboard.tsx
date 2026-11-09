@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
@@ -19,6 +19,8 @@ import {
   Loader2,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
+  Check,
   ArrowRight,
 } from 'lucide-react';
 
@@ -102,6 +104,18 @@ export default function DashboardGuru() {
 
   // Range filter untuk grafik Sesi Game Selesai: Bulanan / Mingguan / Harian
   const [rangeMode, setRangeMode] = useState<'Bulanan' | 'Mingguan' | 'Harian'>('Bulanan');
+  const [rangeDropdownOpen, setRangeDropdownOpen] = useState(false);
+  const rangeDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (rangeDropdownRef.current && !rangeDropdownRef.current.contains(event.target as Node)) {
+        setRangeDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Data states
   const [ringkasan, setRingkasan] = useState<RingkasanData | null>(null);
@@ -337,7 +351,19 @@ export default function DashboardGuru() {
         <aside className="portal-side">
           <div className="portal-side-header">
             <div className="portal-brand">
-              <BookOpen className="w-8 h-8 text-[#f2c230] shrink-0" />
+              <svg
+                className="w-8 h-8 shrink-0 text-[#f4ecd8]"
+                viewBox="0 0 48 48"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3.2"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M5 11c7-3 14-1 19 4v26c-5-5-12-7-19-4zM43 11c-7-3-14-1-19 4v26c5-5 12-7 19-4z" />
+                <path d="M10 19h8M10 26h8M30 19h8M30 26h8" />
+              </svg>
               <span>Discere</span>
             </div>
             <button
@@ -464,19 +490,43 @@ export default function DashboardGuru() {
                       <article className="portal-over">
                         <div className="hd">
                           <h2>Sesi Game Selesai</h2>
-                          {/* Filter Range Interaktif: Bulanan, Mingguan, Harian */}
-                          <select
-                            className="portal-sel"
-                            value={rangeMode}
-                            onChange={(e) =>
-                              setRangeMode(e.target.value as 'Bulanan' | 'Mingguan' | 'Harian')
-                            }
-                            title="Pilih filter rentang waktu sesi game"
-                          >
-                            <option value="Bulanan">Bulanan</option>
-                            <option value="Mingguan">Mingguan</option>
-                            <option value="Harian">Harian</option>
-                          </select>
+                          {/* Custom Dropdown Filter Interaktif: Bulanan / Mingguan / Harian */}
+                          <div className="relative" ref={rangeDropdownRef}>
+                            <button
+                              type="button"
+                              className="portal-sel"
+                              onClick={() => setRangeDropdownOpen((prev) => !prev)}
+                              aria-haspopup="listbox"
+                              aria-expanded={rangeDropdownOpen}
+                              title="Pilih filter rentang waktu grafik"
+                            >
+                              <span>{rangeMode}</span>
+                              <ChevronDown
+                                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                  rangeDropdownOpen ? 'rotate-180' : ''
+                                }`}
+                              />
+                            </button>
+
+                            {rangeDropdownOpen && (
+                              <div className="portal-dropdown-menu">
+                                {(['Bulanan', 'Mingguan', 'Harian'] as const).map((mode) => (
+                                  <button
+                                    key={mode}
+                                    type="button"
+                                    onClick={() => {
+                                      setRangeMode(mode);
+                                      setRangeDropdownOpen(false);
+                                    }}
+                                    className={`portal-dropdown-item ${rangeMode === mode ? 'active' : ''}`}
+                                  >
+                                    <span>{mode}</span>
+                                    {rangeMode === mode && <Check className="w-3.5 h-3.5 text-[#f2c230]" />}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         <div className="portal-chart-box">
@@ -1011,41 +1061,34 @@ export default function DashboardGuru() {
               {/* TAB 4: PAPAN TULIS */}
               {tabAktif === 'papan' && (
                 <div className="space-y-5">
-                  <div className="portal-over flex items-center justify-between">
-                    <div>
-                      <h2 className="portal-cv text-2xl text-[#f4ecd8]">Kanvas Digital Terbuka</h2>
-                      <p className="text-xs text-[#cfd9c3]">
-                        Kanvas bebas untuk menulis materi, coretan rumus, dan gambar kelas
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleBuatPapanBaru}
-                      className="portal-btn red sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Buat Papan Baru</span>
-                    </button>
-                  </div>
-
                   {boards.length === 0 ? (
-                    <div className="portal-over text-center py-16 space-y-3">
-                      <PenTool className="w-10 h-10 mx-auto text-[#f2c230]" />
-                      <h3 className="portal-cv text-2xl text-[#f4ecd8]">
-                        Belum Ada Papan Tulis Tersimpan
-                      </h3>
-                      <p className="text-xs text-[#cfd9c3] max-w-sm mx-auto">
-                        Mulai jelaskan materi pelajaran dengan kanvas interaktif tak terbatas.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handleBuatPapanBaru}
-                        className="portal-btn sm"
-                      >
-                        Buka Papan Pertama Anda
-                      </button>
+                    /* 1 Informasi tunggal saat belum ada papan tersimpan */
+                    <div className="portal-over text-center py-16 space-y-4">
+                      <div className="w-16 h-16 mx-auto rounded-full bg-[#163a2b] border-2 border-dashed border-[#e0d5b8]/40 flex items-center justify-center">
+                        <PenTool className="w-8 h-8 text-[#f2c230]" />
+                      </div>
+                      <div>
+                        <h3 className="portal-cv text-3xl text-[#f4ecd8]">
+                          Belum Ada Papan Tulis Tersimpan
+                        </h3>
+                        <p className="text-sm text-[#cfd9c3] max-w-md mx-auto mt-1">
+                          Mulai jelaskan materi pelajaran dengan kanvas interaktif tak terbatas. Coret rumus, gambar ilustrasi, atau gunakan AI.
+                        </p>
+                      </div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={handleBuatPapanBaru}
+                          disabled={actionLoadingId === 'buat_papan'}
+                          className="portal-btn red"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Buka Papan Pertama Anda</span>
+                        </button>
+                      </div>
                     </div>
                   ) : (
+                    /* Saat sudah ada papan, informasi empty hilang dan langsung tampil grid kartu papan */
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                       {boards.map((b) => (
                         <div

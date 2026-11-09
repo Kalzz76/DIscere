@@ -3,7 +3,6 @@ import { useAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
 import { Modal } from '../../components';
 import {
-  ShieldCheck,
   LogOut,
   BarChart3,
   Users,
@@ -331,7 +330,19 @@ export default function DashboardAdmin() {
         <aside className="portal-side">
           <div className="portal-side-header">
             <div className="portal-brand">
-              <ShieldCheck className="w-8 h-8 text-[#f2c230] shrink-0" />
+              <svg
+                className="w-8 h-8 shrink-0 text-[#f4ecd8]"
+                viewBox="0 0 48 48"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3.2"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M5 11c7-3 14-1 19 4v26c-5-5-12-7-19-4zM43 11c-7-3-14-1-19 4v26c5-5 12-7 19-4z" />
+                <path d="M10 19h8M10 26h8M30 19h8M30 26h8" />
+              </svg>
               <span>Discere Admin</span>
             </div>
             <button
