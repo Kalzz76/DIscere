@@ -13,6 +13,7 @@ export interface GameTemplatesPanelProps {
   boardId: string;
   onClose: () => void;
   onBeforeStartGame: () => Promise<void>;
+  onPasteLastGameResult?: () => void;
   onToast: (msg: string) => void;
 }
 
@@ -44,6 +45,7 @@ export function GameTemplatesPanel({
   boardId,
   onClose,
   onBeforeStartGame,
+  onPasteLastGameResult,
   onToast,
 }: GameTemplatesPanelProps) {
   const navigate = useNavigate();
@@ -157,12 +159,20 @@ export function GameTemplatesPanel({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  };
+
   return (
     <aside
       id="qz"
       className={`pn game-template-panel ${isOpen ? 'open' : ''}`}
       aria-label="Template Game Interaktif"
       role="complementary"
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
     >
       {/* Header Panel */}
       <div className="qth">
@@ -176,7 +186,8 @@ export function GameTemplatesPanel({
         <button
           className="ib"
           id="qzx"
-          aria-label="Tutup Panel"
+          aria-label="Tutup Panel (Esc)"
+          title="Tutup Panel (Esc)"
           onClick={onClose}
           style={{ width: 32, height: 32 }}
         >
@@ -185,6 +196,24 @@ export function GameTemplatesPanel({
           </svg>
         </button>
       </div>
+
+      {/* Tombol Tempel Hasil Sesi Game Terakhir */}
+      {onPasteLastGameResult && (
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--ln)' }}>
+          <button
+            type="button"
+            className="game-paste-result-btn"
+            onClick={onPasteLastGameResult}
+            title="Tempel kartu ringkasan hasil sesi game terakhir ke kanvas papan tulis"
+          >
+            <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, stroke: '#fbbf24' }}>
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+              <rect x="8" y="2" width="8" height="4" rx="1" />
+            </svg>
+            <span>Tempel Hasil Game ke Papan</span>
+          </button>
+        </div>
+      )}
 
       {/* Navigasi Tab */}
       <div className="game-tabs" role="tablist" aria-label="Kategori Template">

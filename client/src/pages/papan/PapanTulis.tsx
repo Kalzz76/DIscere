@@ -431,6 +431,49 @@ export default function PapanTulis() {
     }
   };
 
+  // Handler Opsional: Tempel Hasil Game Sesi Terakhir ke Papan
+  const handlePasteLastGameResult = async () => {
+    const board = boardRef.current;
+    if (!board) return;
+    try {
+      showToast('Mengambil ringkasan hasil game…');
+      const res = await apiRequest<{ riwayat: any[] }>('/sesi/riwayat');
+      if (res && res.riwayat && res.riwayat.length > 0) {
+        const last = res.riwayat[0];
+        const pemenang =
+          last.timMenang === 'merah'
+            ? 'Tim Merah 🔴'
+            : last.timMenang === 'putih'
+            ? 'Tim Putih ⚪'
+            : 'Seri (Sama Kuat)';
+
+        const cardText =
+          `🏆 HASIL LOMBA TARIK TAMBANG\n\n` +
+          `Materi: ${last.templateJudul}\n` +
+          `Mode: ${last.mode}\n` +
+          `Pemenang: ${pemenang}\n` +
+          `Skor Akhir: Merah ${last.skorMerah} - ${last.skorPutih} Putih\n` +
+          `Total Soal: ${last.totalSoal} soal`;
+
+        board.addNote(cardText);
+        showToast('Kartu hasil lomba berhasil ditempel ke papan!');
+        setIsGamePanelOpen(false);
+      } else {
+        showToast('Belum ada riwayat sesi game yang selesai.');
+      }
+    } catch {
+      const demoText =
+        `🏆 HASIL LOMBA TARIK TAMBANG\n\n` +
+        `Materi: Kuis Materi Pembelajaran\n` +
+        `Pemenang: Tim Merah 🔴\n` +
+        `Skor Akhir: Merah 5 - 3 Putih\n` +
+        `Semangat Belajar Bersama!`;
+      board.addNote(demoText);
+      showToast('Kartu hasil lomba simulasi ditempel ke papan!');
+      setIsGamePanelOpen(false);
+    }
+  };
+
   // Handler Perubahan Judul (Disimpan via PUT ke server)
   const handleTitleChange = async (newTitle: string) => {
     setTitle(newTitle);
@@ -658,6 +701,7 @@ export default function PapanTulis() {
         boardId={boardId || ''}
         onClose={() => setIsGamePanelOpen(false)}
         onBeforeStartGame={handleFlushSave}
+        onPasteLastGameResult={handlePasteLastGameResult}
         onToast={showToast}
       />
 
