@@ -58,10 +58,17 @@ templateRouter.get('/', async (req: AuthRequest, res: Response) => {
 });
 
 // GET /api/template/pustaka - Daftar template resmi dari admin
-templateRouter.get('/pustaka', async (_req: AuthRequest, res: Response) => {
+templateRouter.get('/pustaka', async (req: AuthRequest, res: Response) => {
   try {
+    const q = (req.query.q as string)?.trim();
+    const where: any = { resmi: true };
+
+    if (q) {
+      where.judul = { contains: q };
+    }
+
     const templates = await prisma.template.findMany({
-      where: { resmi: true },
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
         _count: {
