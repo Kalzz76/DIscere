@@ -57,8 +57,9 @@ export class Board {
   public hanyaLihat = false;
 
   private mouse: Pt | null = null;
+  private activePointers: Map<number, Pt> = new Map();
   private drag: {
-    k: 'pan' | 'er' | 'ai' | 'mv' | 'ls' | 'resize';
+    k: 'pan' | 'er' | 'ai' | 'mv' | 'ls' | 'resize' | 'pinch';
     x?: number;
     y?: number;
     vx?: number;
@@ -72,6 +73,8 @@ export class Board {
     corner?: ResizeCorner;
     initialObjBeforeResize?: CanvasObj;
     resizeStartPt?: Pt;
+    pinchDist?: number;
+    pinchCenter?: Pt;
   } | null = null;
 
   private spacePressed = false;
@@ -568,6 +571,33 @@ export class Board {
 
   private handlePointerDown = (e: PointerEvent): void => {
     if (e.button === 2) return; // Right click
+    this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    // Deteksi gestur dua jari layar sentuh: Pan & Pinch Zoom
+    if (this.activePointers.size === 2) {
+      this.cur = null;
+      if (this.lasso) this.closeLasso();
+
+      const pts = Array.from(this.activePointers.values());
+      const p1 = pts[0];
+      const p2 = pts[1];
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      const center = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+
+      this.drag = {
+        k: 'pinch',
+        pinchDist: Math.max(1, dist),
+        pinchCenter: center,
+      };
+      this.canvas.style.cursor = 'grab';
+      this.rd();
+      return;
+    }
+
+    if (this.activePointers.size > 2) {
+      return;
+    }
+
     if (this.options.onCloseTextEditor) {
       this.options.onCloseTextEditor();
     }
@@ -741,6 +771,48 @@ export class Board {
   };
 
   private handlePointerMove = (e: PointerEvent): void => {
+    this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    // Gestur 2 Jari Layar Sentuh: Pan & Pinch Zoom
+    if (this.drag && this.drag.k === 'pinch' && this.activePointers.size >= 2) {
+      const pts = Array.from(this.activePointers.values());
+      const p1 = pts[0];
+      const p2 = pts[1];
+      const curDist = Math.max(1, Math.hypot(p2.x - p1.x, p2.y - p1.y));
+      const curCenter = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+
+      const prevDist = this.drag.pinchDist || curDist;
+      const prevCenter = this.drag.pinchCenter || curCenter;
+
+      // Geser (Pan)
+      const dx = curCenter.x - prevCenter.x;
+      const dy = curCenter.y - prevCenter.y;
+      this.view.x += dx;
+      this.view.y += dy;
+
+      // Pinch Zoom
+      const scaleFactor = curDist / prevDist;
+      const r = this.canvas.getBoundingClientRect();
+      const cx = curCenter.x - r.left;
+      const cy = curCenter.y - r.top;
+
+      const newZ = Math.max(0.1, Math.min(4, this.view.z * scaleFactor));
+      if (newZ !== this.view.z) {
+        this.view.x = cx - (cx - this.view.x) * (newZ / this.view.z);
+        this.view.y = cy - (cy - this.view.y) * (newZ / this.view.z);
+        this.view.z = newZ;
+      }
+
+      this.drag.pinchDist = curDist;
+      this.drag.pinchCenter = curCenter;
+
+      if (this.options.onViewChange) {
+        this.options.onViewChange({ ...this.view });
+      }
+      this.rd();
+      return;
+    }
+
     const r = this.canvas.getBoundingClientRect();
     this.mouse = { x: e.clientX - r.left, y: e.clientY - r.top };
     const p = this.toWorld(e.clientX, e.clientY);
@@ -830,6 +902,18 @@ export class Board {
   };
 
   private handlePointerUp = (e?: PointerEvent): void => {
+    if (e) {
+      this.activePointers.delete(e.pointerId);
+    }
+    if (this.drag && this.drag.k === 'pinch') {
+      if (this.activePointers.size < 2) {
+        this.drag = null;
+        this.canvas.style.cursor = 'default';
+        this.rd();
+      }
+      return;
+    }
+
     if (this.cur) {
       if (
         this.cur.type === 'stroke' ||
