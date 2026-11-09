@@ -11,8 +11,10 @@ import { authRouter } from './routes/auth.js';
 import { templateRouter } from './routes/template.js';
 import { sesiRouter } from './routes/sesi.js';
 import { guruRouter } from './routes/guru.js';
+import { papanRouter } from './routes/papan.js';
 import { errorHandler } from './middleware/error.js';
 import { setupMultiplayerSocket } from './realtime/sesi.js';
+import { setupBoardSocket } from './realtime/papan.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -45,9 +47,11 @@ app.use('/api/auth', authRouter);
 app.use('/api/template', templateRouter);
 app.use('/api/sesi', sesiRouter);
 app.use('/api/guru', guruRouter);
+app.use('/api/papan', papanRouter);
 
-// Setup Socket.IO multiplayer
+// Setup Socket.IO multiplayer & papan tulis
 setupMultiplayerSocket(io);
+setupBoardSocket(io);
 
 // Socket.IO event handler dasar
 io.on('connection', (socket) => {
