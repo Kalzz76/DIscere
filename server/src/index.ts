@@ -12,6 +12,7 @@ import { templateRouter } from './routes/template.js';
 import { sesiRouter } from './routes/sesi.js';
 import { guruRouter } from './routes/guru.js';
 import { papanRouter } from './routes/papan.js';
+import { aiRouter } from './routes/ai.js';
 import { errorHandler } from './middleware/error.js';
 import { setupMultiplayerSocket } from './realtime/sesi.js';
 import { setupBoardSocket } from './realtime/papan.js';
@@ -25,7 +26,7 @@ export const io = new Server(server, {
   },
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
 // Endpoint health check & server network info
@@ -48,6 +49,7 @@ app.use('/api/template', templateRouter);
 app.use('/api/sesi', sesiRouter);
 app.use('/api/guru', guruRouter);
 app.use('/api/papan', papanRouter);
+app.use('/api/ai', aiRouter);
 
 // Setup Socket.IO multiplayer & papan tulis
 setupMultiplayerSocket(io);
