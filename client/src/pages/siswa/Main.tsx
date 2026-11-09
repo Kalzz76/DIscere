@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   XCircle,
   Sparkles,
+  ArrowRight,
   LogOut,
   ShieldAlert,
   Loader2,
@@ -38,12 +39,9 @@ export default function MainSiswa() {
 
   // Form states
   const [tokenInput, setTokenInput] = useState(searchParams.get('token') || '');
-  const [namaInput, setNamaInput] = useState(searchParams.get('nama') || '');
+  const [namaInput, setNamaInput] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
-  const [joinStep, setJoinStep] = useState<'PIN' | 'NAMA'>(
-    searchParams.get('token') && searchParams.get('token')!.trim().length === 6 ? 'NAMA' : 'PIN'
-  );
 
   // Session states
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -259,20 +257,7 @@ export default function MainSiswa() {
     };
   }, [pesertaId, startCountdown]);
 
-  // Handler: Siswa Submit PIN (Langkah 1)
-  const handleNextToName = (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-    const clean = tokenInput.trim().replace(/\D/g, '');
-    if (!clean || clean.length !== 6) {
-      setFormError('Kode PIN harus terdiri dari 6 angka.');
-      return;
-    }
-    setTokenInput(clean);
-    setJoinStep('NAMA');
-  };
-
-  // Handler: Siswa Submit Form Gabung (Langkah 2)
+  // Handler: Siswa Submit Form Gabung
   const handleGabung = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -281,7 +266,6 @@ export default function MainSiswa() {
     const cleanNama = namaInput.trim();
 
     if (!cleanToken || cleanToken.length !== 6) {
-      setJoinStep('PIN');
       setFormError('Kode PIN harus terdiri dari 6 angka.');
       return;
     }
@@ -387,251 +371,84 @@ export default function MainSiswa() {
   };
 
   // ==========================================
-  // RENDER STAGE 1: FORM GABUNG (DESAIN KHUSUS JOIN SESUAI MOCKUP 100%)
+  // RENDER STAGE 1: FORM GABUNG
   // ==========================================
   if (stage === 'GABUNG') {
     return (
-      <div className="relative min-h-screen bg-[#1c3829] text-white flex flex-col justify-center items-center p-2 sm:p-4 overflow-x-hidden select-none">
-        {/* Subtle vignette / lighting overlay across the whole screen */}
-        <div
-          className="absolute inset-0 pointer-events-none opacity-40"
-          style={{
-            backgroundImage:
-              'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.5) 100%)',
-          }}
-        />
-
-        {/* ============================================================ */}
-        {/* DESKTOP & TABLET VIEW (sm:block): FULL AUTHENTIC 1024x471 BOARD */}
-        {/* ============================================================ */}
-        <div className="hidden sm:block relative w-full max-w-[1024px] aspect-[1024/471] rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.7)] overflow-hidden">
-          {/* Authentic High-Res Artwork without Human */}
-          <img
-            src="/join-board.png"
-            alt="Discere Join Board"
-            className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none"
-          />
-
-          {/* Form Error Toast (Floating directly above the paper card) */}
-          {formError && (
-            <div className="absolute top-[26%] left-1/2 -translate-x-1/2 z-30 px-4 py-1.5 rounded-lg bg-rose-600/95 text-white text-xs md:text-sm font-bold shadow-xl backdrop-blur-sm flex items-center gap-1.5 animate-bounce">
-              <ShieldAlert className="w-4 h-4 shrink-0" />
-              <span>{formError}</span>
+      <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4">
+        <div className="w-full max-w-md">
+          {/* Logo Brand */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-500/25 mb-4">
+              <Trophy className="w-8 h-8 text-amber-300" />
             </div>
-          )}
-
-          {/* Dynamic Section Header inside Card: Switch between PIN and NICKNAME */}
-          {joinStep === 'NAMA' && (
-            <div className="absolute top-[35.5%] left-1/2 -translate-x-1/2 z-20 px-3 py-0.5 rounded bg-[#f5ede0] text-[#2c3d31] text-[11px] md:text-xs font-black tracking-widest uppercase shadow-sm">
-              ── NICKNAME ──
-            </div>
-          )}
-
-          {/* Interactive Form placed precisely over Card Input and Button */}
-          {joinStep === 'PIN' ? (
-            <form onSubmit={handleNextToName}>
-              {/* Input PIN: exact coordinates on 1024x471 */}
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="Enter PIN"
-                value={tokenInput}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '');
-                  setTokenInput(val);
-                  if (formError) setFormError(null);
-                }}
-                autoFocus
-                className="absolute left-[36.43%] top-[43.10%] w-[27.05%] h-[10.83%] z-20 bg-transparent text-[#203a2a] font-extrabold text-base sm:text-xl md:text-2xl text-center rounded-xl sm:rounded-2xl border-none outline-none focus:ring-2 focus:ring-[#2e7d32]/60 placeholder:text-[#9e9688] placeholder:font-semibold tracking-widest"
-              />
-
-              {/* Join Button */}
-              <button
-                type="submit"
-                disabled={!tokenInput.trim() || tokenInput.trim().length !== 6}
-                className="absolute left-[36.43%] top-[56.69%] w-[27.05%] h-[9.98%] z-20 bg-transparent hover:bg-white/10 active:scale-[0.98] text-white font-extrabold text-base sm:text-lg md:text-xl rounded-xl sm:rounded-2xl border-none outline-none cursor-pointer flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed font-['Caveat',sans-serif] tracking-wider"
-              >
-                Join
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleGabung}>
-              {/* Input Nickname */}
-              <input
-                type="text"
-                maxLength={20}
-                placeholder="Enter Name"
-                value={namaInput}
-                onChange={(e) => {
-                  setNamaInput(e.target.value);
-                  if (formError) setFormError(null);
-                }}
-                autoFocus
-                className="absolute left-[36.43%] top-[43.10%] w-[27.05%] h-[10.83%] z-20 bg-transparent text-[#203a2a] font-extrabold text-sm sm:text-lg md:text-xl text-center rounded-xl sm:rounded-2xl border-none outline-none focus:ring-2 focus:ring-[#2e7d32]/60 placeholder:text-[#9e9688] placeholder:font-semibold tracking-wider"
-              />
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isJoining || !namaInput.trim()}
-                className="absolute left-[36.43%] top-[56.69%] w-[27.05%] h-[9.98%] z-20 bg-transparent hover:bg-white/10 active:scale-[0.98] text-white font-extrabold text-base sm:text-lg md:text-xl rounded-xl sm:rounded-2xl border-none outline-none cursor-pointer flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed font-['Caveat',sans-serif] tracking-wider"
-              >
-                {isJoining ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  'Mulai!'
-                )}
-              </button>
-
-              {/* Back to PIN step */}
-              <button
-                type="button"
-                onClick={() => {
-                  setJoinStep('PIN');
-                  setFormError(null);
-                }}
-                className="absolute top-[68%] left-1/2 -translate-x-1/2 z-20 text-[10px] sm:text-xs text-[#2c3d31]/80 hover:text-[#2c3d31] font-bold underline underline-offset-2 cursor-pointer transition-colors"
-              >
-                ← Ganti PIN ({tokenInput || '......'})
-              </button>
-            </form>
-          )}
-        </div>
-
-        {/* ============================================================ */}
-        {/* MOBILE VIEW (< sm): TOUCH-OPTIMIZED PARCHMENT CARD */}
-        {/* ============================================================ */}
-        <div className="sm:hidden relative z-10 w-full max-w-[360px] flex flex-col items-center my-auto py-6">
-          {/* Logo Discere & Chalk Accent */}
-          <div className="relative flex items-center justify-center gap-2 mb-6 select-none">
-            <svg
-              className="w-9 h-9 text-white drop-shadow-md"
-              viewBox="0 0 48 48"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M6 38c6 0 12-3 18-3s12 3 18 3V8c-6 0-12-3-18-3S12 8 6 8v30zM24 5v30" />
-            </svg>
-            <span
-              className="text-4xl font-extrabold text-white tracking-wide font-['Caveat',sans-serif]"
-              style={{ textShadow: '0 2px 6px rgba(0,0,0,0.5)' }}
-            >
-              Discere
-            </span>
-            <svg
-              className="w-7 h-7 text-[#f0ba35] -mt-4 -ml-1 pointer-events-none"
-              viewBox="0 0 30 30"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3.2"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <path d="M6 22 L 18 10 M14 26 L 24 18 M2 16 L 14 6" />
-            </svg>
+            <h1 className="text-3xl font-black tracking-tight text-white">DISCERE</h1>
+            <p className="text-slate-400 text-sm mt-1">Lomba Tarik Tambang Edukatif</p>
           </div>
 
-          {/* Parchment Card */}
-          <div className="relative w-full bg-[#f6efe2] rounded-3xl p-6 shadow-[0_15px_40px_rgba(0,0,0,0.5)] border-2 border-[#e2d5c2] text-center">
+          <Card className="p-6 sm:p-8 bg-slate-800 border-slate-700 shadow-2xl">
+            <h2 className="text-xl font-bold text-white text-center mb-6">
+              Gabung Permainan
+            </h2>
+
             {formError && (
-              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs font-semibold flex items-center justify-center gap-2">
-                <ShieldAlert className="w-4 h-4 shrink-0" />
+              <div className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-rose-400 text-sm">
+                <ShieldAlert className="w-5 h-5 shrink-0" />
                 <span>{formError}</span>
               </div>
             )}
 
-            <div className="flex items-center gap-3 mb-5 px-1">
-              <div className="flex-1 h-[1.5px] bg-[#beb4a0]" />
-              <span className="text-sm font-black uppercase tracking-widest text-[#2c3d31]">
-                {joinStep === 'PIN' ? 'PIN' : 'NICKNAME'}
-              </span>
-              <div className="flex-1 h-[1.5px] bg-[#beb4a0]" />
-            </div>
-
-            {joinStep === 'PIN' ? (
-              <form onSubmit={handleNextToName} className="space-y-4">
+            <form onSubmit={handleGabung} className="space-y-5">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
+                  Kode PIN 6 Angka
+                </label>
                 <input
                   type="text"
-                  inputMode="numeric"
                   maxLength={6}
-                  placeholder="Enter PIN"
+                  placeholder="Contoh: 849201"
                   value={tokenInput}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '');
-                    setTokenInput(val);
-                    if (formError) setFormError(null);
-                  }}
-                  autoFocus
-                  className="w-full py-3.5 px-4 text-center text-2xl font-black tracking-widest text-[#163a2b] bg-[#ece4d5] border-2 border-[#243e2f] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#163a2b]/30 transition-all placeholder:text-[#8e988f] placeholder:font-bold placeholder:text-lg placeholder:tracking-normal"
+                  onChange={(e) => setTokenInput(e.target.value.replace(/\D/g, ''))}
+                  className="w-full px-4 py-3.5 text-center text-2xl font-black tracking-widest text-white bg-slate-900 border-2 border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500 transition-colors"
                   required
                 />
-                <button
-                  type="submit"
-                  disabled={!tokenInput.trim() || tokenInput.trim().length !== 6}
-                  className="w-full py-3.5 px-4 text-xl font-bold text-white bg-[#173b2b] hover:bg-[#102c20] active:scale-[0.99] rounded-2xl shadow-md transition-all cursor-pointer font-['Caveat',sans-serif] tracking-wider disabled:opacity-50"
-                >
-                  Join
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleGabung} className="space-y-4">
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
+                  Nama Panggilan Kamu
+                </label>
                 <input
                   type="text"
                   maxLength={20}
-                  placeholder="Enter Name"
+                  placeholder="Contoh: Budi, Siti, Reza"
                   value={namaInput}
-                  onChange={(e) => {
-                    setNamaInput(e.target.value);
-                    if (formError) setFormError(null);
-                  }}
-                  autoFocus
-                  className="w-full py-3.5 px-4 text-center text-xl font-bold text-[#163a2b] bg-[#ece4d5] border-2 border-[#243e2f] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#163a2b]/30 transition-all placeholder:text-[#8e988f] placeholder:font-bold"
+                  onChange={(e) => setNamaInput(e.target.value)}
+                  className="w-full px-4 py-3 text-base text-white bg-slate-900 border-2 border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500 transition-colors"
                   required
                 />
-                <button
-                  type="submit"
-                  disabled={isJoining || !namaInput.trim()}
-                  className="w-full py-3.5 px-4 text-xl font-bold text-white bg-[#173b2b] hover:bg-[#102c20] disabled:opacity-60 active:scale-[0.99] rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer font-['Caveat',sans-serif] tracking-wider"
-                >
-                  {isJoining ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Menghubungkan...
-                    </>
-                  ) : (
-                    'Mulai!'
-                  )}
-                </button>
-                <div className="pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setJoinStep('PIN');
-                      setFormError(null);
-                    }}
-                    className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
-                  >
-                    ← Ganti PIN ({tokenInput || '......'})
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
+              </div>
 
-          {/* Subtext below Card */}
-          <div className="mt-5 flex flex-col items-center select-none text-center">
-            <span
-              className="text-base font-bold text-[#f4ecd9] tracking-wide font-['Caveat',sans-serif]"
-              style={{ textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}
-            >
-              Discere • Belajar Lebih Menyenangkan
-            </span>
-          </div>
+              <Button
+                type="submit"
+                variant="utama"
+                disabled={isJoining}
+                className="w-full py-4 text-base font-bold bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-lg shadow-indigo-600/30 flex justify-center items-center gap-2"
+              >
+                {isJoining ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Menghubungkan...
+                  </>
+                ) : (
+                  <>
+                    Gabung Lomba
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </Button>
+            </form>
+          </Card>
         </div>
       </div>
     );
