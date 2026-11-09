@@ -165,3 +165,4 @@ export const PapanSidebarGame: React.FC<PapanSidebarGameProps> = ({
     </aside>
   );
 };
+
