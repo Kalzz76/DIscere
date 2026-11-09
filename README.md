@@ -28,6 +28,14 @@ Tagline: *"Belajar seru, tarik kemenangan bersama."*
   - **Visualisasi Tali Interaktif:** Arena tali berskala `-8` hingga `+8` dengan penanda bendera beranimasi halus, indikator giliran aktif (Merah/Putih), dan tombol pilihan jawaban berukuran besar.
   - **Logika Permainan Terpusat di Server:** Perhitungan pergerakan tali murni di server (jawaban benar menggeser tali 1 langkah ke arah tim penjawab, salah tidak mengubah posisi).
   - **Kontrol Penuh Guru:** Kemudahan memulai, menjeda (`PAUSED`), melanjutkan (`PLAYING`), dan mengakhiri sesi dengan konfirmasi aman.
+- **Game Multiplayer Tarik Tambang (HP Siswa & Real-time Socket.IO):**
+  - **Siswa Bergabung Tanpa Akun (`/main`):** Siswa cukup memindai QR Code atau mengetik 6-digit kode PIN sesi dan nama panggilan langsung dari ponsel pintar tanpa registrasi.
+  - **Pembagian Tim Adil & Seimbang:** Algoritma Fisher-Yates mengacak dan membagi siswa ke dalam Tim Merah dan Tim Putih secara otomatis dengan selisih jumlah anggota maksimal 1 (`diff <= 1`).
+  - **Sinkronisasi Real-Time Dua Arah:** Dibangun di atas protokol Socket.IO dengan state manager in-memory (`multiManager`), menyiarkan pergerakan tali atomik, jawaban siswa, dan skor tim secara instan.
+  - **Timer Server Otoritatif 15 Detik:** Menghindari kecurangan perangkat dengan mengontrol hitung mundur dan penutupan soal secara terpusat di server backend.
+  - **Layar Host Proyektor Interaktif:** Menampilkan kode PIN raksasa yang terbaca dari baris belakang kelas, QR code jelas, daftar peserta live, visualisasi tali gerak mulus, dan kartu skor live.
+  - **Privasi Terjamin:** Sesuai prinsip *privacy by design*, nama siswa hanya ada di memori RAM server selama sesi berlangsung dan tidak pernah disimpan permanen ke database SQLite.
+  - **Dukungan Reconnect Tangguh:** Pemain yang terputus atau me-refresh peramban dapat langsung bergabung kembali ke tim dan soal aktifnya melalui kredensial sesi lokal (`sessionStorage`).
 - **Hasil Pertandingan & Evaluasi Materi Guru:**
   - **Layar Hasil (`/guru/sesi/:id/hasil`):** Banner perayaan pemenang (Merah, Putih, atau Seri), skor akhir, log perjalanan soal, dan tombol *Main Lagi* (membuat sesi baru dari template sama dengan kondisi awal bersih).
   - **Riwayat & Analisis Kelemahan Siswa:** Penyimpanan otomatis ke basis data via transaksi Prisma, dilengkapi modal detail evaluasi yang menyorot **soal yang paling sering dijawab salah** agar guru mengetahui topik yang perlu dibahas ulang.
@@ -124,6 +132,45 @@ flowchart TD
     MANAGER -->|Selesai Permainan| TBL_RES
     MANAGER -->|Rekap Soal| TBL_STAT
     TBL_TMPL -->|Inisialisasi Sesi| MANAGER
+```
+
+---
+
+## Diagram Arsitektur Game Multiplayer (Socket.IO)
+
+```mermaid
+flowchart TD
+    subgraph Host_Guru [Layar Host Guru / Proyektor Kelas]
+        HOST_LOBBY["Layar Lobi PIN & QR Code"] -->|sesi:mulai| SVR_SOCKET
+        HOST_GAME["Layar Arena Proyektor"] <--|"tali:update & soal:tampil"| SVR_SOCKET
+        HOST_GAME -->|sesi:akhiri_manual| SVR_SOCKET
+    end
+
+    subgraph Klien_Siswa [HP Siswa Masing-Masing /main]
+        SISWA_JOIN["Form PIN & Nama"] -->|sesi:gabung| SVR_SOCKET
+        SISWA_GAME["Layar Soal & Tombol A/B/C"] <--|"teams_assigned & soal:tampil"| SVR_SOCKET
+        SISWA_GAME -->|jawab:kirim| SVR_SOCKET
+        SISWA_RESULT["Layar Hasil Tim"] <--|sesi:selesai| SVR_SOCKET
+    end
+
+    subgraph Backend_Socket [Server Real-Time Socket.IO]
+        SVR_SOCKET((Socket.IO Gateway))
+        MULTI_MGR["multiManager: In-Memory Game State"]
+        TIMER_SRV["Timer Otoritatif 15 Detik"]
+        LOGIC_TARIK["tarikTambang: Pure Rule Logic"]
+        SVR_SOCKET <--> MULTI_MGR
+        MULTI_MGR --> TIMER_SRV
+        MULTI_MGR --> LOGIC_TARIK
+    end
+
+    subgraph Penyimpanan_Data [Database SQLite Prisma]
+        DB_SESS[(sessions)]
+        DB_RES[(session_results)]
+        DB_STAT[(question_stats)]
+        MULTI_MGR -->|Selesai: Transaksi DB| DB_SESS
+        MULTI_MGR -->|Skor & Pemenang| DB_RES
+        MULTI_MGR -->|Statistik Agregat Per Soal| DB_STAT
+    end
 ```
 
 ---
