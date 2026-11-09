@@ -45,6 +45,14 @@ interface SesiRiwayatItem {
   totalSoal: number;
 }
 
+interface BoardItem {
+  id: string;
+  judul: string;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { shares: number };
+}
+
 interface RingkasanData {
   totalTemplate: number;
   totalSesi: number;
@@ -89,6 +97,7 @@ export default function DashboardGuru() {
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [pustakaResmi, setPustakaResmi] = useState<TemplateItem[]>([]);
   const [riwayatList, setRiwayatList] = useState<SesiRiwayatItem[]>([]);
+  const [boards, setBoards] = useState<BoardItem[]>([]);
   const [subTabTemplate, setSubTabTemplate] = useState<'saya' | 'pustaka'>('saya');
   const [pencarian, setPencarian] = useState('');
 
@@ -98,6 +107,9 @@ export default function DashboardGuru() {
   // Modal State
   const [modalHapusId, setModalHapusId] = useState<string | null>(null);
   const [modalDetailSessionId, setModalDetailSessionId] = useState<string | null>(null);
+  const [modalHapusPapanId, setModalHapusPapanId] = useState<string | null>(null);
+  const [modalGantiNamaPapan, setModalGantiNamaPapan] = useState<{ id: string; judul: string } | null>(null);
+  const [inputGantiNama, setInputGantiNama] = useState('');
 
   const fetchRingkasan = useCallback(async () => {
     try {
@@ -130,15 +142,72 @@ export default function DashboardGuru() {
     }
   }, []);
 
+  const fetchBoards = useCallback(async () => {
+    try {
+      const res = await apiRequest<{ boards: BoardItem[] }>('/papan');
+      setBoards(res.boards);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
   // Inisialisasi data
   useEffect(() => {
     async function loadInitial() {
       setLoading(true);
-      await Promise.all([fetchRingkasan(), fetchTemplates(), fetchRiwayat()]);
+      await Promise.all([fetchRingkasan(), fetchTemplates(), fetchRiwayat(), fetchBoards()]);
       setLoading(false);
     }
     loadInitial();
-  }, [fetchRingkasan, fetchTemplates, fetchRiwayat]);
+  }, [fetchRingkasan, fetchTemplates, fetchRiwayat, fetchBoards]);
+
+  // Handler: Buat Papan Tulis Baru
+  const handleBuatPapanBaru = async () => {
+    try {
+      setActionLoadingId('buat_papan');
+      const res = await apiRequest<{ board: { id: string } }>('/papan', {
+        method: 'POST',
+        body: JSON.stringify({ judul: 'Papan Pembelajaran Baru' }),
+      });
+      navigate(`/papan/${res.board.id}`);
+    } catch (err: any) {
+      alert(err.pesan || 'Gagal membuat papan baru.');
+      setActionLoadingId(null);
+    }
+  };
+
+  // Handler: Ganti Nama Papan
+  const handleKonfirmasiGantiNamaPapan = async () => {
+    if (!modalGantiNamaPapan || !inputGantiNama.trim()) return;
+    try {
+      setActionLoadingId(modalGantiNamaPapan.id);
+      await apiRequest(`/papan/${modalGantiNamaPapan.id}/judul`, {
+        method: 'PATCH',
+        body: JSON.stringify({ judul: inputGantiNama.trim() }),
+      });
+      setModalGantiNamaPapan(null);
+      await fetchBoards();
+    } catch (err: any) {
+      alert(err.pesan || 'Gagal mengubah judul papan.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Handler: Hapus Papan
+  const handleKonfirmasiHapusPapan = async () => {
+    if (!modalHapusPapanId) return;
+    try {
+      setActionLoadingId(modalHapusPapanId);
+      await apiRequest(`/papan/${modalHapusPapanId}`, { method: 'DELETE' });
+      setModalHapusPapanId(null);
+      await fetchBoards();
+    } catch (err: any) {
+      alert(err.pesan || 'Gagal menghapus papan.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
 
   // Handler: Mulai Game dari Template
   const handleMulaiGame = async (templateId: string, mode?: string) => {
@@ -387,8 +456,9 @@ export default function DashboardGuru() {
                   </button>
 
                   <button
-                    onClick={() => alert('Papan tulis interaktif Fabric.js akan aktif pada Tahap 6.')}
-                    className="p-6 rounded-3xl bg-gradient-to-r from-[#1E2A5A] to-[#2B3B7E] text-white flex items-center justify-between shadow-md hover:shadow-lg transition-all text-left"
+                    onClick={handleBuatPapanBaru}
+                    disabled={actionLoadingId === 'buat_papan'}
+                    className="p-6 rounded-3xl bg-gradient-to-r from-[#1E2A5A] to-[#2B3B7E] text-white flex items-center justify-between shadow-md hover:shadow-lg transition-all text-left disabled:opacity-75"
                   >
                     <div>
                       <div className="font-extrabold text-xl mb-1">
@@ -688,22 +758,113 @@ export default function DashboardGuru() {
               </div>
             )}
 
-            {/* TAB 4: PAPAN TULIS (INFO JADWAL) */}
+            {/* TAB 4: PAPAN TULIS INTERAKTIF */}
             {tabAktif === 'papan' && (
-              <Card padding="lg" className="text-center py-16 space-y-4">
-                <div className="w-16 h-16 rounded-3xl bg-blue-100 dark:bg-blue-950/60 text-[#1E2A5A] dark:text-blue-300 flex items-center justify-center mx-auto">
-                  <PenTool className="w-8 h-8" />
-                </div>
-                <h2 className="text-2xl font-black">Papan Tulis Interaktif Discere</h2>
-                <p className="text-slate-600 dark:text-slate-300 max-w-md mx-auto text-sm">
-                  Kanvas tak terbatas berbasis Fabric.js, alat bantu gambar bebas, bentuk, rumus, dan kolaborasi murid akan hadir pada <strong>Tahap 6</strong>.
-                </p>
-                <div className="pt-2">
-                  <Button variant="sekunder" size="md" onClick={() => navigate('/guru?tab=template')}>
-                    Coba Game Solo Sekarang
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+                      Papan Tulis Digital
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Kanvas tak terbatas untuk mengajar, menulis catatan, dan kolaborasi murid.
+                    </p>
+                  </div>
+
+                  <Button
+                    variant="utama"
+                    icon={<Plus className="w-4 h-4" />}
+                    onClick={handleBuatPapanBaru}
+                    loading={actionLoadingId === 'buat_papan'}
+                  >
+                    Buat Papan Baru
                   </Button>
                 </div>
-              </Card>
+
+                {boards.length === 0 ? (
+                  <Card padding="lg" className="text-center py-16 space-y-4">
+                    <div className="w-16 h-16 rounded-3xl bg-blue-100 dark:bg-blue-950/60 text-[#1E2A5A] dark:text-blue-300 flex items-center justify-center mx-auto">
+                      <PenTool className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-bold">Belum Ada Papan Tulis Tersimpan</h3>
+                    <p className="text-slate-500 max-w-sm mx-auto text-sm">
+                      Mulai jelaskan materi pelajaran dengan kanvas tak terbatas menggunakan pena, bentuk, gambar, dan kuis.
+                    </p>
+                    <div className="pt-2">
+                      <Button
+                        variant="utama"
+                        size="md"
+                        icon={<Plus className="w-4 h-4" />}
+                        onClick={handleBuatPapanBaru}
+                        loading={actionLoadingId === 'buat_papan'}
+                      >
+                        Buka Papan Pertama Anda
+                      </Button>
+                    </div>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {boards.map((b) => (
+                      <Card key={b.id} padding="md" className="space-y-4 flex flex-col justify-between hover:shadow-md transition-shadow">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                            <span className="text-xs text-slate-400">
+                              Diubah: {new Date(b.updatedAt).toLocaleDateString('id-ID', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+
+                          <h3 className="font-extrabold text-lg text-slate-900 dark:text-white line-clamp-1">
+                            {b.judul}
+                          </h3>
+
+                          {Boolean(b._count?.shares) && (
+                            <span className="inline-block text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-semibold border border-indigo-200 dark:border-indigo-800">
+                              {b._count?.shares} Tautan Berbagi Aktif
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                          <Button
+                            variant="utama"
+                            size="sm"
+                            icon={<Play className="w-4 h-4 fill-current" />}
+                            onClick={() => navigate(`/papan/${b.id}`)}
+                          >
+                            Buka Papan
+                          </Button>
+
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="hantu"
+                              size="sm"
+                              icon={<Edit3 className="w-4 h-4" />}
+                              onClick={() => {
+                                setModalGantiNamaPapan({ id: b.id, judul: b.judul });
+                                setInputGantiNama(b.judul);
+                              }}
+                              title="Ganti Judul Papan"
+                            />
+                            <Button
+                              variant="hantu"
+                              size="sm"
+                              icon={<Trash2 className="w-4 h-4 text-red-500" />}
+                              onClick={() => setModalHapusPapanId(b.id)}
+                              title="Hapus Papan"
+                            />
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </>
         )}
@@ -740,6 +901,78 @@ export default function DashboardGuru() {
         isOpen={Boolean(modalDetailSessionId)}
         onClose={() => setModalDetailSessionId(null)}
       />
+
+      {/* Modal Ganti Nama Papan */}
+      <Modal
+        isOpen={Boolean(modalGantiNamaPapan)}
+        onClose={() => setModalGantiNamaPapan(null)}
+        title="Ganti Judul Papan Tulis"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleKonfirmasiGantiNamaPapan();
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
+              Judul Papan Tulis
+            </label>
+            <input
+              type="text"
+              value={inputGantiNama}
+              onChange={(e) => setInputGantiNama(e.target.value)}
+              placeholder="Contoh: Matematika Pecahan Kelas 5"
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold"
+              required
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="hantu"
+              onClick={() => setModalGantiNamaPapan(null)}
+            >
+              Batal
+            </Button>
+            <Button
+              type="submit"
+              variant="utama"
+              loading={actionLoadingId === modalGantiNamaPapan?.id}
+            >
+              Simpan Perubahan
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Hapus Papan */}
+      <Modal
+        isOpen={Boolean(modalHapusPapanId)}
+        onClose={() => setModalHapusPapanId(null)}
+        title="Hapus Papan Tulis?"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Apakah Anda yakin ingin menghapus papan tulis ini? Catatan materi dan seluruh tautan berbagi akan dicabut secara permanen.
+          </p>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+            <Button variant="hantu" onClick={() => setModalHapusPapanId(null)}>
+              Batal
+            </Button>
+            <Button
+              variant="utama"
+              onClick={handleKonfirmasiHapusPapan}
+              loading={actionLoadingId === modalHapusPapanId}
+              className="bg-rose-600 hover:bg-rose-500"
+            >
+              Ya, Hapus Papan
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
