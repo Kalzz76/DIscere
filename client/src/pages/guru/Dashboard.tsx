@@ -442,7 +442,7 @@ export default function DashboardGuru() {
   // Riwayat filtering & pagination calculations
   const riwayatTersaring = riwayatList.filter((r) => {
     const cocokJudul = r.templateJudul.toLowerCase().includes(riwayatCari.toLowerCase().trim());
-    const cocokMode = riwayatFilterMode === 'semua' || r.mode === riwayatFilterMode;
+    const cocokMode = riwayatFilterMode === 'semua' || r.mode?.toLowerCase() === riwayatFilterMode;
     const cocokMenang = riwayatFilterMenang === 'semua' || r.timMenang === riwayatFilterMenang;
     return cocokJudul && cocokMode && cocokMenang;
   });
@@ -1287,7 +1287,7 @@ export default function DashboardGuru() {
                                     <div className="space-y-1">
                                       <div className="flex items-center gap-2">
                                         <span className="portal-tag yellow font-bold">
-                                          Mode {r.mode === 'multi' ? 'MULTI' : 'SOLO'}
+                                          Mode {r.mode?.toLowerCase() === 'multi' ? 'MULTI' : 'SOLO'}
                                         </span>
                                         <span className="text-xs text-[#6b7d6c]">
                                           {new Date(r.tanggal).toLocaleDateString('id-ID', {

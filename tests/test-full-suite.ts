@@ -143,6 +143,12 @@ async function runTestSuite() {
     });
     const jawabData = await jawabRes.json();
     assert(jawabRes.ok && typeof jawabData.taliPosition === 'number', 'Perhitungan pergeseran tali di server berhasil diproses', 'Solo');
+
+    // 3.4 Bersihkan Sesi Solo Uji Coba agar tidak mencemari riwayat
+    await fetch(`${BASE_URL}/api/sesi/${soloId}`, {
+      method: 'DELETE',
+      headers: { Cookie: guruCookie },
+    });
   } catch (err: any) {
     console.error('Gagal pada suite Game Solo:', err.message);
   }
@@ -203,6 +209,12 @@ async function runTestSuite() {
     siswa1Socket.disconnect();
     siswa2Socket.disconnect();
     assert(true, 'Sesi multiplayer selesai dan state dibersihkan dari RAM', 'Multiplayer');
+
+    // 4.4 Bersihkan Sesi Multi Uji Coba agar tidak mencemari riwayat
+    await fetch(`${BASE_URL}/api/sesi/${multiId}`, {
+      method: 'DELETE',
+      headers: { Cookie: guruCookie },
+    });
   } catch (err: any) {
     console.error('Gagal pada suite Multiplayer:', err.message);
   }

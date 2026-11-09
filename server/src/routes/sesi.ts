@@ -1118,6 +1118,32 @@ sesiRouter.post('/:id/main-lagi', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// 11. DELETE /api/sesi/:id - Hapus sesi permainan milik guru atau admin
+sesiRouter.delete('/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const session = await prisma.session.findUnique({
+      where: { id },
+    });
+
+    if (!session) {
+      return res.status(404).json({ pesan: 'Sesi tidak ditemukan.' });
+    }
+
+    if (session.hostId !== req.user!.id && req.user!.role !== 'admin') {
+      return res.status(403).json({ pesan: 'Anda tidak berwenang menghapus sesi ini.' });
+    }
+
+    await prisma.session.delete({
+      where: { id },
+    });
+
+    return res.json({ pesan: 'Sesi berhasil dihapus.' });
+  } catch (err: any) {
+    return res.status(500).json({ pesan: err.message || 'Gagal menghapus sesi.' });
+  }
+});
+
 /**
  * Fungsi utilitas untuk menyimpan hasil permainan ke database menggunakan transaksi Prisma
  */
