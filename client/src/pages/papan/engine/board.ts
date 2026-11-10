@@ -13,9 +13,20 @@ import {
   HandleKey,
 } from './types';
 import { COL, LCOL } from './color';
-import { move, topAt, bounds, hit, hitSelectionHandle, rsz, getHandleCursor } from './geometry';
+import {
+  move,
+  topAt,
+  bounds,
+  wb,
+  hitSelectionHandle,
+  rsz,
+  getHandleCursor,
+  ubox,
+  inUnion,
+  intersects,
+} from './geometry';
 import { eraseSeg } from './eraser';
-import { HistoryManager, cloneObj } from './history';
+import { HistoryManager, cloneObj, cloneSet } from './history';
 import { drawScene, ensureFontLoaded } from './render';
 import { resizeImageToDataUrl } from './export';
 
@@ -23,7 +34,7 @@ export interface BoardOptions {
   hanyaLihat?: boolean;
   onUbah?: (payload: UbahEventPayload) => void;
   onStateChange?: (state: BoardState) => void;
-  onSelectionChange?: (selId: string | null) => void;
+  onSelectionChange?: (selIds: string[], firstId: string | null) => void;
   onViewChange?: (view: BoardView) => void;
   onOpenTextEditor?: (editor: TextEditorState) => void;
   onCloseTextEditor?: () => void;
@@ -53,30 +64,35 @@ export class Board {
     grid: true,
   };
 
-  public sel: string | null = null;
+  public sel: string[] = [];
+  public marq: Bounds | null = null;
   public lasso: Pt[] | null = null;
   public laser: LaserPoint[] = [];
   public cur: CanvasObj | null = null;
   public hanyaLihat = false;
 
+  private clip: CanvasObj[] = [];
+  private pasteCount = 0;
   private mouse: Pt | null = null;
   private activePointers: Map<number, Pt> = new Map();
   private drag: {
-    k: 'pan' | 'er' | 'ai' | 'mv' | 'ls' | 'resize' | 'rot' | 'pinch';
+    k: 'pan' | 'er' | 'ai' | 'mv' | 'ls' | 'resize' | 'rot' | 'pinch' | 'mq';
     x?: number;
     y?: number;
     vx?: number;
     vy?: number;
     p?: Pt;
+    p0?: Pt;
     last?: Pt;
     ch?: boolean;
-    initialObjBeforeMove?: CanvasObj;
+    initialObjsBeforeMove?: CanvasObj[];
     erasedRemoved?: CanvasObj[];
     erasedAdded?: CanvasObj[];
     handleKey?: HandleKey;
     b0?: Bounds;
     r0?: number;
-    initialObj?: CanvasObj;
+    ids?: string[];
+    os?: CanvasObj[];
     pinchDist?: number;
     pinchCenter?: Pt;
   } | null = null;
@@ -136,6 +152,7 @@ export class Board {
       cur: this.cur,
       lasso: this.lasso,
       sel: this.sel,
+      marq: this.marq,
       laser: this.laser,
       mouse: this.mouse,
       onImageLoad: () => this.rd(),
@@ -214,12 +231,39 @@ export class Board {
     }
   }
 
-  public setSelection(id: string | null): void {
-    this.sel = id;
-    if (this.options.onSelectionChange) {
-      this.options.onSelectionChange(id);
+  public get selId(): string | null {
+    return this.sel[0] || null;
+  }
+
+  public selObjs(): CanvasObj[] {
+    return this.objs.filter((o) => this.sel.includes(o.id));
+  }
+
+  public xform(): { b: Bounds; r: number; A: CanvasObj[] } | null {
+    const A = this.selObjs().filter((o) => !o.lock);
+    if (A.length === 0) return null;
+    if (A.length === 1) {
+      return { b: bounds(A[0]), r: A[0].rot || 0, A };
     }
-    this.rd();
+    return { b: ubox(A), r: 0, A };
+  }
+
+  public setSelection(idOrIds: string[] | string | null): void {
+    const nextSel = Array.isArray(idOrIds)
+      ? idOrIds
+      : idOrIds
+      ? [idOrIds]
+      : [];
+    const same =
+      this.sel.length === nextSel.length &&
+      this.sel.every((id, idx) => id === nextSel[idx]);
+    if (!same) {
+      this.sel = nextSel;
+      if (this.options.onSelectionChange) {
+        this.options.onSelectionChange(this.sel, this.selId);
+      }
+      this.rd();
+    }
   }
 
   // --- Zoom & View ---
@@ -291,8 +335,8 @@ export class Board {
     const res = this.history.redo(this.objs);
     if (res.reapplied) {
       this.objs = res.newObjs;
-      if (this.sel && !this.objs.some((o) => o.id === this.sel)) {
-        this.setSelection(null);
+      if (this.sel.length > 0) {
+        this.setSelection(this.sel.filter((id) => this.objs.some((o) => o.id === id)));
       }
       this.rd();
     }
@@ -334,27 +378,88 @@ export class Board {
     }
   }
 
-  // --- Manipulasi Objek (Duplikat, Hapus, dsb) ---
+  // --- Manipulasi Objek (Duplikat, Hapus, Copy, Cut, Paste, Group, Ungroup) ---
   public deleteSelected(): void {
-    if (this.hanyaLihat || !this.sel) return;
-    const target = this.objs.find((o) => o.id === this.sel);
-    if (!target) return;
-    this.objs = this.objs.filter((o) => o.id !== this.sel);
-    this.history.commit({ hapus: [target] });
-    this.setSelection(null);
+    if (this.hanyaLihat || this.sel.length === 0) return;
+    const targets = this.selObjs();
+    if (targets.length === 0) return;
+    const targetIds = new Set(targets.map((o) => o.id));
+    this.objs = this.objs.filter((o) => !targetIds.has(o.id));
+    this.history.commit({ hapus: targets });
+    this.setSelection([]);
     this.rd();
   }
 
   public duplicateSelected(): void {
-    if (this.hanyaLihat || !this.sel) return;
-    const o = this.objs.find((x) => x.id === this.sel);
-    if (!o) return;
-    const copy = cloneObj(o);
-    copy.id = crypto.randomUUID();
-    move(copy, 24, 24);
-    this.objs.push(copy);
-    this.setSelection(copy.id);
-    this.history.commit({ tambah: [copy] });
+    if (this.hanyaLihat || this.sel.length === 0) return;
+    const targets = this.selObjs();
+    if (targets.length === 0) return;
+    const cloned = cloneSet(targets, 24, 24);
+    this.objs.push(...cloned);
+    this.setSelection(cloned.map((o) => o.id));
+    this.history.commit({ tambah: cloned });
+    this.rd();
+  }
+
+  public copy(): void {
+    const targets = this.selObjs();
+    if (targets.length === 0) return;
+    this.clip = targets.map(cloneObj);
+    this.pasteCount = 0;
+    this.toast(`${targets.length} objek disalin`);
+  }
+
+  public cut(): void {
+    if (this.hanyaLihat || this.sel.length === 0) return;
+    this.copy();
+    this.deleteSelected();
+  }
+
+  public paste(): void {
+    if (this.hanyaLihat || this.clip.length === 0) return;
+    this.pasteCount++;
+    const cloned = cloneSet(this.clip, 24 * this.pasteCount, 24 * this.pasteCount);
+    this.objs.push(...cloned);
+    this.setSelection(cloned.map((o) => o.id));
+    this.history.commit({ tambah: cloned });
+    this.toast(`${cloned.length} objek ditempel`);
+    this.rd();
+  }
+
+  public group(): void {
+    if (this.hanyaLihat) return;
+    const targets = this.selObjs();
+    if (targets.length < 2) {
+      this.toast('Pilih minimal 2 objek untuk dikelompokkan');
+      return;
+    }
+    const groupId = 'g_' + crypto.randomUUID().slice(0, 8);
+    const sebelum = targets.map(cloneObj);
+    targets.forEach((o) => {
+      o.g = groupId;
+    });
+    this.history.commit({
+      ubah: sebelum.map((s, idx) => ({ sebelum: s, sesudah: cloneObj(targets[idx]) })),
+    });
+    this.toast(`${targets.length} objek dikelompokkan`);
+    this.rd();
+  }
+
+  public ungroup(): void {
+    if (this.hanyaLihat) return;
+    const targets = this.selObjs().filter((o) => o.g);
+    if (targets.length === 0) {
+      this.toast('Objek yang dipilih tidak dalam grup');
+      return;
+    }
+    const sebelum = targets.map(cloneObj);
+    targets.forEach((o) => {
+      delete o.g;
+    });
+    this.history.commit({
+      ubah: sebelum.map((s, idx) => ({ sebelum: s, sesudah: cloneObj(targets[idx]) })),
+    });
+    this.toast('Grup dilepas');
     this.rd();
   }
 
@@ -526,7 +631,9 @@ export class Board {
       } else {
         this.objs = this.objs.filter((x) => x !== txtObj);
         this.history.commit({ hapus: [txtObj] });
-        if (this.sel === txtObj.id) this.setSelection(null);
+        if (this.sel.includes(txtObj.id)) {
+          this.setSelection(this.sel.filter((id) => id !== txtObj.id));
+        }
       }
     } else if (trimmed.trim()) {
       const o: TextObj = {
@@ -691,49 +798,75 @@ export class Board {
         this.drag.erasedRemoved!.push(...res.removed);
       }
     } else if (t === 'select') {
-      // Cek apakah kursor mengenai handle sudut resize atau rotasi objek aktif
-      if (this.sel) {
-        const selObj = this.objs.find((item) => item.id === this.sel);
-        if (selObj && selObj.type !== 'stroke') {
-          const b = bounds(selObj);
-          const r = selObj.rot || 0;
-          const handle = hitSelectionHandle(b, r, p, this.view.z);
-          if (handle) {
-            if (handle.k === 'rot') {
-              this.drag = {
-                k: 'rot',
-                b0: b,
-                r0: r,
-                initialObj: cloneObj(selObj),
-                ch: false,
-              };
-              this.canvas.style.cursor = 'grabbing';
-            } else {
-              this.drag = {
-                k: 'resize',
-                handleKey: handle.k,
-                b0: b,
-                r0: r,
-                initialObj: cloneObj(selObj),
-                ch: false,
-              };
-              this.canvas.style.cursor = getHandleCursor(handle.k, r);
-            }
-            this.rd();
-            return;
+      const X = this.xform();
+      if (X) {
+        const handle = hitSelectionHandle(X.b, X.r, p, this.view.z);
+        if (handle) {
+          if (handle.k === 'rot') {
+            this.drag = {
+              k: 'rot',
+              b0: X.b,
+              r0: X.r,
+              ids: X.A.map((o) => o.id),
+              os: X.A.map(cloneObj),
+              ch: false,
+            };
+            this.canvas.style.cursor = 'grabbing';
+          } else {
+            this.drag = {
+              k: 'resize',
+              handleKey: handle.k,
+              b0: X.b,
+              r0: X.r,
+              ids: X.A.map((o) => o.id),
+              os: X.A.map(cloneObj),
+              ch: false,
+            };
+            this.canvas.style.cursor = getHandleCursor(handle.k, X.r);
           }
+          this.rd();
+          return;
         }
       }
 
       const o = topAt(this.objs, p, 6 / this.view.z);
-      this.setSelection(o ? o.id : null);
       if (o) {
+        const groupIds = o.g ? this.objs.filter((x) => x.g === o.g).map((x) => x.id) : [o.id];
+        if (e.shiftKey) {
+          const hasAll = groupIds.every((i) => this.sel.includes(i));
+          const nextSel = hasAll
+            ? this.sel.filter((i) => !groupIds.includes(i))
+            : [...new Set(this.sel.concat(groupIds))];
+          this.setSelection(nextSel);
+        } else if (!this.sel.includes(o.id)) {
+          this.setSelection(groupIds);
+        }
+
+        const activeSelected = this.selObjs();
+        if (activeSelected.length > 0) {
+          this.drag = {
+            k: 'mv',
+            p,
+            ch: false,
+            initialObjsBeforeMove: activeSelected.map(cloneObj),
+          };
+        }
+      } else if (inUnion(this.selObjs(), p)) {
         this.drag = {
           k: 'mv',
           p,
           ch: false,
-          initialObjBeforeMove: cloneObj(o),
+          initialObjsBeforeMove: this.selObjs().map(cloneObj),
         };
+      } else {
+        if (!e.shiftKey) {
+          this.setSelection([]);
+        }
+        this.drag = {
+          k: 'mq',
+          p0: p,
+        };
+        this.marq = { x: p.x, y: p.y, w: 0, h: 0 };
       }
     } else if (t === 'shape') {
       this.cur = {
@@ -873,85 +1006,124 @@ export class Board {
       } else if (this.drag.k === 'ai') {
         if (!this.lasso) this.lasso = [];
         this.lasso.push(p);
-      } else if (this.drag.k === 'mv' && this.sel) {
-        const o = this.objs.find((item) => item.id === this.sel);
-        if (o && this.drag.p) {
-          move(o, p.x - this.drag.p.x, p.y - this.drag.p.y);
-          this.drag.p = p;
-          this.drag.ch = true;
-        }
-      } else if (this.drag.k === 'rot' && this.sel && this.drag.b0 && this.drag.initialObj) {
-        const o = this.objs.find((item) => item.id === this.sel);
-        if (o) {
-          const b = this.drag.b0;
-          const x0 = b.x + b.w / 2;
-          const y0 = b.y + b.h / 2;
-          let a = Math.atan2(p.y - y0, p.x - x0) + Math.PI / 2;
-          if (e.shiftKey) {
-            // Snap tiap 15 derajat (PI / 12) saat Shift ditekan
-            a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12);
+      } else if (this.drag.k === 'mq' && this.drag.p0) {
+        const x = Math.min(this.drag.p0.x, p.x);
+        const y = Math.min(this.drag.p0.y, p.y);
+        const w = Math.abs(p.x - this.drag.p0.x);
+        const h = Math.abs(p.y - this.drag.p0.y);
+        this.marq = { x, y, w, h };
+        const ids = new Set(
+          this.objs
+            .filter((o) => !o.lock && intersects(wb(o), this.marq!))
+            .map((o) => o.id)
+        );
+        this.objs.forEach((o) => {
+          if (o.g && this.objs.some((q) => ids.has(q.id) && q.g === o.g)) {
+            ids.add(o.id);
           }
-          o.rot = a;
-          this.drag.ch = true;
+        });
+        this.setSelection([...ids]);
+      } else if (this.drag.k === 'mv' && this.drag.p) {
+        const dx = p.x - this.drag.p.x;
+        const dy = p.y - this.drag.p.y;
+        this.selObjs()
+          .filter((o) => !o.lock)
+          .forEach((o) => move(o, dx, dy));
+        this.drag.p = p;
+        this.drag.ch = true;
+      } else if (this.drag.k === 'rot' && this.drag.b0 && this.drag.ids && this.drag.os) {
+        const b = this.drag.b0;
+        const x0 = b.x + b.w / 2;
+        const y0 = b.y + b.h / 2;
+        let a = Math.atan2(p.y - y0, p.x - x0) + Math.PI / 2;
+        if (e.shiftKey) {
+          a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12);
         }
+        const T = this.drag.ids
+          .map((id) => this.objs.find((x) => x.id === id))
+          .filter(Boolean) as CanvasObj[];
+        const single = T.length === 1;
+        const os = this.drag.os;
+        if (!os) return;
+        T.forEach((o, i) => {
+          Object.assign(o, cloneObj(os[i]));
+          if (single) {
+            o.rot = a;
+          } else {
+            const q = bounds(o);
+            const c0 = q.x + q.w / 2;
+            const d0 = q.y + q.h / 2;
+            const cosA = Math.cos(a);
+            const sinA = Math.sin(a);
+            const dx = c0 - x0;
+            const dy = d0 - y0;
+            move(o, x0 + dx * cosA - dy * sinA - c0, y0 + dx * sinA + dy * cosA - d0);
+            o.rot = (o.rot || 0) + a;
+          }
+        });
+        this.drag.ch = true;
       } else if (
         this.drag.k === 'resize' &&
-        this.sel &&
         this.drag.b0 &&
         this.drag.handleKey &&
-        this.drag.initialObj
+        this.drag.ids &&
+        this.drag.os
       ) {
-        const o = this.objs.find((item) => item.id === this.sel);
-        if (o) {
-          Object.assign(o, cloneObj(this.drag.initialObj));
-          const b = this.drag.b0;
-          const x0 = b.x + b.w / 2;
-          const y0 = b.y + b.h / 2;
-          const r = this.drag.r0 || 0;
-          const co = Math.cos(r);
-          const si = Math.sin(r);
-          const hw = b.w / 2 + 6;
-          const hh = b.h / 2 + 6;
-          const dx = p.x - x0;
-          const dy = p.y - y0;
-          const lp = { x: dx * co + dy * si, y: -dx * si + dy * co };
-          const sgMap: Record<string, [number, number]> = {
-            nw: [1, 1],
-            ne: [-1, 1],
-            se: [-1, -1],
-            sw: [1, -1],
-            n: [0, 1],
-            s: [0, -1],
-            e: [-1, 0],
-            w: [1, 0],
-          };
-          const sg = sgMap[this.drag.handleKey] || [1, 1];
-          const op = { x: sg[0] * hw, y: sg[1] * hh };
-          let w = b.w;
-          let h = b.h;
-          let mx = 0;
-          let my = 0;
+        const b = this.drag.b0;
+        const x0 = b.x + b.w / 2;
+        const y0 = b.y + b.h / 2;
+        const r = this.drag.r0 || 0;
+        const co = Math.cos(r);
+        const si = Math.sin(r);
+        const hw = b.w / 2 + 6;
+        const hh = b.h / 2 + 6;
+        const dx = p.x - x0;
+        const dy = p.y - y0;
+        const lp = { x: dx * co + dy * si, y: -dx * si + dy * co };
+        const sgMap: Record<string, [number, number]> = {
+          nw: [1, 1],
+          ne: [-1, 1],
+          se: [-1, -1],
+          sw: [1, -1],
+          n: [0, 1],
+          s: [0, -1],
+          e: [-1, 0],
+          w: [1, 0],
+        };
+        const sg = sgMap[this.drag.handleKey] || [1, 1];
+        const op = { x: sg[0] * hw, y: sg[1] * hh };
+        let w = b.w;
+        let h = b.h;
+        let mx = 0;
+        let my = 0;
 
-          if (sg[0] !== 0) {
-            w = Math.max(8, Math.abs(lp.x - op.x) - 12);
-            mx = (op.x + lp.x) / 2;
-          }
-          if (sg[1] !== 0) {
-            h = Math.max(8, Math.abs(lp.y - op.y) - 12);
-            my = (op.y + lp.y) / 2;
-          }
-
-          if (e.shiftKey && sg[0] !== 0 && sg[1] !== 0) {
-            const side = Math.max(w, h);
-            w = side;
-            h = side;
-          }
-
-          const nc = { x: x0 + mx * co - my * si, y: y0 + mx * si + my * co };
-          const nb = { x: nc.x - w / 2, y: nc.y - h / 2, w, h };
-          rsz(o, b, nb);
-          this.drag.ch = true;
+        if (sg[0] !== 0) {
+          w = Math.max(8, Math.abs(lp.x - op.x) - 12);
+          mx = (op.x + lp.x) / 2;
         }
+        if (sg[1] !== 0) {
+          h = Math.max(8, Math.abs(lp.y - op.y) - 12);
+          my = (op.y + lp.y) / 2;
+        }
+
+        if (e.shiftKey && sg[0] !== 0 && sg[1] !== 0) {
+          const side = Math.max(w, h);
+          w = side;
+          h = side;
+        }
+
+        const nc = { x: x0 + mx * co - my * si, y: y0 + mx * si + my * co };
+        const nb = { x: nc.x - w / 2, y: nc.y - h / 2, w, h };
+        const T = this.drag.ids
+          .map((id) => this.objs.find((x) => x.id === id))
+          .filter(Boolean) as CanvasObj[];
+        const os = this.drag.os;
+        if (!os) return;
+        T.forEach((o, i) => {
+          Object.assign(o, cloneObj(os[i]));
+          rsz(o, b, nb);
+        });
+        this.drag.ch = true;
       } else if (this.drag.k === 'ls') {
         this.laser.push({ ...p, t: performance.now() });
       }
@@ -972,20 +1144,25 @@ export class Board {
           this.cur.h = Math.sign(this.cur.h || 1) * m;
         }
       }
-    } else if (this.state.tool === 'select' && this.sel) {
-      // Hover kursor saat berada di atas handle resize atau rotasi
-      const selObj = this.objs.find((item) => item.id === this.sel);
-      if (selObj && selObj.type !== 'stroke') {
-        const b = bounds(selObj);
-        const r = selObj.rot || 0;
-        const h = hitSelectionHandle(b, r, p, this.view.z);
+    } else if (this.state.tool === 'select') {
+      const X = this.xform();
+      let hovered = false;
+      if (X) {
+        const h = hitSelectionHandle(X.b, X.r, p, this.view.z);
         if (h) {
-          this.canvas.style.cursor = getHandleCursor(h.k, r);
-        } else {
-          this.canvas.style.cursor = hit(selObj, p, 6 / this.view.z) ? 'move' : 'default';
+          this.canvas.style.cursor = getHandleCursor(h.k, X.r);
+          hovered = true;
         }
-      } else {
-        this.canvas.style.cursor = 'default';
+      }
+      if (!hovered) {
+        const o = topAt(this.objs, p, 6 / this.view.z);
+        if ((o && this.sel.includes(o.id)) || inUnion(this.selObjs(), p)) {
+          this.canvas.style.cursor = 'move';
+        } else if (o) {
+          this.canvas.style.cursor = 'pointer';
+        } else {
+          this.canvas.style.cursor = 'default';
+        }
       }
     }
 
@@ -1027,26 +1204,40 @@ export class Board {
         }
       }
 
-      if (this.drag.k === 'mv' && this.drag.ch && this.sel && this.drag.initialObjBeforeMove) {
-        const movedObj = this.objs.find((item) => item.id === this.sel);
-        if (movedObj) {
-          this.history.commit({
-            ubah: [{ sebelum: this.drag.initialObjBeforeMove, sesudah: cloneObj(movedObj) }],
-          });
+      if (this.drag.k === 'mq') {
+        this.marq = null;
+      }
+
+      if (this.drag.k === 'mv' && this.drag.ch && this.drag.initialObjsBeforeMove) {
+        const ubahList: Array<{ sebelum: CanvasObj; sesudah: CanvasObj }> = [];
+        for (const initObj of this.drag.initialObjsBeforeMove) {
+          const curObj = this.objs.find((o) => o.id === initObj.id);
+          if (curObj) {
+            ubahList.push({ sebelum: initObj, sesudah: cloneObj(curObj) });
+          }
+        }
+        if (ubahList.length > 0) {
+          this.history.commit({ ubah: ubahList });
         }
       }
 
       if (
         (this.drag.k === 'resize' || this.drag.k === 'rot') &&
         this.drag.ch &&
-        this.sel &&
-        this.drag.initialObj
+        this.drag.ids &&
+        this.drag.os
       ) {
-        const changedObj = this.objs.find((item) => item.id === this.sel);
-        if (changedObj) {
-          this.history.commit({
-            ubah: [{ sebelum: this.drag.initialObj, sesudah: cloneObj(changedObj) }],
-          });
+        const ubahList: Array<{ sebelum: CanvasObj; sesudah: CanvasObj }> = [];
+        for (let i = 0; i < this.drag.ids.length; i++) {
+          const id = this.drag.ids[i];
+          const initObj = this.drag.os[i];
+          const curObj = this.objs.find((o) => o.id === id);
+          if (curObj && initObj) {
+            ubahList.push({ sebelum: initObj, sesudah: cloneObj(curObj) });
+          }
+        }
+        if (ubahList.length > 0) {
+          this.history.commit({ ubah: ubahList });
         }
       }
 
@@ -1058,6 +1249,8 @@ export class Board {
 
       if (this.drag.k === 'pan') {
         this.canvas.style.cursor = this.state.tool === 'hand' ? 'grab' : 'crosshair';
+      } else if (this.drag.k === 'rot' || this.drag.k === 'resize') {
+        this.canvas.style.cursor = 'default';
       }
 
       this.drag = null;
@@ -1148,6 +1341,32 @@ export class Board {
     if (m && (k === 'y' || e.code === 'KeyY')) {
       e.preventDefault();
       this.redo();
+      return;
+    }
+    if (m && (k === 'a' || e.code === 'KeyA')) {
+      e.preventDefault();
+      this.setSelection(this.objs.filter((o) => !o.lock).map((o) => o.id));
+      return;
+    }
+    if (m && (k === 'c' || e.code === 'KeyC')) {
+      e.preventDefault();
+      this.copy();
+      return;
+    }
+    if (m && (k === 'x' || e.code === 'KeyX')) {
+      e.preventDefault();
+      this.cut();
+      return;
+    }
+    if (m && (k === 'v' || e.code === 'KeyV')) {
+      e.preventDefault();
+      this.paste();
+      return;
+    }
+    if (m && (k === 'g' || e.code === 'KeyG')) {
+      e.preventDefault();
+      if (e.shiftKey) this.ungroup();
+      else this.group();
       return;
     }
     if (m && k === 'd') {

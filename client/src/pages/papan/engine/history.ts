@@ -1,4 +1,5 @@
 import { CanvasObj, LocalOp, UbahEventPayload } from './types';
+import { move } from './geometry';
 
 export function cloneObj<T extends CanvasObj>(o: T): T {
   const copy: any = { ...o };
@@ -10,6 +11,22 @@ export function cloneObj<T extends CanvasObj>(o: T): T {
     copy.cells = { ...copy.cells };
   }
   return copy as T;
+}
+
+export function cloneSet(objsToClone: CanvasObj[], dx = 0, dy = 0): CanvasObj[] {
+  const groupMap = new Map<string, string>();
+  return objsToClone.map((o) => {
+    const c = cloneObj(o);
+    c.id = crypto.randomUUID();
+    if (c.g) {
+      if (!groupMap.has(c.g)) {
+        groupMap.set(c.g, 'g_' + crypto.randomUUID().slice(0, 8));
+      }
+      c.g = groupMap.get(c.g);
+    }
+    move(c, dx, dy);
+    return c;
+  });
 }
 
 export class HistoryManager {
