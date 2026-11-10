@@ -100,6 +100,8 @@ export class Board {
 
   private spacePressed = false;
   private prevTool: ToolType | null = null;
+  private lastPenTime = 0;
+  private noDraw = false;
   private rafId = 0;
   private history: HistoryManager;
   private options: BoardOptions;
@@ -782,32 +784,48 @@ export class Board {
 
   private handlePointerDown = (e: PointerEvent): void => {
     if (e.button === 2) return; // Right click
-    this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-    // Deteksi gestur dua jari layar sentuh: Pan & Pinch Zoom
-    if (this.activePointers.size === 2) {
-      this.cur = null;
-      if (this.lasso) this.closeLasso();
-
-      const pts = Array.from(this.activePointers.values());
-      const p1 = pts[0];
-      const p2 = pts[1];
-      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-      const center = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-
-      this.drag = {
-        k: 'pinch',
-        pinchDist: Math.max(1, dist),
-        pinchCenter: center,
-      };
-      this.canvas.style.cursor = 'grab';
-      this.rd();
-      return;
+    if (e.pointerType === 'pen') {
+      this.lastPenTime = performance.now();
     }
 
-    if (this.activePointers.size > 2) {
-      return;
+    if (e.pointerType === 'touch') {
+      // Palm rejection: tolak sentuhan telapak tangan jika pena baru saja menyentuh layar (< 1.2 detik)
+      if (performance.now() - this.lastPenTime < 1200) {
+        return;
+      }
+
+      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      // Deteksi gestur dua jari layar sentuh: Pan & Pinch Zoom
+      if (this.activePointers.size >= 2) {
+        this.cur = null;
+        this.drag = null;
+        if (this.lasso) this.closeLasso();
+        this.marq = null;
+        this.noDraw = true;
+
+        const pts = Array.from(this.activePointers.values());
+        const p1 = pts[0];
+        const p2 = pts[1];
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const center = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+
+        this.drag = {
+          k: 'pinch',
+          pinchDist: Math.max(1, dist),
+          pinchCenter: center,
+        };
+        this.canvas.style.cursor = 'grab';
+        this.rd();
+        return;
+      }
+    } else {
+      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     }
+
+    if (this.noDraw) return;
+    if (this.activePointers.size > 2) return;
 
     if (this.options.onContextMenu) {
       this.options.onContextMenu(null);
@@ -860,10 +878,11 @@ export class Board {
     }
 
     if (t === 'pen') {
+      const pt: Pt = e.pointerType === 'pen' ? { ...p, pr: e.pressure } : p;
       this.cur = {
         id: crypto.randomUUID(),
         type: 'stroke',
-        pts: [p],
+        pts: [pt],
         color: this.state.color,
         size: this.state.size,
         st: this.state.style,
@@ -1219,7 +1238,8 @@ export class Board {
         const lastPt = this.cur.pts[this.cur.pts.length - 1];
         if (Math.hypot(p.x - lastPt.x, p.y - lastPt.y) > 1 / this.view.z) {
           if (this.cur.pts.length < 5000) {
-            this.cur.pts.push(p);
+            const pt: Pt = e.pointerType === 'pen' ? { ...p, pr: e.pressure } : p;
+            this.cur.pts.push(pt);
           }
         }
       } else if (this.cur.type === 'shape') {
@@ -1266,6 +1286,13 @@ export class Board {
         this.canvas.style.cursor = 'default';
         this.rd();
       }
+    }
+
+    if (this.noDraw) {
+      if (this.activePointers.size === 0) {
+        this.noDraw = false;
+      }
+      this.rd();
       return;
     }
 
@@ -1355,6 +1382,10 @@ export class Board {
   };
 
   private handlePointerCancel = (e: PointerEvent): void => {
+    this.activePointers.delete(e.pointerId);
+    if (this.activePointers.size === 0) {
+      this.noDraw = false;
+    }
     this.handlePointerUp(e);
   };
 

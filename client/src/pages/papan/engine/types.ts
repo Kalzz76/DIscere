@@ -1,6 +1,7 @@
 export interface Pt {
   x: number;
   y: number;
+  pr?: number; // Pen pressure 0..1 (stylus / pena digital)
 }
 
 export interface Bounds {
