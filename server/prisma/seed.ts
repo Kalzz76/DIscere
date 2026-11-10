@@ -414,6 +414,58 @@ async function main() {
         },
       ],
     },
+    {
+      judul: 'Balap Karung 17-an: Cerdas Cermat Merdeka',
+      game: 'balap_karung',
+      mode: 'multi',
+      questions: [
+        {
+          urutan: 1,
+          teks: 'Bendera kebangsaan negara Indonesia bernama...',
+          opsiA: 'Sang Saka Merah Putih',
+          opsiB: 'Dwi Warna Biru Putih',
+          opsiC: 'Panji Nusantara',
+          jawabanBenar: 'A',
+          penjelasan: 'Sang Saka Merah Putih adalah sebutan kehormatan untuk bendera negara Indonesia.',
+        },
+        {
+          urutan: 2,
+          teks: 'Siapakah bapak Proklamator kemerdekaan Indonesia bersama Ir. Soekarno?',
+          opsiA: 'Ki Hajar Dewantara',
+          opsiB: 'Drs. Mohammad Hatta',
+          opsiC: 'Jenderal Sudirman',
+          jawabanBenar: 'B',
+          penjelasan: 'Ir. Soekarno dan Drs. Mohammad Hatta adalah dwitunggal Proklamator RI.',
+        },
+        {
+          urutan: 3,
+          teks: 'Hasil dari 125 + 75 - 50 adalah...',
+          opsiA: '150',
+          opsiB: '175',
+          opsiC: '200',
+          jawabanBenar: 'A',
+          penjelasan: '125 + 75 = 200, kemudian 200 - 50 = 150.',
+        },
+        {
+          urutan: 4,
+          teks: 'Tanggal berapakah Hari Kemerdekaan Republik Indonesia diperingati setiap tahun?',
+          opsiA: '10 November',
+          opsiB: '28 Oktober',
+          opsiC: '17 Agustus',
+          jawabanBenar: 'C',
+          penjelasan: 'Proklamasi Kemerdekaan Indonesia dibacakan pada tanggal 17 Agustus 1945.',
+        },
+        {
+          urutan: 5,
+          teks: 'Planet terbesar di tata surya kita adalah...',
+          opsiA: 'Mars',
+          opsiB: 'Jupiter',
+          opsiC: 'Saturnus',
+          jawabanBenar: 'B',
+          penjelasan: 'Jupiter adalah planet gas raksasa dan terbesar di tata surya.',
+        },
+      ],
+    },
   ];
 
   for (const t of templateResmiList) {
