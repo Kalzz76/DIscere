@@ -16,4 +16,5 @@ export * from './ChatPanel';
 export * from './ContextMenu';
 export * from './FormulaDialog';
 export * from './PageBar';
+export * from './ClassToolsView';
 
