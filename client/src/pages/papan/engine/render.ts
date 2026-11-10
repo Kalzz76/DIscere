@@ -1,5 +1,5 @@
 import { CanvasObj, BoardView, BoardState, Pt, LaserPoint } from './types';
-import { bounds, ew, lines, intersects } from './geometry';
+import { bounds, ew, lines, intersects, wb, hsFor } from './geometry';
 import { up } from './shapes';
 
 let fontLoaded = false;
@@ -23,6 +23,14 @@ export function drawObj(
 ): void {
   c.save();
   c.globalAlpha = (o.op ?? 1) * (o.type === 'stroke' && o.st === 'marker' ? 0.75 : 1);
+  if (o.rot) {
+    const b = bounds(o);
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    c.translate(cx, cy);
+    c.rotate(o.rot);
+    c.translate(-cx, -cy);
+  }
   drawObj0(c, o, onImageLoad);
   c.restore();
 }
@@ -259,7 +267,7 @@ export function drawScene({
 
   // Objek kanvas (dengan Viewport Culling agar kanvas besar 500+ objek tetap sangat cepat)
   for (const o of objs) {
-    const b = bounds(o);
+    const b = wb(o);
     if (!intersects(b, viewportBounds)) {
       continue;
     }
@@ -286,35 +294,82 @@ export function drawScene({
     ctx.restore();
   }
 
-  // Kotak seleksi objek aktif & Pegangan Resize di Sudut
+  // Kotak seleksi objek aktif & Pegangan Resize + Rotasi
   if (sel) {
     const s = objs.find((o) => o.id === sel);
     if (s) {
       const b = bounds(s);
+      const r = s.rot || 0;
+      const z = view.z;
+
+      ctx.save();
+      ctx.lineWidth = 1.5 / z;
       ctx.strokeStyle = '#9b17f5';
-      ctx.lineWidth = 1.5 / view.z;
-      ctx.setLineDash([6 / view.z, 4 / view.z]);
-      ctx.strokeRect(b.x - 6, b.y - 6, b.w + 12, b.h + 12);
+      ctx.setLineDash([6 / z, 4 / z]);
+
+      // Gambar outline yang diputar sesuai rotasi objek
+      ctx.save();
+      ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
+      ctx.rotate(r);
+      ctx.strokeRect(-b.w / 2 - 6, -b.h / 2 - 6, b.w + 12, b.h + 12);
+      ctx.restore();
+
       ctx.setLineDash([]);
 
-      // Gambar handle sudut jika objek bisa diubah ukuran (bentuk, gambar, tabel, teks)
+      // Handles untuk objek (kecuali jika stroke saja)
       if (s.type !== 'stroke') {
-        const handleSize = 8 / view.z;
-        const hsHalf = handleSize / 2;
-        const corners = [
-          { x: b.x - 6, y: b.y - 6 },
-          { x: b.x + b.w + 6, y: b.y - 6 },
-          { x: b.x + b.w + 6, y: b.y + b.h + 6 },
-          { x: b.x - 6, y: b.y + b.h + 6 },
-        ];
-        ctx.fillStyle = '#ffffff';
-        ctx.strokeStyle = '#9b17f5';
-        ctx.lineWidth = 2 / view.z;
-        for (const pt of corners) {
-          ctx.fillRect(pt.x - hsHalf, pt.y - hsHalf, handleSize, handleSize);
-          ctx.strokeRect(pt.x - hsHalf, pt.y - hsHalf, handleSize, handleSize);
+        const hs = hsFor(b, r, z);
+        const rotHandle = hs.find((h) => h.k === 'rot');
+        const topHandle = hs.find((h) => h.k === 'n');
+
+        // Garis penghubung ke pegangan rotasi
+        if (rotHandle && topHandle) {
+          ctx.beginPath();
+          ctx.moveTo(topHandle.x, topHandle.y);
+          ctx.lineTo(rotHandle.x, rotHandle.y);
+          ctx.stroke();
+        }
+
+        // Gambar handle resize (persegi untuk sudut, lingkaran untuk tepi tengah)
+        for (const h of hs) {
+          if (h.k === 'rot') continue;
+          ctx.fillStyle = '#ffffff';
+          ctx.strokeStyle = '#9b17f5';
+          ctx.lineWidth = 2 / z;
+          const sz = (h.k.length === 2 ? 6.5 : 5) / z;
+          ctx.beginPath();
+          if (h.k.length === 2) {
+            ctx.rect(h.x - sz, h.y - sz, sz * 2, sz * 2);
+          } else {
+            ctx.arc(h.x, h.y, sz, 0, Math.PI * 2);
+          }
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // Gambar pegangan rotasi
+        if (rotHandle) {
+          ctx.fillStyle = '#9b17f5';
+          ctx.beginPath();
+          ctx.arc(rotHandle.x, rotHandle.y, 11 / z, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2 / z;
+          ctx.beginPath();
+          ctx.arc(rotHandle.x, rotHandle.y, 5.5 / z, -0.6, 4.4);
+          ctx.stroke();
+
+          const ex = rotHandle.x + (5.5 / z) * Math.cos(4.4);
+          const ey = rotHandle.y + (5.5 / z) * Math.sin(4.4);
+          ctx.beginPath();
+          ctx.moveTo(ex - 3 / z, ey - 3 / z);
+          ctx.lineTo(ex, ey);
+          ctx.lineTo(ex + 3 / z, ey - 3 / z);
+          ctx.stroke();
         }
       }
+      ctx.restore();
     }
   }
 
