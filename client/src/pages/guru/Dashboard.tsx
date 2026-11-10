@@ -33,6 +33,7 @@ import {
   ArrowRight,
   Trophy,
   User as UserIcon,
+  Globe,
 } from 'lucide-react';
 
 function labelJenisGame(game?: string): string {
@@ -682,6 +683,16 @@ export default function DashboardGuru() {
             <span className="portal-who-label">Masuk sebagai:</span>
             <b>{user?.nama || 'Guru Demo'}</b>
             <span>{user?.sekolah || 'SD Negeri Merdeka 01'}</span>
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="portal-site"
+              title="Buka Website Discere"
+            >
+              <Globe className="w-4 h-4 shrink-0 text-[#f2c230]" />
+              <span>Lihat Website</span>
+            </a>
             <button
               type="button"
               onClick={() => setModalKeluarOpen(true)}
@@ -777,7 +788,7 @@ export default function DashboardGuru() {
                   {/* Kolom Kiri: Chart, Big Card, & 3 Template Cards */}
                   <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '22px' }}>
                     {/* Top Grid: Over Chart + Big Action Buttons */}
-                    <div className="portal-top-grid" style={{ display: 'grid', gridTemplateColumns: '1.9fr 1fr', gap: '20px' }}>
+                    <div className="portal-top-grid">
                       {/* Kartu Grafik Sesi Game Selesai (.over) */}
                       <article className="portal-over">
                         <div className="hd">
@@ -896,17 +907,17 @@ export default function DashboardGuru() {
 
                         {/* Barisan 3 Angka Statistik */}
                         <div className="portal-stats-row">
-                          <div>
+                          <div className="portal-stat-box">
                             <small>Template tersedia</small>
                             <b>{ringkasan.totalTemplate}</b>
                             <small>Template</small>
                           </div>
-                          <div className="mid">
+                          <div className="portal-stat-box highlight">
                             <small>Sesi game selesai</small>
                             <b>{ringkasan.totalSesi}</b>
                             <small>Total sesi</small>
                           </div>
-                          <div>
+                          <div className="portal-stat-box">
                             <small>Papan tersimpan</small>
                             <b>{ringkasan.totalPapan}</b>
                             <small>Papan</small>
@@ -915,23 +926,25 @@ export default function DashboardGuru() {
                       </article>
 
                       {/* Right Action Buttons */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div className="portal-actions-col">
                         {/* Tombol Merah: Buat Template Kuis Baru */}
                         <button
                           type="button"
                           onClick={() => navigate('/guru/template/baru')}
                           className="portal-big k"
                         >
-                          <div className="portal-ico">
-                            <Plus className="w-6 h-6 text-[#f4ecd8]" />
+                          <div className="portal-big-header">
+                            <div className="portal-ico">
+                              <Plus className="w-6 h-6 text-[#f4ecd8]" />
+                            </div>
+                            <span className="portal-go">
+                              <ArrowRight className="w-4 h-4 text-[#f4ecd8]" />
+                            </span>
                           </div>
                           <div>
                             <h3>Buat Template Kuis Baru</h3>
                             <p>Susun soal materi untuk dimainkan bersama kelas.</p>
                           </div>
-                          <span className="portal-go">
-                            <ArrowRight className="w-4 h-4 text-[#f4ecd8]" />
-                          </span>
                         </button>
 
                         {/* Tombol Papan Tulis Digital */}
@@ -941,16 +954,18 @@ export default function DashboardGuru() {
                           disabled={actionLoadingId === 'buat_papan'}
                           className="portal-big p"
                         >
-                          <div className="portal-ico">
-                            <PenTool className="w-6 h-6 text-[#f4ecd8]" />
+                          <div className="portal-big-header">
+                            <div className="portal-ico">
+                              <PenTool className="w-6 h-6 text-[#f4ecd8]" />
+                            </div>
+                            <span className="portal-go">
+                              <ArrowRight className="w-4 h-4 text-[#f4ecd8]" />
+                            </span>
                           </div>
                           <div>
                             <h3>Buka Papan Tulis Digital</h3>
                             <p>Kanvas tak terbatas untuk menjelaskan materi.</p>
                           </div>
-                          <span className="portal-go">
-                            <ArrowRight className="w-4 h-4 text-[#f4ecd8]" />
-                          </span>
                         </button>
                       </div>
                     </div>
@@ -1243,7 +1258,7 @@ export default function DashboardGuru() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     {(subTabTemplate === 'saya' ? templatesTersaring : pustakaTersaring).map((tmpl) => {
                       const jumlahSoal = tmpl._count?.questions ?? tmpl.jumlahSoal ?? 0;
                       const isAdminOfficial = tmpl.resmi || subTabTemplate === 'pustaka';

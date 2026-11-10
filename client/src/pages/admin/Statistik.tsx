@@ -26,6 +26,7 @@ import {
   ChevronLeft,
   ChevronRight,
   User as UserIcon,
+  Globe,
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 
@@ -436,6 +437,16 @@ export default function DashboardAdmin() {
             <span className="portal-who-label">Masuk sebagai:</span>
             <b>{user?.nama || 'Administrator'}</b>
             <span>{user?.email}</span>
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="portal-site"
+              title="Buka Website Discere"
+            >
+              <Globe className="w-4 h-4 shrink-0 text-[#f2c230]" />
+              <span>Lihat Website</span>
+            </a>
             <button
               type="button"
               onClick={() => setModalKeluarOpen(true)}
