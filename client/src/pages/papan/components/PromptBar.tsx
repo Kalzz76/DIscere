@@ -143,62 +143,6 @@ export const PromptBar: React.FC<PromptBarProps> = ({
 
   return (
     <>
-      {/* Popover Menu Lampiran (Muncul ke atas tombol Plus) */}
-      {isMenuOpen && (
-        <div className="prompt-menu-popover" ref={menuRef} role="menu">
-          <button
-            type="button"
-            className="prompt-menu-item"
-            role="menuitem"
-            onClick={() => {
-              setIsMenuOpen(false);
-              fileImgRef.current?.click();
-            }}
-          >
-            <svg viewBox="0 0 24 24" className="prompt-menu-icon">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <polyline points="21 15 16 10 5 21" />
-            </svg>
-            <span>Gambar…</span>
-          </button>
-          <button
-            type="button"
-            className="prompt-menu-item"
-            role="menuitem"
-            onClick={() => {
-              setIsMenuOpen(false);
-              fileAnyRef.current?.click();
-            }}
-          >
-            <svg viewBox="0 0 24 24" className="prompt-menu-icon">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10 9 9 9 8 9" />
-            </svg>
-            <span>File (PDF, teks)…</span>
-          </button>
-          <div className="prompt-menu-divider" />
-          <button
-            type="button"
-            className="prompt-menu-item"
-            role="menuitem"
-            onClick={() => {
-              setIsMenuOpen(false);
-              onSnapCanvas();
-            }}
-          >
-            <svg viewBox="0 0 24 24" className="prompt-menu-icon">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-            <span>Papan saat ini</span>
-          </button>
-        </div>
-      )}
-
       {/* Hidden File Inputs */}
       <input
         type="file"
@@ -223,22 +167,80 @@ export const PromptBar: React.FC<PromptBarProps> = ({
 
       {/* Prompt Bar Melayang (#pr) */}
       <div className="pn prompt-bar" id="pr" role="region" aria-label="Bar masukan asisten AI">
-        {/* Tombol Plus */}
-        <button
-          className="ib"
-          id="plus"
-          ref={plusBtnRef}
-          type="button"
-          title="Tambah lampiran materi"
-          aria-label="Tambah lampiran materi"
-          aria-haspopup="true"
-          aria-expanded={isMenuOpen}
-          onClick={() => setIsMenuOpen((prev) => !prev)}
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22">
-            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-          </svg>
-        </button>
+        {/* Tombol Plus & Popover Menu Lampiran */}
+        <div className="prompt-plus-wrapper">
+          <button
+            className="ib"
+            id="plus"
+            ref={plusBtnRef}
+            type="button"
+            title="Tambah lampiran materi"
+            aria-label="Tambah lampiran materi"
+            aria-haspopup="true"
+            aria-expanded={isMenuOpen}
+            onClick={() => setIsMenuOpen((prev) => !prev)}
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            </svg>
+          </button>
+
+          {/* Popover Menu Lampiran (Muncul ke atas tombol Plus) */}
+          {isMenuOpen && (
+            <div className="prompt-menu-popover" ref={menuRef} role="menu">
+              <button
+                type="button"
+                className="prompt-menu-item"
+                role="menuitem"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  fileImgRef.current?.click();
+                }}
+              >
+                <svg viewBox="0 0 24 24" className="prompt-menu-icon">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
+                </svg>
+                <span>Gambar…</span>
+              </button>
+              <button
+                type="button"
+                className="prompt-menu-item"
+                role="menuitem"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  fileAnyRef.current?.click();
+                }}
+              >
+                <svg viewBox="0 0 24 24" className="prompt-menu-icon">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
+                </svg>
+                <span>File (PDF, teks)…</span>
+              </button>
+              <div className="prompt-menu-divider" />
+              <button
+                type="button"
+                className="prompt-menu-item"
+                role="menuitem"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onSnapCanvas();
+                }}
+              >
+                <svg viewBox="0 0 24 24" className="prompt-menu-icon">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+                <span>Papan saat ini</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Input Text */}
         <input
