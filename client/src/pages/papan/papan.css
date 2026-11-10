@@ -74,13 +74,18 @@
 .papan .ib {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 9px;
   color: var(--mu);
   transition: 0.15s;
+}
+
+.papan .ib svg {
+  width: 17px;
+  height: 17px;
 }
 
 .papan .ib:hover {
@@ -102,21 +107,21 @@
 /* Panel kiri atas (TopLeftBar) */
 .papan #tl,
 .papan .top-left-panel {
-  top: 20px;
-  left: 20px;
-  height: 56px;
-  border-radius: 18px;
+  top: 16px;
+  left: 16px;
+  height: 46px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 12px;
+  gap: 6px;
+  padding: 0 10px;
 }
 
 .papan .logo {
   font-weight: 800;
-  font-size: 21px;
-  letter-spacing: -0.6px;
-  margin: 0 4px;
+  font-size: 17px;
+  letter-spacing: -0.5px;
+  margin: 0 2px;
 }
 
 .papan #ttl,
@@ -124,11 +129,11 @@
   background: none;
   border: 0;
   color: var(--tx);
-  font: 700 16px inherit;
+  font: 700 14px inherit;
   font-family: inherit;
-  width: 190px;
-  padding: 6px 8px;
-  border-radius: 8px;
+  width: 150px;
+  padding: 4px 6px;
+  border-radius: 7px;
   text-overflow: ellipsis;
 }
 
@@ -144,14 +149,14 @@
 .papan .save-status-badge {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 11px;
   background: var(--p2);
-  padding: 7px 11px;
-  border-radius: 10px;
+  padding: 4px 8px;
+  border-radius: 8px;
   color: var(--gr);
-  min-width: 86px;
+  min-width: 68px;
 }
 
 .papan #sv svg,
@@ -173,15 +178,15 @@
 /* Rail Alat Kiri (ToolRail) */
 .papan #tools,
 .papan .tool-rail {
-  top: 92px;
-  left: 20px;
-  bottom: 20px;
-  width: 86px;
-  border-radius: 22px;
-  padding: 10px 0;
+  top: 72px;
+  left: 16px;
+  bottom: 16px;
+  width: 62px;
+  border-radius: 16px;
+  padding: 6px 0;
   overflow-y: auto;
   scrollbar-width: none;
-  max-height: calc(12 * 70px + 44px);
+  max-height: calc(100vh - 150px);
 }
 
 .papan #tools::-webkit-scrollbar,
@@ -193,20 +198,20 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  width: 70px;
-  margin: 0 auto 4px;
-  padding: 9px 0 8px;
-  border-radius: 15px;
-  font-size: 12px;
+  gap: 3px;
+  width: 50px;
+  margin: 0 auto 3px;
+  padding: 6px 0;
+  border-radius: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: #b9c1d9;
   transition: 0.15s;
 }
 
 .papan .t svg {
-  width: 23px;
-  height: 23px;
+  width: 19px;
+  height: 19px;
 }
 
 .papan .t:hover {
@@ -223,40 +228,41 @@
 /* Bar Opsi Kontekstual Atas (OptionsBar) */
 .papan #ob,
 .papan .options-bar {
-  top: 92px;
-  left: calc(50% + 43px);
+  top: 72px;
+  left: calc(50% + 31px);
   transform: translateX(-50%);
-  min-height: 54px;
-  max-width: calc(100% - 260px);
+  min-height: 44px;
+  height: 44px;
+  max-width: calc(100% - 240px);
   overflow-x: auto;
   scrollbar-width: none;
-  border-radius: 27px;
+  border-radius: 22px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 20px;
+  gap: 10px;
+  padding: 0 14px;
 }
 
 .papan #ob .lb,
 .papan .options-bar .lb {
   font-weight: 800;
-  font-size: 13px;
+  font-size: 11px;
   letter-spacing: 0.08em;
-  margin-right: 6px;
-  padding-right: 12px;
+  margin-right: 4px;
+  padding-right: 8px;
   border-right: 1px solid var(--ln);
 }
 
 .papan #ob .hint,
 .papan .options-bar .hint {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--mu);
   font-weight: 500;
 }
 
 .papan .chip {
-  padding: 6px 11px;
-  border-radius: 14px;
+  padding: 4px 9px;
+  border-radius: 10px;
   font-weight: 700;
   font-size: 13px;
   color: #c5cce0;
@@ -289,27 +295,28 @@
 /* Panel Kanan Atas (TopRightBar) */
 .papan #tr,
 .papan .top-right-bar {
-  top: 20px;
-  right: 20px;
-  height: 56px;
-  border-radius: 18px;
+  top: 16px;
+  right: 16px;
+  height: 46px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 0 8px 0 10px;
+  gap: 3px;
+  padding: 0 6px 0 8px;
 }
 
 .papan .col {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   color: #5b9bff;
   font-weight: 700;
-  padding: 0 10px;
-  height: 34px;
+  padding: 0 8px;
+  height: 28px;
+  font-size: 11px;
   border-left: 1px solid var(--ln);
   border-right: 1px solid var(--ln);
-  margin: 0 4px;
+  margin: 0 2px;
 }
 
 .papan .col span {
@@ -317,29 +324,31 @@
 }
 
 .papan .av {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: #047857;
   display: grid;
   place-items: center;
   font-weight: 800;
+  font-size: 11px;
   color: #fff;
-  margin: 0 2px 0 4px;
+  margin: 0 1px 0 3px;
 }
 
 .papan #share,
 .papan .share-btn {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   background: var(--bl);
   color: #fff;
   font-weight: 700;
-  padding: 0 18px;
-  height: 38px;
-  border-radius: 12px;
-  margin-left: 6px;
+  padding: 0 12px;
+  height: 32px;
+  border-radius: 9px;
+  font-size: 12px;
+  margin-left: 4px;
   transition: 0.15s;
 }
 
@@ -355,14 +364,14 @@
 }
 
 .papan #gm {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   background: transparent;
   color: var(--mu);
-  border-radius: 12px;
-  margin: 0 6px 0 2px;
+  border-radius: 9px;
+  margin: 0 2px;
   transition: 0.15s;
 }
 .papan #gm:hover {
@@ -421,21 +430,52 @@
 /* Zoom bar (ZoomBar) */
 .papan #zm,
 .papan .zoom-bar {
-  bottom: 24px;
-  right: 20px;
-  height: 56px;
-  border-radius: 18px;
+  bottom: 16px;
+  right: 16px;
+  height: 46px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 0 8px;
+  padding: 0 4px;
+}
+
+/* Page bar (PageBar) */
+.papan #pgs,
+.papan .page-bar {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  height: 46px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  z-index: 5;
+  background: var(--p);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--ln);
+  box-shadow: 0 12px 36px rgba(10, 15, 35, 0.45);
+}
+
+@media (max-width: 1060px) {
+  .papan #pgs,
+  .papan .page-bar {
+    bottom: 74px;
+    left: 16px;
+  }
+  .papan .page-drawer {
+    --page-drawer-bottom: 128px !important;
+  }
 }
 
 .papan #pct,
 .papan .zoom-pct-btn {
   font-weight: 700;
-  font-size: 14px;
-  min-width: 52px;
+  font-size: 12px;
+  min-width: 44px;
   text-align: center;
 }
 
@@ -1542,16 +1582,16 @@ body.pres .papan .btn-exit-pres {
 .papan #pr,
 .papan .prompt-bar {
   position: fixed;
-  bottom: 24px;
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  width: min(700px, calc(100% - 260px));
-  height: 66px;
-  border-radius: 33px;
+  width: min(440px, calc(100% - 440px));
+  height: 46px;
+  border-radius: 23px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 16px 0 14px;
+  gap: 8px;
+  padding: 0 10px 0 12px;
   z-index: 6;
   background: var(--p);
   backdrop-filter: blur(14px);
@@ -1569,6 +1609,10 @@ body.pres .papan .btn-exit-pres {
 .papan #plus {
   color: #ffffff;
   transition: 0.15s;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
 }
 
 .papan #plus:hover {
@@ -1582,7 +1626,7 @@ body.pres .papan .btn-exit-pres {
   background: transparent;
   border: 0;
   outline: 0;
-  font: 500 16px inherit;
+  font: 500 13px inherit;
   font-family: inherit;
   color: #ffffff;
   user-select: text;
@@ -1596,6 +1640,20 @@ body.pres .papan .btn-exit-pres {
   background: var(--pu);
   color: #fff;
   transition: 0.15s;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.papan #snd svg,
+.papan #mic svg,
+.papan #plus svg {
+  width: 16px;
+  height: 16px;
 }
 
 .papan #snd:hover {
@@ -1695,10 +1753,10 @@ body.pres .papan .btn-exit-pres {
 .papan #cw,
 .papan .chat-wrapper {
   position: fixed;
-  bottom: 104px;
+  bottom: 74px;
   left: 50%;
   transform: translateX(-50%);
-  width: min(700px, calc(100% - 260px));
+  width: min(440px, calc(100% - 440px));
   z-index: 6;
   display: flex;
   flex-direction: column;
