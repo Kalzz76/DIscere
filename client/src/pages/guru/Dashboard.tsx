@@ -318,14 +318,9 @@ export default function DashboardGuru() {
       pustakaResmi.find((t) => t.id === templateId) ||
       ringkasan?.templateTerbaru?.find((t) => t.id === templateId);
 
-    // Jika game adalah Makan Kerupuk Challenge, buka modal konfigurasi probabilitas terlebih dahulu
+    // Jika game adalah Makan Kerupuk Challenge, arahkan ke halaman Pemilihan Mode (Multiplayer / Solo)
     if (gameType === 'makan_kerupuk') {
-      const tmpl = cariTemplate();
-      setModalKerupukTemplate({
-        id: templateId,
-        judul: tmpl?.judul || 'Makan Kerupuk Challenge',
-        totalSoal: (tmpl as TemplateItem)?._count?.questions || tmpl?.jumlahSoal || 0,
-      });
+      navigate(`/guru/makan-kerupuk?templateId=${encodeURIComponent(templateId)}&kembali=/guru`);
       return;
     }
 
@@ -410,24 +405,40 @@ export default function DashboardGuru() {
     }
   };
 
-  // Handler: Konfirmasi & Mulai Sesi Makan Kerupuk Mode Solo dengan Konfigurasi
+  // Handler: Konfirmasi & Mulai Sesi Makan Kerupuk Dual Mode dengan Konfigurasi
   const handleKonfirmasiKerupuk = async (config: KonfigurasiKerupukPayload) => {
     if (!modalKerupukTemplate) return;
     try {
       setKerupukCreating(true);
+      const isMulti = config.playMode === 'MULTIPLAYER';
+      const baseCfg = {
+        targetKerupuk: config.targetKerupuk,
+        targetPreset: config.targetPreset,
+        kesulitan: config.kesulitan,
+        probabilitas: config.probabilitas,
+      };
       const res = await apiRequest<{ session: { id: string } }>('/sesi', {
         method: 'POST',
         body: JSON.stringify({
           templateId: modalKerupukTemplate.id,
           game: 'makan_kerupuk',
-          mode: 'solo',
-          kerupukConfig: config,
+          mode: isMulti ? 'multi' : 'solo',
+          playMode: config.playMode,
+          ...(isMulti
+            ? {
+                kerupukMultiConfig: {
+                  ...baseCfg,
+                  maxPeserta: config.maxPeserta ?? 45,
+                  allowLateJoin: config.allowLateJoin ?? true,
+                },
+              }
+            : { kerupukConfig: baseCfg }),
         }),
       });
       setModalKerupukTemplate(null);
       navigate(`/guru/sesi/${res.session.id}`);
     } catch (err: any) {
-      alert(err.pesan || 'Gagal membuat sesi Makan Kerupuk Solo.');
+      alert(err.pesan || 'Gagal membuat sesi Makan Kerupuk.');
     } finally {
       setKerupukCreating(false);
     }
@@ -697,14 +708,24 @@ export default function DashboardGuru() {
             </div>
 
             {tabAktif === 'template' && (
-              <button
-                type="button"
-                onClick={() => navigate('/guru/template/baru')}
-                className="portal-btn red"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Buat Template Baru</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/guru/makan-kerupuk')}
+                  className="portal-btn ghost-red"
+                >
+                  <Trophy className="w-4 h-4" />
+                  <span>Main Makan Kerupuk (Pilih Mode)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/guru/template/baru')}
+                  className="portal-btn red"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Buat Template Baru</span>
+                </button>
+              </div>
             )}
 
             {tabAktif === 'papan' && (
@@ -1067,7 +1088,9 @@ export default function DashboardGuru() {
                                     : r.game === 'balap_karung'
                                     ? `Juara: ${r.timMenang} (${r.posisiAkhir}m)`
                                     : r.game === 'makan_kerupuk'
-                                    ? `Mode Solo • Skor: ${r.skorMerah} (${r.posisiAkhir}%)`
+                                    ? r.mode?.toLowerCase() === 'multi'
+                                      ? `Multi • Juara: ${r.timMenang} (${r.skorMerah} pt)`
+                                      : `Solo • Skor ${r.skorMerah} (${r.posisiAkhir}%)`
                                     : `Pemenang: ${isRedWin ? 'TIM MERAH' : isWhiteWin ? 'TIM PUTIH' : 'SERI'}`}
                                   <br />
                                   {dateStr}
@@ -1223,7 +1246,7 @@ export default function DashboardGuru() {
                               </span>
                               <span className="portal-tag yellow">
                                 {tmpl.game === 'makan_kerupuk'
-                                  ? 'Mode Solo (Perangkat Guru)'
+                                  ? 'Dual Mode (Multi / Solo)'
                                   : tmpl.game === 'panjat_pinang' ||
                                     tmpl.game === 'balap_karung'
                                   ? 'Mode Individu'
@@ -1594,11 +1617,19 @@ export default function DashboardGuru() {
                                             </span>
                                           </>
                                         ) : r.game === 'makan_kerupuk' ? (
-                                          <>
-                                            Status: <span className="font-bold">{r.timMenang}</span> • Skor Total:{' '}
-                                            <span className="font-mono font-bold">{r.skorMerah}</span> • Progres:{' '}
-                                            <span className="font-mono font-bold">{r.posisiAkhir}%</span>
-                                          </>
+                                          r.mode?.toLowerCase() === 'multi' ? (
+                                            <>
+                                              Juara 1: <span className="font-bold">{r.timMenang}</span> • Skor Tertinggi:{' '}
+                                              <span className="font-mono font-bold">{r.skorMerah}</span> • Ludes:{' '}
+                                              <span className="font-mono font-bold">{r.skorPutih} siswa</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              Status: <span className="font-bold">{r.timMenang}</span> • Skor Total:{' '}
+                                              <span className="font-mono font-bold">{r.skorMerah}</span> • Progres:{' '}
+                                              <span className="font-mono font-bold">{r.posisiAkhir}%</span>
+                                            </>
+                                          )
                                         ) : (
                                           <>
                                             Pemenang:{' '}

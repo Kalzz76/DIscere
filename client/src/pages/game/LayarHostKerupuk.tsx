@@ -6,6 +6,7 @@ import KerupukVirtual, {
   HasilGachaGigitanProps,
   MoodKarakterKerupuk,
 } from '../siswa/KerupukVirtual';
+import LayarHostKerupukMulti, { SesiKerupukMultiClient } from './LayarHostKerupukMulti';
 import { soundEffects } from '../../lib/soundEffects';
 import {
   Play,
@@ -141,6 +142,7 @@ export default function LayarHostKerupuk() {
   const returnUrl = searchParams.get('kembali') || '/guru';
 
   const [sesi, setSesi] = useState<SesiKerupukClient | null>(null);
+  const [sesiMulti, setSesiMulti] = useState<SesiKerupukMultiClient | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorPesan, setErrorPesan] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -160,16 +162,22 @@ export default function LayarHostKerupuk() {
     if (!id) return;
     try {
       setLoading(true);
-      const res = await apiRequest<{ session: SesiKerupukClient }>(`/sesi/${id}`);
+      const res = await apiRequest<{ session: any }>(`/sesi/${id}`);
       const s = res.session;
-      setSesi(s);
-      if (s.state === 'FINISHED') setMood('win');
-      else if (s.state === 'STOPPED') setMood('stopped');
-      else if (s.state === 'PAUSED') setMood('paused');
-      else if (s.state === 'PLAYING') setMood('playing');
-      else setMood('ready');
+      if (s.playMode === 'MULTIPLAYER' || s.mode === 'multi') {
+        setSesiMulti(s as SesiKerupukMultiClient);
+        setSesi(null);
+      } else {
+        setSesiMulti(null);
+        setSesi(s as SesiKerupukClient);
+        if (s.state === 'FINISHED') setMood('win');
+        else if (s.state === 'STOPPED') setMood('stopped');
+        else if (s.state === 'PAUSED') setMood('paused');
+        else if (s.state === 'PLAYING') setMood('playing');
+        else setMood('ready');
+      }
     } catch (err: any) {
-      setErrorPesan(err.pesan || 'Gagal memuat sesi Makan Kerupuk Solo.');
+      setErrorPesan(err.pesan || 'Gagal memuat sesi Makan Kerupuk.');
     } finally {
       setLoading(false);
     }
@@ -370,9 +378,13 @@ export default function LayarHostKerupuk() {
     return (
       <div className="min-h-screen bg-[#f4ecd8] flex flex-col items-center justify-center text-[#1d3b2e]">
         <Loader2 className="w-10 h-10 animate-spin text-[#c8362f] mb-3" />
-        <p className="font-bold text-sm">Menyiapkan Arena Makan Kerupuk Solo...</p>
+        <p className="font-bold text-sm">Menyiapkan Arena Makan Kerupuk...</p>
       </div>
     );
+  }
+
+  if (sesiMulti) {
+    return <LayarHostKerupukMulti initialSession={sesiMulti} returnUrl={returnUrl} />;
   }
 
   if (errorPesan || !sesi) {
@@ -578,13 +590,24 @@ export default function LayarHostKerupuk() {
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => navigate(returnUrl)}
-                  className="px-4 py-3 rounded-xl border border-[#e0d5b8] bg-white hover:bg-[#f7f2e4] text-sm font-bold cursor-pointer"
-                >
-                  Kembali ke Dashboard
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(`/guru/makan-kerupuk?templateId=${encodeURIComponent(sesi.templateId)}`)
+                    }
+                    className="px-4 py-3 rounded-xl border border-[#e0d5b8] bg-white hover:bg-[#f7f2e4] text-sm font-bold cursor-pointer"
+                  >
+                    Kembali ke Pemilihan Mode
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/guru')}
+                    className="px-4 py-3 rounded-xl border border-[#e0d5b8] bg-[#fcf8ed] hover:bg-[#f7f2e4] text-sm font-bold cursor-pointer"
+                  >
+                    Dashboard
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={handleMulai}
@@ -978,23 +1001,34 @@ export default function LayarHostKerupuk() {
             )}
 
             {/* Tombol Aksi Akhir */}
-            <div className="flex flex-wrap items-center justify-end gap-3 pt-2 border-t border-[#e0d5b8]">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#e0d5b8]">
               <button
                 type="button"
-                onClick={() => navigate(returnUrl)}
-                className="px-5 py-2.5 rounded-xl border border-[#e0d5b8] bg-white hover:bg-[#f7f2e4] font-bold text-sm cursor-pointer"
+                onClick={() =>
+                  navigate(`/guru/makan-kerupuk?templateId=${encodeURIComponent(sesi.templateId)}`)
+                }
+                className="px-4 py-2.5 rounded-xl border border-[#e0d5b8] bg-white hover:bg-[#f7f2e4] font-bold text-sm cursor-pointer"
               >
-                Kembali ke Dashboard
+                Kembali ke Pemilihan Mode
               </button>
-              <button
-                type="button"
-                onClick={() => setModalUlangOpen(true)}
-                disabled={isActionLoading}
-                className="px-6 py-2.5 rounded-xl bg-[#c8362f] hover:bg-[#b02d27] text-white font-black text-sm flex items-center gap-2 cursor-pointer"
-              >
-                <RotateCcw className="w-4 h-4" />
-                Main Ulang (Sesi Baru)
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/guru')}
+                  className="px-5 py-2.5 rounded-xl border border-[#e0d5b8] bg-white hover:bg-[#f7f2e4] font-bold text-sm cursor-pointer"
+                >
+                  Dashboard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalUlangOpen(true)}
+                  disabled={isActionLoading}
+                  className="px-6 py-2.5 rounded-xl bg-[#c8362f] hover:bg-[#b02d27] text-white font-black text-sm flex items-center gap-2 cursor-pointer"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Main Ulang (Sesi Baru)
+                </button>
+              </div>
             </div>
           </div>
         )}

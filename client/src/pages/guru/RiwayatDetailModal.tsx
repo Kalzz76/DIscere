@@ -147,6 +147,33 @@ interface LaporanKerupukSoloDetail {
   };
 }
 
+interface LaporanKerupukMultiDetail {
+  sessionId: string;
+  templateJudul: string;
+  dihentikanManual: boolean;
+  konfigurasi?: {
+    targetKerupuk: number;
+    kesulitan: string;
+  };
+  totalPeserta: number;
+  totalKerupukHabis: number;
+  totalJawabanBenar: number;
+  totalJawabanSalah: number;
+  leaderboard: Array<{
+    peringkat?: number;
+    id: string;
+    nama: string;
+    skorTotal: number;
+    skorPembelajaran: number;
+    bonusKeberuntungan: number;
+    bonusPenyelesaian: number;
+    sisaKerupuk: number;
+    totalBenar: number;
+    totalSalah: number;
+    rataRataWaktuJawabMs: number;
+  }>;
+}
+
 interface DetailData {
   sessionId: string;
   templateJudul: string;
@@ -163,6 +190,7 @@ interface DetailData {
   laporanPanjatPinang?: LaporanPanjatDetail | null;
   laporanBalapKarung?: LaporanBalapDetail | null;
   laporanKerupukSolo?: LaporanKerupukSoloDetail | null;
+  laporanKerupukMulti?: LaporanKerupukMultiDetail | null;
   statsPerSoal: SoalStat[];
   soalPalingSeringSalah: {
     questionId: string;
@@ -254,7 +282,9 @@ export function RiwayatDetailModal({
               </span>
               <span className="portal-tag yellow font-bold">
                 {detail.game === 'makan_kerupuk'
-                  ? 'Mode Solo (Perangkat Guru)'
+                  ? detail.mode === 'MULTI'
+                    ? 'Mode Multiplayer (HP Siswa)'
+                    : 'Mode Solo (Perangkat Guru)'
                   : detail.game === 'panjat_pinang' || detail.game === 'balap_karung'
                   ? 'Individu Multiplayer'
                   : `Mode ${detail.mode === 'multi' ? 'Multiplayer' : 'Solo'}`}
@@ -275,7 +305,77 @@ export function RiwayatDetailModal({
             </div>
           </div>
 
-          {detail.game === 'makan_kerupuk' && detail.laporanKerupukSolo ? (
+          {detail.game === 'makan_kerupuk' && detail.laporanKerupukMulti ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="p-3 bg-[#1d3b2e] text-[#f4ecd8] rounded-xl">
+                  <div className="text-xs font-bold opacity-80">Juara 1</div>
+                  <div className="text-sm font-black mt-1 truncate">
+                    {detail.laporanKerupukMulti.leaderboard[0]?.nama || detail.timMenang}
+                  </div>
+                </div>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <div className="text-xs font-bold text-emerald-700">Kerupuk Ludes</div>
+                  <div className="portal-cv text-2xl text-emerald-800">
+                    {detail.laporanKerupukMulti.totalKerupukHabis}/{detail.laporanKerupukMulti.totalPeserta}
+                  </div>
+                </div>
+                <div className="p-3 bg-[#f4ecd9] border border-[#e0d5b8] rounded-xl">
+                  <div className="text-xs font-bold text-[#6b7d6c]">Target Kerupuk</div>
+                  <div className="portal-cv text-2xl text-[#1d3b2e]">
+                    {detail.laporanKerupukMulti.konfigurasi?.targetKerupuk ?? 100} pt
+                  </div>
+                </div>
+                <div className="p-3 bg-[#f4ecd9] border border-[#e0d5b8] rounded-xl">
+                  <div className="text-xs font-bold text-[#6b7d6c]">Akurasi Kelas</div>
+                  <div className="portal-cv text-2xl text-[#1d3b2e]">
+                    {Math.round(
+                      (detail.laporanKerupukMulti.totalJawabanBenar /
+                        Math.max(
+                          1,
+                          detail.laporanKerupukMulti.totalJawabanBenar +
+                            detail.laporanKerupukMulti.totalJawabanSalah
+                        )) *
+                        100
+                    )}%
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white border border-[#e0d5b8] rounded-2xl p-3 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="text-[10px] uppercase font-black text-[#6b7d6c] border-b border-[#e0d5b8]">
+                    <tr>
+                      <th className="py-1.5 px-2">Rank</th>
+                      <th className="py-1.5 px-2">Siswa</th>
+                      <th className="py-1.5 px-2">Total</th>
+                      <th className="py-1.5 px-2">Pembelajaran</th>
+                      <th className="py-1.5 px-2">Keberuntungan</th>
+                      <th className="py-1.5 px-2">Ludes</th>
+                      <th className="py-1.5 px-2">Sisa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#e0d5b8]">
+                    {detail.laporanKerupukMulti.leaderboard.map((p, idx) => (
+                      <tr key={p.id}>
+                        <td className="py-1.5 px-2 font-mono font-bold">#{idx + 1}</td>
+                        <td className="py-1.5 px-2 font-bold">{p.nama}</td>
+                        <td className="py-1.5 px-2 font-mono font-black text-[#c8362f]">
+                          {p.skorTotal}
+                        </td>
+                        <td className="py-1.5 px-2 font-mono">{p.skorPembelajaran}</td>
+                        <td className="py-1.5 px-2 font-mono">+{p.bonusKeberuntungan}</td>
+                        <td className="py-1.5 px-2 font-mono">+{p.bonusPenyelesaian}</td>
+                        <td className="py-1.5 px-2 font-mono">
+                          {p.sisaKerupuk === 0 ? 'Habis' : `${p.sisaKerupuk} pt`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : detail.game === 'makan_kerupuk' && detail.laporanKerupukSolo ? (
             <div className="space-y-4">
               {/* Ringkasan Skor Mode Solo Makan Kerupuk */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">

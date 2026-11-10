@@ -7,8 +7,12 @@ import {
   AlertTriangle,
   CheckCircle2,
   Monitor,
+  Users,
   Sliders,
+  UserCheck,
 } from 'lucide-react';
+
+export type PlayModeKerupuk = 'SOLO' | 'MULTIPLAYER';
 
 export interface ProbabilitasConfig {
   besar: number;
@@ -22,10 +26,13 @@ export type KesulitanKerupuk = 'mudah' | 'normal' | 'sulit' | 'custom';
 export type TargetKerupukPreset = '50' | '100' | '150' | '200' | 'custom';
 
 export interface KonfigurasiKerupukPayload {
+  playMode: PlayModeKerupuk;
   targetKerupuk: number;
   targetPreset: TargetKerupukPreset;
   kesulitan: KesulitanKerupuk;
   probabilitas: ProbabilitasConfig;
+  maxPeserta?: number;
+  allowLateJoin?: boolean;
 }
 
 interface ModalKonfigurasiKerupukProps {
@@ -33,18 +40,24 @@ interface ModalKonfigurasiKerupukProps {
   onClose: () => void;
   templateJudul: string;
   totalSoal: number;
+  defaultPlayMode?: PlayModeKerupuk;
   onMulai: (config: KonfigurasiKerupukPayload) => void;
   loading?: boolean;
 }
 
-const TARGET_PRESETS: Array<{ value: number; key: TargetKerupukPreset; label: string; desc: string }> = [
+export const TARGET_PRESETS: Array<{
+  value: number;
+  key: TargetKerupukPreset;
+  label: string;
+  desc: string;
+}> = [
   { value: 50, key: '50', label: '50 Poin', desc: 'Cepat (~2-4 benar)' },
   { value: 100, key: '100', label: '100 Poin', desc: 'Standar Kelas' },
   { value: 150, key: '150', label: '150 Poin', desc: 'Sedang-Panjang' },
   { value: 200, key: '200', label: '200 Poin', desc: 'Maraton Seru' },
 ];
 
-const PRESET_DATA: Record<
+export const PRESET_DATA: Record<
   'mudah' | 'normal' | 'sulit',
   { label: string; deskripsi: string; probabilitas: ProbabilitasConfig }
 > = {
@@ -65,7 +78,7 @@ const PRESET_DATA: Record<
   },
 };
 
-function hitungPoinPengurangan(persen: number, target: number): number {
+export function hitungPoinPengurangan(persen: number, target: number): number {
   if (persen <= 0) return 0;
   return Math.max(1, Math.round((target * persen) / 100));
 }
@@ -75,9 +88,11 @@ export default function ModalKonfigurasiKerupuk({
   onClose,
   templateJudul,
   totalSoal,
+  defaultPlayMode = 'MULTIPLAYER',
   onMulai,
   loading = false,
 }: ModalKonfigurasiKerupukProps) {
+  const [playMode, setPlayMode] = useState<PlayModeKerupuk>(defaultPlayMode);
   const [targetPreset, setTargetPreset] = useState<TargetKerupukPreset>('100');
   const [customTargetInput, setCustomTargetInput] = useState<string>('120');
 
@@ -86,15 +101,21 @@ export default function ModalKonfigurasiKerupuk({
     PRESET_DATA.normal.probabilitas
   );
 
-  // Reset form ke default standar saat modal dibuka kembali
+  // Pengaturan khusus Multiplayer
+  const [maxPeserta, setMaxPeserta] = useState<number>(45);
+  const [allowLateJoin, setAllowLateJoin] = useState<boolean>(true);
+
   useEffect(() => {
     if (isOpen) {
+      setPlayMode(defaultPlayMode);
       setTargetPreset('100');
       setCustomTargetInput('120');
       setKesulitan('normal');
       setProbabilitas({ ...PRESET_DATA.normal.probabilitas });
+      setMaxPeserta(45);
+      setAllowLateJoin(true);
     }
-  }, [isOpen]);
+  }, [isOpen, defaultPlayMode]);
 
   const targetKerupuk = useMemo(() => {
     if (targetPreset === 'custom') {
@@ -138,10 +159,12 @@ export default function ModalKonfigurasiKerupuk({
     e.preventDefault();
     if (!canSubmit) return;
     onMulai({
+      playMode,
       targetKerupuk,
       targetPreset,
       kesulitan,
       probabilitas,
+      ...(playMode === 'MULTIPLAYER' ? { maxPeserta, allowLateJoin } : {}),
     });
   };
 
@@ -149,27 +172,19 @@ export default function ModalKonfigurasiKerupuk({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Konfigurasi Solo — Makan Kerupuk Challenge"
+      title="Pilih Mode & Konfigurasi — Makan Kerupuk Challenge"
       maxWidth="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-[#1d3b2e]">
-        {/* Banner Informasi Mode Solo Guru */}
-        <div className="bg-[#f4ecd9] border border-[#e0d5b8] p-3.5 rounded-xl flex items-start justify-between gap-3">
-          <div className="flex items-start gap-2.5">
-            <div className="p-2 rounded-lg bg-[#1d3b2e] text-[#f4ecd9] shrink-0 mt-0.5">
-              <Monitor className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[#6b7d6c]">
-                Mode Solo • Perangkat Guru (Tanpa PIN / HP Siswa)
-              </p>
-              <h4 className="font-bold text-sm leading-snug">{templateJudul}</h4>
-              <p className="text-xs text-[#6b7d6c] mt-0.5">
-                {totalSoal} soal tersedia • Aturan dikunci selama sesi berjalan
-              </p>
-            </div>
+        {/* Header Ringkasan Materi */}
+        <div className="bg-[#f4ecd9] border border-[#e0d5b8] p-3.5 rounded-xl flex items-center justify-between gap-3">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#6b7d6c] block">
+              Materi Pertanyaan Dipilih
+            </span>
+            <h4 className="font-bold text-sm leading-snug">{templateJudul}</h4>
           </div>
-          <span className="portal-tag green shrink-0 font-bold">1 Perangkat</span>
+          <span className="portal-tag yellow font-bold shrink-0">{totalSoal} Soal</span>
         </div>
 
         {!hasQuestions && (
@@ -181,11 +196,73 @@ export default function ModalKonfigurasiKerupuk({
           </div>
         )}
 
-        {/* 1. Target Poin Kerupuk */}
+        {/* 1. Pemilihan Mode Permainan (Dua Pilihan Mode) */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-wider block">
+            1. Pilih Mode Permainan
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setPlayMode('MULTIPLAYER')}
+              className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                playMode === 'MULTIPLAYER'
+                  ? 'bg-[#1d3b2e] text-white border-[#1d3b2e] shadow-md'
+                  : 'bg-[#fcf8ed] text-[#1d3b2e] border-[#e0d5b8] hover:border-[#1d3b2e]/50'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center gap-2 font-extrabold text-sm">
+                  <Users className="w-4 h-4 text-[#f2c230]" />
+                  <span>Multiplayer Mode</span>
+                </div>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    playMode === 'MULTIPLAYER' ? 'bg-[#f2c230] text-[#1d3b2e]' : 'bg-[#f4ecd9] text-[#6b7d6c]'
+                  }`}
+                >
+                  HP Siswa
+                </span>
+              </div>
+              <p className={`text-[11px] leading-snug ${playMode === 'MULTIPLAYER' ? 'text-white/85' : 'text-[#6b7d6c]'}`}>
+                Siswa bergabung dengan PIN &amp; QR, punya kerupuk sendiri, leaderboard real-time (hingga 40+ siswa).
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPlayMode('SOLO')}
+              className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                playMode === 'SOLO'
+                  ? 'bg-[#c8362f] text-white border-[#c8362f] shadow-md'
+                  : 'bg-[#fcf8ed] text-[#1d3b2e] border-[#e0d5b8] hover:border-[#c8362f]/50'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center gap-2 font-extrabold text-sm">
+                  <Monitor className="w-4 h-4" />
+                  <span>Solo Mode (Guru)</span>
+                </div>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    playMode === 'SOLO' ? 'bg-white text-[#c8362f]' : 'bg-[#f4ecd9] text-[#6b7d6c]'
+                  }`}
+                >
+                  1 Perangkat
+                </span>
+              </div>
+              <p className={`text-[11px] leading-snug ${playMode === 'SOLO' ? 'text-white/90' : 'text-[#6b7d6c]'}`}>
+                Guru langsung memainkan &amp; menampilkannya di proyektor kelas tanpa perlu siswa bergabung atau PIN/QR.
+              </p>
+            </button>
+          </div>
+        </div>
+
+        {/* 2. Target Poin Kerupuk (Aturan Inti Bersama) */}
         <div className="space-y-2">
           <label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
             <Target className="w-3.5 h-3.5 text-[#c8362f]" />
-            1. Target Poin Kerupuk
+            2. Target Poin Kerupuk
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             {TARGET_PRESETS.map((p) => {
@@ -230,7 +307,7 @@ export default function ModalKonfigurasiKerupuk({
 
           {targetPreset === 'custom' && (
             <div className="flex flex-wrap items-center gap-3 bg-[#fcf8ed] border border-[#e0d5b8] p-3 rounded-xl">
-              <label className="text-xs font-bold">Masukkan Target Poin (bilangan bulat):</label>
+              <label className="text-xs font-bold">Masukkan Target Poin:</label>
               <input
                 type="number"
                 min={10}
@@ -238,20 +315,19 @@ export default function ModalKonfigurasiKerupuk({
                 step={1}
                 value={customTargetInput}
                 onChange={(e) => setCustomTargetInput(e.target.value)}
-                className="w-28 px-3 py-1.5 bg-white border border-[#e0d5b8] rounded-lg text-sm font-mono font-bold text-[#1d3b2e] focus:outline-none focus:border-[#1d3b2e]"
+                className="w-28 px-3 py-1.5 bg-white border border-[#e0d5b8] rounded-lg text-sm font-mono font-bold text-[#1d3b2e] focus:outline-none"
               />
               {!isValidTarget && (
                 <span className="text-xs font-bold text-red-600">
-                  Target harus bilangan bulat antara 10 hingga 1000.
+                  Target harus bilangan bulat 10–1000.
                 </span>
               )}
             </div>
           )}
 
-          {/* Pratinjau Proporsional Nilai Pengurangan */}
           {isValidTarget && (
             <div className="flex flex-wrap gap-2 text-[11px] bg-white/70 border border-[#e0d5b8] px-3 py-2 rounded-xl">
-              <span className="font-bold text-[#6b7d6c]">Dampak pada Target {targetKerupuk} pt:</span>
+              <span className="font-bold text-[#6b7d6c]">Pengurangan ({targetKerupuk} pt):</span>
               <span className="font-semibold text-amber-800">
                 Besar -{hitungPoinPengurangan(40, targetKerupuk)}pt
               </span>
@@ -273,16 +349,16 @@ export default function ModalKonfigurasiKerupuk({
           )}
         </div>
 
-        {/* 2. Tingkat Kesulitan & Probabilitas Gigitan */}
+        {/* 3. Probabilitas Gigitan (Aturan Inti Bersama) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#c8362f]" />
-              2. Preset Kesulitan &amp; Probabilitas Gigitan
+              3. Preset Kesulitan &amp; Probabilitas Gigitan
             </label>
             <span className="text-[11px] font-bold text-[#6b7d6c] flex items-center gap-1">
               <Sliders className="w-3 h-3" />
-              {kesulitan === 'custom' ? 'Mode Kustom' : `Preset ${PRESET_DATA[kesulitan].label}`}
+              {kesulitan === 'custom' ? 'Kustom' : PRESET_DATA[kesulitan].label}
             </span>
           </div>
 
@@ -295,7 +371,7 @@ export default function ModalKonfigurasiKerupuk({
                   key={key}
                   type="button"
                   onClick={() => handlePilihPresetKesulitan(key)}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-[#1d3b2e] text-white border-[#1d3b2e] shadow-sm'
                       : 'bg-[#fcf8ed] text-[#1d3b2e] border-[#e0d5b8] hover:border-[#1d3b2e]/50'
@@ -314,47 +390,18 @@ export default function ModalKonfigurasiKerupuk({
             })}
           </div>
 
-          {/* 5 Slider & Input Probabilitas */}
-          <div className="space-y-2.5 bg-[#fcf8ed] border border-[#e0d5b8] p-3.5 rounded-xl">
+          <div className="space-y-2 bg-[#fcf8ed] border border-[#e0d5b8] p-3 rounded-xl">
             {[
-              {
-                key: 'besar' as const,
-                nama: 'Gigitan Besar',
-                detail: `-40% kerupuk (-${isValidTarget ? hitungPoinPengurangan(40, targetKerupuk) : '?'} pt), +40 keberuntungan`,
-                accent: 'accent-[#1d3b2e]',
-              },
-              {
-                key: 'sedang' as const,
-                nama: 'Gigitan Sedang',
-                detail: `-25% kerupuk (-${isValidTarget ? hitungPoinPengurangan(25, targetKerupuk) : '?'} pt), +25 keberuntungan`,
-                accent: 'accent-[#1d3b2e]',
-              },
-              {
-                key: 'kecil' as const,
-                nama: 'Gigitan Kecil',
-                detail: `-10% kerupuk (-${isValidTarget ? hitungPoinPengurangan(10, targetKerupuk) : '?'} pt), +10 keberuntungan`,
-                accent: 'accent-[#1d3b2e]',
-              },
-              {
-                key: 'sangat_kecil' as const,
-                nama: 'Gigitan Mini',
-                detail: `-5% kerupuk (-${isValidTarget ? hitungPoinPengurangan(5, targetKerupuk) : '?'} pt), +5 keberuntungan`,
-                accent: 'accent-[#1d3b2e]',
-              },
-              {
-                key: 'zonk' as const,
-                nama: 'Zonk / Tidak Dapat Gigitan',
-                detail: '0% kerupuk, +0 keberuntungan',
-                accent: 'accent-[#c8362f]',
-              },
+              { key: 'besar' as const, nama: 'Besar (-40%, +40 pt)', accent: 'accent-[#1d3b2e]' },
+              { key: 'sedang' as const, nama: 'Sedang (-25%, +25 pt)', accent: 'accent-[#1d3b2e]' },
+              { key: 'kecil' as const, nama: 'Kecil (-10%, +10 pt)', accent: 'accent-[#1d3b2e]' },
+              { key: 'sangat_kecil' as const, nama: 'Mini (-5%, +5 pt)', accent: 'accent-[#1d3b2e]' },
+              { key: 'zonk' as const, nama: 'Zonk / Tidak Menggigit (0%, +0 pt)', accent: 'accent-[#c8362f]' },
             ].map((item) => (
               <div key={item.key}>
-                <div className="flex items-center justify-between text-xs font-bold mb-1 gap-2">
-                  <span>
-                    {item.nama}{' '}
-                    <span className="font-normal text-[#6b7d6c]">({item.detail})</span>
-                  </span>
-                  <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center justify-between text-xs font-bold mb-0.5">
+                  <span>{item.nama}</span>
+                  <div className="flex items-center gap-1">
                     <input
                       type="number"
                       min={0}
@@ -363,7 +410,7 @@ export default function ModalKonfigurasiKerupuk({
                       onChange={(e) =>
                         updateNilaiProb(item.key, parseFloat(e.target.value || '0'))
                       }
-                      className="w-14 px-1.5 py-0.5 text-right font-mono text-xs bg-white border border-[#e0d5b8] rounded"
+                      className="w-12 px-1 py-0.5 text-right font-mono text-xs bg-white border border-[#e0d5b8] rounded"
                     />
                     <span className="font-mono text-xs">%</span>
                   </div>
@@ -374,13 +421,12 @@ export default function ModalKonfigurasiKerupuk({
                   max="100"
                   value={probabilitas[item.key]}
                   onChange={(e) => updateNilaiProb(item.key, parseInt(e.target.value, 10))}
-                  className={`w-full ${item.accent} h-2 bg-[#e0d5b8] rounded-lg appearance-none cursor-pointer`}
+                  className={`w-full ${item.accent} h-1.5 bg-[#e0d5b8] rounded-lg appearance-none cursor-pointer`}
                 />
               </div>
             ))}
           </div>
 
-          {/* Indikator Validasi Total 100% */}
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-semibold">Total Probabilitas:</span>
             <div
@@ -401,6 +447,44 @@ export default function ModalKonfigurasiKerupuk({
           </div>
         </div>
 
+        {/* 4. Pengaturan Tambahan Khusus Multiplayer */}
+        {playMode === 'MULTIPLAYER' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div className="bg-[#fcf8ed] border border-[#e0d5b8] p-3 rounded-xl">
+              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-[#1d3b2e]" /> Kapasitas Siswa
+              </label>
+              <select
+                value={maxPeserta}
+                onChange={(e) => setMaxPeserta(parseInt(e.target.value, 10))}
+                className="w-full p-2 bg-white border border-[#e0d5b8] rounded-lg text-xs font-bold text-[#1d3b2e]"
+              >
+                <option value={20}>20 Siswa</option>
+                <option value={30}>30 Siswa</option>
+                <option value={45}>45 Siswa (Standar 1 Kelas)</option>
+                <option value={60}>60 Siswa</option>
+                <option value={100}>100 Siswa</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between bg-[#fcf8ed] border border-[#e0d5b8] p-3 rounded-xl">
+              <div className="flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-[#1d3b2e] shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-[#1d3b2e]">Siswa Susulan</p>
+                  <p className="text-[11px] text-[#6b7d6c]">Bisa gabung setelah dimulai</p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={allowLateJoin}
+                onChange={(e) => setAllowLateJoin(e.target.checked)}
+                className="w-4 h-4 accent-[#1d3b2e] cursor-pointer"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Tombol Aksi */}
         <div className="flex justify-end gap-2 pt-3 border-t border-[#e0d5b8]">
           <button
@@ -416,11 +500,17 @@ export default function ModalKonfigurasiKerupuk({
             className={`px-5 py-2 text-xs font-bold rounded-lg flex items-center gap-2 text-white shadow-sm transition-all ${
               !canSubmit
                 ? 'bg-slate-400 cursor-not-allowed opacity-60'
-                : 'bg-[#1d3b2e] hover:bg-[#254b3b] cursor-pointer'
+                : playMode === 'MULTIPLAYER'
+                ? 'bg-[#1d3b2e] hover:bg-[#254b3b] cursor-pointer'
+                : 'bg-[#c8362f] hover:bg-[#b02d27] cursor-pointer'
             }`}
           >
             <Play className="w-3.5 h-3.5" />
-            {loading ? 'Menyiapkan Arena...' : 'Buka Arena Solo'}
+            {loading
+              ? 'Menyiapkan Sesi...'
+              : playMode === 'MULTIPLAYER'
+              ? 'Buat Sesi & Buka Lobi PIN'
+              : 'Buka Arena Solo Proyektor'}
           </button>
         </div>
       </form>

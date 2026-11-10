@@ -147,12 +147,21 @@ export function GameTemplatesPanel({
       // 1. Flush simpan otomatis kanvas terlebih dahulu
       await onBeforeStartGame();
 
+      // 1b. Bila game adalah Makan Kerupuk Challenge, arahkan ke halaman Pemilihan Mode (Multiplayer vs Solo)
+      if (template.game === 'makan_kerupuk') {
+        onClose();
+        navigate(
+          `/guru/makan-kerupuk?templateId=${encodeURIComponent(template.id)}&kembali=${encodeURIComponent(`/papan/${boardId}`)}`
+        );
+        return;
+      }
+
       // 2. Buat sesi di server
       const res = await apiRequest<{ session: { id: string } }>('/sesi', {
         method: 'POST',
         body: JSON.stringify({
           templateId: template.id,
-          mode: template.game === 'makan_kerupuk' ? 'solo' : template.mode,
+          mode: template.mode,
           game: template.game,
         }),
       });
@@ -343,13 +352,12 @@ export function GameTemplatesPanel({
                   <span
                     style={{
                       textTransform: 'capitalize',
-                      color:
-                        item.game !== 'makan_kerupuk' && item.mode === 'multi'
-                          ? '#60a5fa'
-                          : '#34d399',
+                      color: item.game === 'makan_kerupuk' ? '#f59e0b' : item.mode === 'multi' ? '#60a5fa' : '#34d399',
                     }}
                   >
-                    {item.game !== 'makan_kerupuk' && item.mode === 'multi'
+                    {item.game === 'makan_kerupuk'
+                      ? 'Multi / Solo'
+                      : item.mode === 'multi'
                       ? 'Multiplayer'
                       : 'Solo'}
                   </span>

@@ -73,7 +73,7 @@ export default function TemplateForm() {
         const t = res.template;
         setJudul(t.judul);
         setGame(t.game);
-        setMode(t.game === 'makan_kerupuk' ? 'solo' : t.mode);
+        setMode(t.mode || 'multi');
         if (t.questions && t.questions.length > 0) {
           setQuestions(
             t.questions.map((q: any, idx: number) => ({
@@ -338,9 +338,7 @@ export default function TemplateForm() {
                   onChange={(e) => {
                     const newGame = e.target.value;
                     setGame(newGame);
-                    if (newGame === 'makan_kerupuk') {
-                      setMode('solo');
-                    } else if (
+                    if (
                       newGame === 'panjat_pinang' ||
                       newGame === 'balap_karung'
                     ) {
@@ -350,13 +348,13 @@ export default function TemplateForm() {
                   className="portal-select"
                 >
                   <option value="tarik_tambang">Tarik Tambang Edukasi (Beregu / Solo)</option>
-                  <option value="makan_kerupuk">Makan Kerupuk Challenge (Mode Solo Perangkat Guru)</option>
+                  <option value="makan_kerupuk">Makan Kerupuk Challenge (Dual Mode: Multi / Solo)</option>
                   <option value="panjat_pinang">Panjat Pinang (Individu Multiplayer)</option>
                   <option value="balap_karung">Balap Karung Challenge (Individu Multiplayer)</option>
                 </select>
                 <span className="text-[11px] text-[#6b7d6c] mt-1 block">
                   {game === 'makan_kerupuk'
-                    ? 'Dimainkan langsung oleh guru pada satu perangkat/proyektor kelas dengan gacha gigitan kerupuk.'
+                    ? 'Mendukung Multiplayer (HP siswa) dan Solo Mode (1 perangkat guru di proyektor) saat memulai permainan.'
                     : game === 'panjat_pinang'
                     ? 'Lomba memanjat tiang pinang menuju puncak 100% dengan bonus streak dan rintangan opsional.'
                     : game === 'balap_karung'
@@ -367,16 +365,14 @@ export default function TemplateForm() {
 
               <div>
                 <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1.5">
-                  Mode Permainan
+                  Mode Permainan Default
                 </label>
                 <select
                   value={mode}
                   onChange={(e) => setMode(e.target.value as 'solo' | 'multi')}
                   className="portal-select"
                 >
-                  {game !== 'makan_kerupuk' && (
-                    <option value="multi">Mode Multiplayer (HP Siswa Masing-Masing)</option>
-                  )}
+                  <option value="multi">Mode Multiplayer (HP Siswa Masing-Masing)</option>
                   {game !== 'panjat_pinang' &&
                     game !== 'balap_karung' && (
                       <option value="solo">
@@ -388,7 +384,7 @@ export default function TemplateForm() {
                 </select>
                 <span className="text-[11px] text-[#6b7d6c] mt-1 block">
                   {game === 'makan_kerupuk'
-                    ? 'Guru mengoperasikan langsung kuis & animasi makan kerupuk di satu layar tanpa perlu siswa bergabung via PIN.'
+                    ? 'Saat memulai Makan Kerupuk Challenge nanti, Anda dapat bebas memilih Multiplayer maupun Solo Mode.'
                     : game === 'panjat_pinang' || game === 'balap_karung'
                     ? 'Setiap siswa bergabung menggunakan HP masing-masing dan bertanding secara individu.'
                     : 'Pilih cara siswa berpartisipasi dalam sesi kelas.'}
