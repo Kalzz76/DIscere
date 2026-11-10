@@ -177,15 +177,14 @@ export function AiQuizGenerator({
   return (
     <div
       style={{
-        margin: '10px 14px 14px',
-        background: 'linear-gradient(145deg, rgba(20, 24, 43, 0.95), rgba(11, 14, 25, 0.98))',
-        border: '1px solid rgba(155, 23, 245, 0.4)',
-        borderRadius: 14,
-        padding: '12px 14px',
-        boxShadow: '0 4px 18px rgba(0, 0, 0, 0.45), 0 0 12px rgba(155, 23, 245, 0.15)',
+        padding: '6px 4px 16px',
+        borderBottom: '1px solid var(--ln)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
       }}
     >
-      {/* Header Form */}
+      {/* Header Form Tanpa Kotak Bertumpuk */}
       <div
         onClick={() => setIsOpen(!isOpen)}
         style={{
@@ -194,16 +193,19 @@ export function AiQuizGenerator({
           justifyContent: 'space-between',
           cursor: 'pointer',
           userSelect: 'none',
+          padding: '2px 0',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#c084fc' }}>
           <Icons.Sparkles />
-          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.3 }}>Buat Kuis dengan AI</span>
+          <span style={{ fontSize: 13.5, fontWeight: 800, color: '#eef1fa', letterSpacing: -0.2 }}>
+            Buat Kuis dengan AI
+          </span>
         </div>
         <button
           type="button"
           className="ib"
-          style={{ width: 22, height: 22, color: 'var(--mu)' }}
+          style={{ width: 24, height: 24, color: 'var(--mu)' }}
           aria-label={isOpen ? 'Sembunyikan form AI' : 'Tampilkan form AI'}
         >
           {isOpen ? <Icons.ChevronUp /> : <Icons.ChevronDown />}
@@ -211,7 +213,7 @@ export function AiQuizGenerator({
       </div>
 
       {isOpen && (
-        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {/* Input Topik */}
           <input
             type="text"
@@ -221,32 +223,33 @@ export function AiQuizGenerator({
             disabled={loading}
             style={{
               width: '100%',
-              background: '#070a14',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: 8,
-              padding: '8px 10px',
+              background: 'rgba(0, 0, 0, 0.28)',
+              border: '1px solid var(--ln)',
+              borderRadius: 10,
+              padding: '9px 12px',
               color: '#fff',
-              fontSize: 12.5,
+              fontSize: 13,
+              fontFamily: 'inherit',
               outline: 'none',
               boxSizing: 'border-box',
             }}
           />
 
-          {/* Baris Opsi: Jumlah Soal, Jenis Game, Checkbox Papan */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: '#94a3b8' }}>
+          {/* Baris Opsi: Jumlah Soal, Jenis Game */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--mu)' }}>
               <span>Jumlah:</span>
               <select
                 value={jumlah}
                 onChange={(e) => setJumlah(Number(e.target.value))}
                 disabled={loading}
                 style={{
-                  background: '#070a14',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  background: 'rgba(0, 0, 0, 0.28)',
+                  border: '1px solid var(--ln)',
                   color: '#fff',
-                  borderRadius: 6,
-                  padding: '3px 6px',
-                  fontSize: 11.5,
+                  borderRadius: 8,
+                  padding: '5px 8px',
+                  fontSize: 12,
                   outline: 'none',
                   cursor: 'pointer',
                 }}
@@ -258,19 +261,19 @@ export function AiQuizGenerator({
               </select>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: '#94a3b8' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--mu)' }}>
               <span>Game:</span>
               <select
                 value={game}
                 onChange={(e) => setGame(e.target.value as any)}
                 disabled={loading}
                 style={{
-                  background: '#070a14',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  background: 'rgba(0, 0, 0, 0.28)',
+                  border: '1px solid var(--ln)',
                   color: '#fff',
-                  borderRadius: 6,
-                  padding: '3px 6px',
-                  fontSize: 11.5,
+                  borderRadius: 8,
+                  padding: '5px 8px',
+                  fontSize: 12,
                   outline: 'none',
                   cursor: 'pointer',
                 }}
@@ -308,7 +311,7 @@ export function AiQuizGenerator({
           </label>
 
           {/* Tombol Aksi */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
             <button
               type="button"
               onClick={() => handleGenerate(true)}
@@ -318,17 +321,18 @@ export function AiQuizGenerator({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 6,
-                background: '#9b17f5',
+                gap: 7,
+                background: 'var(--pu)',
                 color: '#fff',
                 border: 'none',
-                borderRadius: 8,
-                padding: '8px 12px',
-                fontSize: 12,
-                fontWeight: 700,
+                borderRadius: 10,
+                padding: '9px 14px',
+                fontSize: 12.5,
+                fontWeight: 800,
                 cursor: loading ? 'not-allowed' : 'pointer',
                 opacity: loading ? 0.7 : 1,
                 transition: 'all 0.15s ease',
+                boxShadow: '0 4px 14px rgba(155, 23, 245, 0.35)',
               }}
             >
               {loading ? <Icons.Spinner /> : <Icons.Play />}
@@ -347,11 +351,11 @@ export function AiQuizGenerator({
                 gap: 6,
                 background: 'rgba(255, 255, 255, 0.08)',
                 color: '#e2e8f0',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                borderRadius: 8,
-                padding: '8px 12px',
+                border: '1px solid var(--ln)',
+                borderRadius: 10,
+                padding: '9px 14px',
                 fontSize: 12,
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: loading ? 'not-allowed' : 'pointer',
                 opacity: loading ? 0.7 : 1,
               }}
@@ -374,10 +378,10 @@ export function AiQuizGenerator({
                   background: 'rgba(155, 23, 245, 0.2)',
                   color: '#c084fc',
                   border: '1px solid #9b17f5',
-                  borderRadius: 8,
-                  padding: '8px 10px',
+                  borderRadius: 10,
+                  padding: '9px 12px',
                   fontSize: 12,
-                  fontWeight: 600,
+                  fontWeight: 700,
                   cursor: 'pointer',
                 }}
               >
@@ -391,7 +395,7 @@ export function AiQuizGenerator({
           {statusMsg && (
             <div
               style={{
-                fontSize: 11,
+                fontSize: 11.5,
                 color: statusMsg.startsWith('Gagal') ? '#f87171' : '#38bdf8',
                 lineHeight: 1.4,
               }}

@@ -77,7 +77,7 @@ export function GameTemplatesPanel({
   initialCategory = 'game',
   onClose,
   onBeforeStartGame,
-  onPasteLastGameResult,
+  onPasteLastGameResult: _onPasteLastGameResult,
   onPasteToBoard,
   getBoardPng = () => null,
   onToast,
@@ -326,24 +326,6 @@ export function GameTemplatesPanel({
             gap: 10,
           }}
         >
-          {/* Tombol Tempel Hasil Sesi Game Terakhir */}
-          {onPasteLastGameResult && (
-            <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--ln)' }}>
-              <button
-                type="button"
-                className="game-paste-result-btn"
-                onClick={onPasteLastGameResult}
-                title="Tempel kartu ringkasan hasil sesi game terakhir ke kanvas papan tulis"
-              >
-                <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, stroke: '#fbbf24' }}>
-                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                  <rect x="8" y="2" width="8" height="4" rx="1" />
-                </svg>
-                <span>Tempel Hasil Game ke Papan</span>
-              </button>
-            </div>
-          )}
-
           {/* Form Generator Kuis Interaktif AI */}
           <AiQuizGenerator
             boardId={boardId}
