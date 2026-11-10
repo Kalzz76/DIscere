@@ -147,13 +147,11 @@ export const PageBar: React.FC<PageBarProps> = ({
           title="Halaman sebelumnya"
           aria-label="Halaman sebelumnya"
           style={{
-            width: 34,
-            height: 34,
             opacity: pageIndex === 0 ? 0.35 : 1,
             cursor: pageIndex === 0 ? 'not-allowed' : 'pointer',
           }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
@@ -167,20 +165,20 @@ export const PageBar: React.FC<PageBarProps> = ({
             border: 'none',
             color: '#eef1fa',
             fontWeight: 800,
-            fontSize: 13,
-            padding: '4px 10px',
-            borderRadius: 10,
+            fontSize: 12,
+            padding: '3px 8px',
+            borderRadius: 8,
             cursor: 'pointer',
             fontVariantNumeric: 'tabular-nums',
             display: 'flex',
             alignItems: 'center',
-            gap: 4,
+            gap: 3,
           }}
         >
           <span>
             {pageIndex + 1} / {totalPages}
           </span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d={showDrawer ? 'M18 15l-6-6-6 6' : 'M6 9l6 6 6-6'} />
           </svg>
         </button>
@@ -193,18 +191,16 @@ export const PageBar: React.FC<PageBarProps> = ({
           title="Halaman berikutnya"
           aria-label="Halaman berikutnya"
           style={{
-            width: 34,
-            height: 34,
             opacity: pageIndex === totalPages - 1 ? 0.35 : 1,
             cursor: pageIndex === totalPages - 1 ? 'not-allowed' : 'pointer',
           }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M9 18l6-6-6-6" />
           </svg>
         </button>
 
-        <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
+        <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.15)', margin: '0 1px' }} />
 
         {/* Tombol Tambah Halaman */}
         <button
@@ -212,9 +208,8 @@ export const PageBar: React.FC<PageBarProps> = ({
           onClick={onAddPage}
           title="Tambah halaman baru"
           aria-label="Tambah halaman"
-          style={{ width: 34, height: 34 }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M12 5v14M5 12h14" />
           </svg>
         </button>
@@ -226,9 +221,8 @@ export const PageBar: React.FC<PageBarProps> = ({
             onClick={onDuplicatePage}
             title="Duplikat halaman ini"
             aria-label="Duplikat halaman"
-            style={{ width: 34, height: 34 }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
             </svg>
@@ -246,13 +240,11 @@ export const PageBar: React.FC<PageBarProps> = ({
           title={totalPages <= 1 ? 'Minimal harus ada 1 halaman' : 'Hapus halaman ini'}
           aria-label="Hapus halaman"
           style={{
-            width: 34,
-            height: 34,
             opacity: totalPages <= 1 ? 0.3 : 1,
             cursor: totalPages <= 1 ? 'not-allowed' : 'pointer',
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
           </svg>
         </button>
