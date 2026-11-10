@@ -117,12 +117,12 @@ export const ClassToolsView: React.FC<ClassToolsViewProps> = ({
   onResetTimer,
   onChangeTimerTotal,
 }) => {
-  // Accordion Section States
+  // Accordion Section States (Tertutup secara default pas awal)
   const [openSections, setOpenSections] = useState({
-    timer: true,
-    randomizer: true,
-    polling: true,
-    scoreboard: true,
+    timer: false,
+    randomizer: false,
+    polling: false,
+    scoreboard: false,
   });
 
   const toggleSection = (key: keyof typeof openSections) => {
@@ -278,10 +278,7 @@ export const ClassToolsView: React.FC<ClassToolsViewProps> = ({
   };
 
   // --- 3. STATE PAPAN SKOR ---
-  const [scores, setScores] = useState<ScoreItem[]>([
-    { id: '1', name: 'Tim Merah', points: 0 },
-    { id: '2', name: 'Tim Biru', points: 0 },
-  ]);
+  const [scores, setScores] = useState<ScoreItem[]>([]);
   const [newTeamName, setNewTeamName] = useState('');
 
   const handleAddTeam = () => {
@@ -900,63 +897,69 @@ export const ClassToolsView: React.FC<ClassToolsViewProps> = ({
             </div>
 
             {/* List Skor */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto' }}>
-              {[...scores]
-                .sort((a, b) => b.points - a.points)
-                .map((item, idx) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: 'rgba(0,0,0,0.2)',
-                      padding: '4px 8px',
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, overflow: 'hidden' }}>
-                      <span style={{ fontWeight: 800, color: idx === 0 ? '#eab308' : '#94a3b8', fontSize: 11, minWidth: 16 }}>
-                        #{idx + 1}
-                      </span>
-                      <span style={{ fontWeight: 700, color: '#eef1fa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {item.name}
-                      </span>
+            {scores.length === 0 ? (
+              <p style={{ fontSize: 11.5, color: '#64748b', textAlign: 'center', margin: '6px 0' }}>
+                Belum ada tim atau peserta. Ketik nama di atas lalu klik Tambah.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto' }}>
+                {[...scores]
+                  .sort((a, b) => b.points - a.points)
+                  .map((item, idx) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'rgba(0,0,0,0.2)',
+                        padding: '4px 8px',
+                        borderRadius: 8,
+                        fontSize: 12,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, overflow: 'hidden' }}>
+                        <span style={{ fontWeight: 800, color: idx === 0 ? '#eab308' : '#94a3b8', fontSize: 11, minWidth: 16 }}>
+                          #{idx + 1}
+                        </span>
+                        <span style={{ fontWeight: 700, color: '#eef1fa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.name}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontWeight: 900, color: '#eab308', fontSize: 13, minWidth: 26, textAlign: 'center' }}>
+                          {item.points}
+                        </span>
+
+                        <button
+                          onClick={() => handleChangePoints(item.id, -1)}
+                          style={{ width: 22, height: 22, borderRadius: 6, background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', display: 'grid', placeItems: 'center', cursor: 'pointer' }}
+                          title="Kurangi 1 poin"
+                        >
+                          <Icons.Minus />
+                        </button>
+
+                        <button
+                          onClick={() => handleChangePoints(item.id, 1)}
+                          style={{ width: 22, height: 22, borderRadius: 6, background: '#eab308', color: '#000', border: 'none', display: 'grid', placeItems: 'center', cursor: 'pointer' }}
+                          title="Tambah 1 poin"
+                        >
+                          <Icons.Plus />
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteTeam(item.id)}
+                          style={{ width: 22, height: 22, borderRadius: 6, background: 'transparent', color: '#64748b', border: 'none', display: 'grid', placeItems: 'center', cursor: 'pointer', marginLeft: 2 }}
+                          title="Hapus peserta"
+                        >
+                          <Icons.Trash />
+                        </button>
+                      </div>
                     </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontWeight: 900, color: '#eab308', fontSize: 13, minWidth: 26, textAlign: 'center' }}>
-                        {item.points}
-                      </span>
-
-                      <button
-                        onClick={() => handleChangePoints(item.id, -1)}
-                        style={{ width: 22, height: 22, borderRadius: 6, background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', display: 'grid', placeItems: 'center', cursor: 'pointer' }}
-                        title="Kurangi 1 poin"
-                      >
-                        <Icons.Minus />
-                      </button>
-
-                      <button
-                        onClick={() => handleChangePoints(item.id, 1)}
-                        style={{ width: 22, height: 22, borderRadius: 6, background: '#eab308', color: '#000', border: 'none', display: 'grid', placeItems: 'center', cursor: 'pointer' }}
-                        title="Tambah 1 poin"
-                      >
-                        <Icons.Plus />
-                      </button>
-
-                      <button
-                        onClick={() => handleDeleteTeam(item.id)}
-                        style={{ width: 22, height: 22, borderRadius: 6, background: 'transparent', color: '#64748b', border: 'none', display: 'grid', placeItems: 'center', cursor: 'pointer', marginLeft: 2 }}
-                        title="Hapus peserta"
-                      >
-                        <Icons.Trash />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-            </div>
+                  ))}
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
               <button
