@@ -566,27 +566,37 @@ export default function TemplateForm() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#e0d5b8]">
-                    {teksTempelAi && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTeksTempelAi('');
-                          setErrorTempel(null);
-                        }}
-                        className="portal-btn ghost sm"
-                      >
-                        Bersihkan
-                      </button>
-                    )}
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#e0d5b8]">
                     <button
                       type="button"
-                      onClick={handleKonversiTeksAi}
-                      className="portal-btn red sm"
-                      disabled={!teksTempelAi.trim()}
+                      onClick={() => setTeksTempelAi(CONTOH_TEXT)}
+                      className="portal-btn ghost sm text-xs"
                     >
-                      <span>Konversi & Masukkan ke Soal</span>
+                      Muat Contoh Format
                     </button>
+                    <div className="flex items-center gap-2">
+                      {teksTempelAi && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTeksTempelAi('');
+                            setErrorTempel(null);
+                          }}
+                          className="portal-btn ghost sm"
+                        >
+                          Bersihkan
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleKonversiTeksAi}
+                        className="portal-btn red sm"
+                        disabled={!teksTempelAi.trim()}
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>Konversi & Masukkan ke Soal</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -1040,7 +1040,6 @@ select.portal-select {
   cursor: pointer;
   color-scheme: light;
 }
-}
 
 .portal-input:focus, .portal-select:focus {
   outline: 2px solid var(--portal-yellow);
