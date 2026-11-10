@@ -79,7 +79,29 @@ export interface SelectionHandle extends Pt {
   k: HandleKey;
 }
 
-export type CanvasObj = StrokeObj | ShapeObj | TextObj | TableObj | ImageObj;
+export interface FormulaObj extends BaseObj {
+  type: 'formula';
+  x: number;
+  y: number;
+  tex: string;
+  fs: number;
+}
+
+export interface ConnObj extends BaseObj {
+  type: 'conn';
+  a: string; // ID objek asal
+  b: string; // ID objek tujuan
+  ar?: boolean; // Panah (true/undefined) atau garis lurus (false)
+}
+
+export type CanvasObj =
+  | StrokeObj
+  | ShapeObj
+  | TextObj
+  | TableObj
+  | ImageObj
+  | FormulaObj
+  | ConnObj;
 
 export interface BoardDataFormat {
   versi: 1;
@@ -99,7 +121,9 @@ export type ToolType =
   | 'pick'
   | 'ai'
   | 'upload'
-  | 'zoom';
+  | 'zoom'
+  | 'conn'
+  | 'formula';
 
 export interface BoardView {
   x: number;
@@ -122,6 +146,7 @@ export interface BoardState {
   lc: string;
   grid: boolean;
   fill?: string | null;
+  cs?: 'arrow' | 'line';
 }
 
 export interface LocalOp {

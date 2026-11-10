@@ -5,7 +5,7 @@ import { apiRequest } from '../../lib/api';
 import { getSocket } from '../../lib/socket';
 import { useAuth } from '../../lib/auth';
 import { Board } from './engine/board';
-import { CanvasObj, BoardState, BoardView, TextEditorState, ToolType, PenStyle, UbahEventPayload } from './engine/types';
+import { CanvasObj, BoardState, BoardView, TextEditorState, ToolType, PenStyle, UbahEventPayload, FormulaObj, Pt } from './engine/types';
 import { COL, LCOL } from './engine/color';
 import { downloadPng, downloadJson, toJson, potongArea, pngDataUrl } from './engine/export';
 import {
@@ -28,6 +28,7 @@ import {
   PromptBar,
   ChatPanel,
   ContextMenu,
+  FormulaDialog,
 } from './components';
 import { wrap, LampiranObrolan } from './lib/obrol';
 import { useObrol } from './lib/useObrol';
@@ -108,6 +109,9 @@ export default function PapanTulis() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showClearModal, setShowClearModal] = useState(false);
   const [isGamePanelOpen, setIsGamePanelOpen] = useState(false);
+  const [isFormulaOpen, setIsFormulaOpen] = useState(false);
+  const [editingFormula, setEditingFormula] = useState<FormulaObj | null>(null);
+  const [formulaPos, setFormulaPos] = useState<Pt | null>(null);
 
   // File Inputs Ref
   const fileImgRef = useRef<HTMLInputElement>(null);
@@ -342,6 +346,11 @@ export default function PapanTulis() {
       },
       onContextMenu: (pos) => {
         setContextMenuPos(pos);
+      },
+      onOpenFormulaDialog: (formulaObj, pos) => {
+        setEditingFormula(formulaObj);
+        setFormulaPos(pos);
+        setIsFormulaOpen(true);
       },
       onLassoChange: (pts) => {
         if (pts && pts.length >= 8) {
@@ -580,6 +589,13 @@ export default function PapanTulis() {
       return;
     }
 
+    if (tool === 'formula') {
+      setEditingFormula(null);
+      setFormulaPos(null);
+      setIsFormulaOpen(true);
+      return;
+    }
+
     const wasFlyout = activeFlyout === tool;
     if (boardRef.current) {
       boardRef.current.setTool(tool);
@@ -772,6 +788,11 @@ export default function PapanTulis() {
         onPaste={() => board?.paste()}
         onZOrder={(act) => board?.zOrder(act)}
         onToggleLock={() => board?.toggleLockSelected()}
+        onOpenFormula={() => {
+          setEditingFormula(null);
+          setFormulaPos(null);
+          setIsFormulaOpen(true);
+        }}
       />
 
       {/* Top Right Panel: Undo, Redo, Game, Avatar, Presentasi, Share */}
@@ -941,6 +962,15 @@ export default function PapanTulis() {
             showToast('PNG diunduh');
           }
         }}
+        onInsertTemplate={(tpl) => {
+          board?.insertTemplate(tpl);
+          showToast(`Template ${tpl.toUpperCase()} berhasil disisipkan`);
+        }}
+        onOpenFormula={() => {
+          setEditingFormula(null);
+          setFormulaPos(null);
+          setIsFormulaOpen(true);
+        }}
         onClearAll={() => setShowClearModal(true)}
       />
 
@@ -1004,6 +1034,22 @@ export default function PapanTulis() {
         onToggleLock={() => board?.toggleLockSelected()}
         onGroup={() => board?.group()}
         onUngroup={() => board?.ungroup()}
+      />
+
+      {/* Dialog Pembuat & Pengubah Rumus Matematika (LaTeX Ringan) */}
+      <FormulaDialog
+        isOpen={isFormulaOpen}
+        obj={editingFormula}
+        pos={formulaPos}
+        onClose={() => {
+          setIsFormulaOpen(false);
+          setEditingFormula(null);
+          setFormulaPos(null);
+        }}
+        onSave={(tex, fs, existing) => {
+          board?.addFormula(tex, fs, existing);
+          showToast(existing ? 'Rumus matematika diperbarui' : 'Rumus matematika disisipkan');
+        }}
       />
 
       {/* Tombol Keluar Mode Presentasi */}

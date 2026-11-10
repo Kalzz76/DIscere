@@ -14,4 +14,5 @@ export * from './GameTemplatesPanel';
 export * from './PromptBar';
 export * from './ChatPanel';
 export * from './ContextMenu';
+export * from './FormulaDialog';
 
