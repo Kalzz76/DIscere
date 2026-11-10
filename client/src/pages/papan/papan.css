@@ -1418,13 +1418,18 @@ body.pres .papan .btn-exit-pres {
 .papan .game-template-list,
 .papan #kb,
 .papan .class-tools-container {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: auto !important;
   overflow-x: hidden;
-  padding: 10px 16px 24px;
+  padding: 10px 16px 36px;
   user-select: text;
   -webkit-overflow-scrolling: touch;
+}
+
+.papan .class-tools-container .tool-card {
+  flex-shrink: 0 !important;
+  width: 100%;
 }
 
 .papan #kb::-webkit-scrollbar,

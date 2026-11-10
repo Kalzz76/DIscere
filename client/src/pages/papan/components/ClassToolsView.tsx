@@ -339,18 +339,18 @@ export const ClassToolsView: React.FC<ClassToolsViewProps> = ({
       id="kb"
       className="class-tools-container"
       style={{
-        flex: 1,
+        flex: '1 1 auto',
         minHeight: 0,
         overflowY: 'auto',
         overflowX: 'hidden',
-        padding: '12px 14px 32px',
+        padding: '12px 14px 40px',
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
       }}
     >
       {/* 1. SEKSI TIMER KELAS */}
-      <div className="tool-card" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+      <div className="tool-card" style={{ flexShrink: 0, background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
         <button
           onClick={() => toggleSection('timer')}
           style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'transparent', border: 'none', color: '#eef1fa', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
@@ -454,7 +454,7 @@ export const ClassToolsView: React.FC<ClassToolsViewProps> = ({
       </div>
 
       {/* 2. SEKSI ACAK NAMA & KELOMPOK */}
-      <div className="tool-card" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+      <div className="tool-card" style={{ flexShrink: 0, background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
         <button
           onClick={() => toggleSection('randomizer')}
           style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'transparent', border: 'none', color: '#eef1fa', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
@@ -669,7 +669,7 @@ export const ClassToolsView: React.FC<ClassToolsViewProps> = ({
       </div>
 
       {/* 3. SEKSI POLING KELAS */}
-      <div className="tool-card" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+      <div className="tool-card" style={{ flexShrink: 0, background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
         <button
           onClick={() => toggleSection('polling')}
           style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'transparent', border: 'none', color: '#eef1fa', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
@@ -847,7 +847,7 @@ export const ClassToolsView: React.FC<ClassToolsViewProps> = ({
       </div>
 
       {/* 4. SEKSI PAPAN SKOR */}
-      <div className="tool-card" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+      <div className="tool-card" style={{ flexShrink: 0, background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
         <button
           onClick={() => toggleSection('scoreboard')}
           style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'transparent', border: 'none', color: '#eef1fa', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
