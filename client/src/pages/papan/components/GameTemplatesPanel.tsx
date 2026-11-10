@@ -333,7 +333,8 @@ export function GameTemplatesPanel({
               className={`game-tab-btn ${activeTab === 'saya' ? 'active' : ''}`}
               onClick={() => setActiveTab('saya')}
             >
-              Template Saya ({templatesSaya.length})
+              <span>Template Saya</span>
+              <span className="game-tab-badge">{templatesSaya.length}</span>
             </button>
             <button
               role="tab"
@@ -341,7 +342,8 @@ export function GameTemplatesPanel({
               className={`game-tab-btn ${activeTab === 'pustaka' ? 'active' : ''}`}
               onClick={() => setActiveTab('pustaka')}
             >
-              Pustaka Resmi ({templatesPustaka.length})
+              <span>Pustaka Resmi</span>
+              <span className="game-tab-badge">{templatesPustaka.length}</span>
             </button>
           </div>
 
