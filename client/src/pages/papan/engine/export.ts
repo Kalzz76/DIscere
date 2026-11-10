@@ -86,10 +86,14 @@ export function toJson(
       view: p.view ? { ...p.view } : undefined,
     }));
 
-    const payload: BoardDataFormat = {
+    const activeIndex = data.currentPageIndex ?? currentPageIndex;
+    const currentObjs = cleanPages[activeIndex]?.objs || cleanPages[0]?.objs || [];
+
+    const payload = {
       versi: 2,
       pages: cleanPages,
-      currentPageIndex: data.currentPageIndex ?? currentPageIndex,
+      currentPageIndex: activeIndex,
+      objs: currentObjs,
     };
     return JSON.stringify(payload);
   }

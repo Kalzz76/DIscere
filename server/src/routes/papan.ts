@@ -76,14 +76,35 @@ papanRouter.get('/share/:token', async (req, res: Response) => {
   }
 });
 
+// Helper validasi format data kanvas (mendukung format v1 tunggal dan format v2 multi-halaman/slide)
+export const isValidCanvasData = (parsed: any): boolean => {
+  if (!parsed || typeof parsed !== 'object') return false;
+  // Format v1: { versi: 1, objs: [...] }
+  if (parsed.versi === 1 && Array.isArray(parsed.objs)) return true;
+  // Format v2: { versi: 2, pages: [...] }
+  if (parsed.versi === 2 && Array.isArray(parsed.pages)) return true;
+  // Format kompatibel: objek memiliki array objs atau pages
+  if (Array.isArray(parsed.objs) || Array.isArray(parsed.pages)) return true;
+  return false;
+};
+
 // PUT /api/papan/share/:token - Simpan perubahan kanvas oleh Editor via token berbagi
 const simpanShareSchema = z.object({
   data: z.union([
-    z.string().min(1, 'Data kanvas tidak boleh kosong.'),
+    z.string().refine((str) => {
+      try {
+        const parsed = JSON.parse(str);
+        return isValidCanvasData(parsed);
+      } catch {
+        return false;
+      }
+    }, 'Format data kanvas tidak valid'),
     z.object({
-      versi: z.literal(1),
-      objs: z.array(z.any()),
-    }),
+      versi: z.number().int().min(1).max(2).optional(),
+      objs: z.array(z.any()).optional(),
+      pages: z.array(z.any()).optional(),
+      currentPageIndex: z.number().int().optional(),
+    }).refine(isValidCanvasData, 'Format data kanvas tidak valid'),
   ]).transform((val) => (typeof val === 'string' ? val : JSON.stringify(val))),
 });
 
@@ -242,15 +263,17 @@ const putPapanSchema = z.object({
     z.string().refine((str) => {
       try {
         const parsed = JSON.parse(str);
-        return parsed && parsed.versi === 1 && Array.isArray(parsed.objs);
+        return isValidCanvasData(parsed);
       } catch {
         return false;
       }
     }, 'Format data kanvas tidak valid'),
     z.object({
-      versi: z.literal(1),
-      objs: z.array(z.any()),
-    }),
+      versi: z.number().int().min(1).max(2).optional(),
+      objs: z.array(z.any()).optional(),
+      pages: z.array(z.any()).optional(),
+      currentPageIndex: z.number().int().optional(),
+    }).refine(isValidCanvasData, 'Format data kanvas tidak valid'),
   ]).transform((val) => (typeof val === 'string' ? val : JSON.stringify(val))).optional(),
 });
 
