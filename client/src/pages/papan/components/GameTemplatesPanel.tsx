@@ -8,7 +8,6 @@ import {
   USE_MOCK_TEMPLATE_FALLBACK,
 } from '../mock-template';
 import { ClassToolsView } from './ClassToolsView';
-import { AiQuizGenerator } from './AiQuizGenerator';
 
 export interface GameTemplatesPanelProps {
   isOpen: boolean;
@@ -79,7 +78,7 @@ export function GameTemplatesPanel({
   onBeforeStartGame,
   onPasteLastGameResult: _onPasteLastGameResult,
   onPasteToBoard,
-  getBoardPng = () => null,
+  getBoardPng: _getBoardPng = () => null,
   onToast,
   timerSeconds = 300,
   timerTotal = 300,
@@ -326,21 +325,6 @@ export function GameTemplatesPanel({
             gap: 10,
           }}
         >
-          {/* Form Generator Kuis Interaktif AI */}
-          <AiQuizGenerator
-            boardId={boardId}
-            getBoardPng={getBoardPng}
-            onCreated={(newTemplate) => {
-              setTemplatesSaya((prev) => [newTemplate, ...prev.filter((t) => t.id !== newTemplate.id)]);
-              setActiveTab('saya');
-            }}
-            onPlayNow={(template) => {
-              handleStartGame(template);
-            }}
-            onPasteToBoard={onPasteToBoard}
-            onToast={onToast}
-          />
-
           {/* Navigasi Tab Game */}
           <div className="game-tabs" role="tablist" aria-label="Kategori Template">
             <button
