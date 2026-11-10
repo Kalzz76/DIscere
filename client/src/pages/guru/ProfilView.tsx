@@ -13,7 +13,6 @@ import {
   Trophy,
   PenTool,
   Cpu,
-  ShieldCheck,
 } from 'lucide-react';
 
 interface ProfilViewProps {
@@ -376,16 +375,6 @@ export function ProfilView({ stats }: ProfilViewProps) {
                 <b className="block text-2xl text-[#c8362f]">{stats.kuotaAiSisa}/30</b>
                 <span className="text-xs text-[#6b7d6c] font-bold">Sisa Kuota AI</span>
               </div>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-[#f2ebd9] border border-[#e5dcc7] space-y-2 text-xs text-[#6b7d6c]">
-              <div className="flex items-center gap-2 text-[#1d3b2e] font-bold">
-                <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                <span>Privasi Data Terjamin</span>
-              </div>
-              <p className="leading-relaxed">
-                Soal kuis privat dan kanvas papan tulis Anda sepenuhnya terisolasi dan aman di bawah akun Anda.
-              </p>
             </div>
           </div>
         </div>

@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/auth';
 import { Board } from './engine/board';
 import { BoardState, BoardView, TextEditorState, ToolType, PenStyle, UbahEventPayload, FormulaObj, Pt } from './engine/types';
 import { COL, LCOL } from './engine/color';
-import { downloadPng, downloadJson, toJson, potongArea, pngDataUrl } from './engine/export';
+import { downloadPng, downloadPdf, downloadJson, toJson, potongArea, pngDataUrl } from './engine/export';
 import {
   TopLeftBar,
   ToolRail,
@@ -33,6 +33,7 @@ import {
 } from './components';
 import { wrap, LampiranObrolan } from './lib/obrol';
 import { useObrol } from './lib/useObrol';
+import { playTimerAlarm } from './lib/timerAudio';
 
 export default function PapanTulis() {
   const { id: boardId } = useParams<{ id: string }>();
@@ -113,6 +114,10 @@ export default function PapanTulis() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showClearModal, setShowClearModal] = useState(false);
   const [isGamePanelOpen, setIsGamePanelOpen] = useState(false);
+  const [panelCategory, setPanelCategory] = useState<'game' | 'alat'>('game');
+  const [timerSeconds, setTimerSeconds] = useState(300);
+  const [timerTotal, setTimerTotal] = useState(300);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [isFormulaOpen, setIsFormulaOpen] = useState(false);
   const [editingFormula, setEditingFormula] = useState<FormulaObj | null>(null);
   const [formulaPos, setFormulaPos] = useState<Pt | null>(null);
@@ -130,6 +135,23 @@ export default function PapanTulis() {
       setToastMsg((prev) => (prev === msg ? null : prev));
     }, 2200);
   }, []);
+
+  // Interval Countdown Timer Kelas
+  useEffect(() => {
+    if (!isTimerRunning) return;
+    const interval = setInterval(() => {
+      setTimerSeconds((prev) => {
+        if (prev <= 1) {
+          setIsTimerRunning(false);
+          playTimerAlarm();
+          showToast('Waktu timer habis!');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isTimerRunning, showToast]);
 
   // Simpan Otomatis ke Server dengan Debounce 2 detik
   const triggerAutosave = useCallback(
@@ -824,12 +846,13 @@ export default function PapanTulis() {
         }}
       />
 
-      {/* Top Right Panel: Undo, Redo, Game, Avatar, Presentasi, Share */}
+      {/* Top Right Panel: Undo, Redo, Game, Alat Kelas, Avatar, Presentasi, Share */}
       <TopRightBar
         canUndo={canUndo}
         canRedo={canRedo}
         pesertaList={pesertaList}
-        isGameOpen={isGamePanelOpen}
+        isGameOpen={isGamePanelOpen && panelCategory === 'game'}
+        isToolsOpen={isGamePanelOpen && panelCategory === 'alat'}
         onUndo={() => boardRef.current?.undo()}
         onRedo={() => boardRef.current?.redo()}
         onPresentation={() => {
@@ -837,17 +860,80 @@ export default function PapanTulis() {
           setIsPresentation(true);
         }}
         onOpenShare={() => setIsShareOpen(true)}
-        onOpenGame={() => setIsGamePanelOpen((prev) => !prev)}
+        onOpenGame={() => {
+          if (isGamePanelOpen && panelCategory === 'game') {
+            setIsGamePanelOpen(false);
+          } else {
+            setPanelCategory('game');
+            setIsGamePanelOpen(true);
+          }
+        }}
+        onOpenTools={() => {
+          if (isGamePanelOpen && panelCategory === 'alat') {
+            setIsGamePanelOpen(false);
+          } else {
+            setPanelCategory('alat');
+            setIsGamePanelOpen(true);
+          }
+        }}
       />
 
-      {/* Panel Template Game Interaktif */}
+      {/* Floating Timer Badge saat Panel Tertutup */}
+      {(isTimerRunning || (timerSeconds < timerTotal && timerSeconds > 0)) && !isGamePanelOpen && (
+        <button
+          id="tp"
+          type="button"
+          className={`floating-timer-badge ${timerSeconds <= 10 && timerSeconds > 0 ? 'red' : ''}`}
+          onClick={() => {
+            setPanelCategory('alat');
+            setIsGamePanelOpen(true);
+          }}
+          title="Klik untuk membuka alat kelas"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="13" r="8" />
+            <path d="M12 9v4l2 2M5 3L2 6M22 6l-3-3M10 2h4" />
+          </svg>
+          <span>
+            {String(Math.floor(timerSeconds / 60)).padStart(2, '0')}:
+            {String(timerSeconds % 60).padStart(2, '0')}
+          </span>
+        </button>
+      )}
+
+      {/* Panel Template Game & Alat Kelas */}
       <GameTemplatesPanel
         isOpen={isGamePanelOpen}
         boardId={boardId || ''}
+        initialCategory={panelCategory}
         onClose={() => setIsGamePanelOpen(false)}
         onBeforeStartGame={handleFlushSave}
         onPasteLastGameResult={handlePasteLastGameResult}
+        onPasteToBoard={(text) => {
+          boardRef.current?.addNote(text);
+          showToast('Ditempel ke papan');
+        }}
+        getBoardPng={() => (boardRef.current ? pngDataUrl(boardRef.current.objs) : null)}
         onToast={showToast}
+        timerSeconds={timerSeconds}
+        timerTotal={timerTotal}
+        isTimerRunning={isTimerRunning}
+        onStartTimer={() => {
+          if (timerSeconds <= 0) {
+            setTimerSeconds(timerTotal);
+          }
+          setIsTimerRunning(true);
+        }}
+        onPauseTimer={() => setIsTimerRunning(false)}
+        onResetTimer={() => {
+          setIsTimerRunning(false);
+          setTimerSeconds(timerTotal);
+        }}
+        onChangeTimerTotal={(sec) => {
+          setIsTimerRunning(false);
+          setTimerTotal(sec);
+          setTimerSeconds(sec);
+        }}
       />
 
       {/* Share Modal Dialog */}
@@ -857,6 +943,21 @@ export default function PapanTulis() {
         pesertaList={pesertaList}
         onClose={() => setIsShareOpen(false)}
         onToast={showToast}
+        onDownloadPng={() => {
+          if (board) {
+            const ok = downloadPng(board.objs, title);
+            if (!ok) showToast('Kanvas masih kosong.');
+            else showToast('Foto PNG berhasil diunduh!');
+          }
+        }}
+        onDownloadPdf={() => {
+          if (board) {
+            const allPages = board.getPages();
+            const ok = downloadPdf(allPages && allPages.length > 1 ? allPages : board.objs, title);
+            if (!ok) showToast('Kanvas masih kosong.');
+            else showToast('Dokumen PDF berhasil diunduh!');
+          }
+        }}
       />
 
       {/* Zoom Bar: Zoom in/out, 100%, Grid, Center */}

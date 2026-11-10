@@ -525,6 +525,179 @@ tanpa markdown; kalau bukan soal hitungan, bagian Rumus boleh dilewati; kalau ga
   return { hasil: hasilJawaban, dariCache: false };
 }
 
+/**
+ * Generator Kuis Interaktif Papan Tulis dengan AI (Topik dan/atau Gambar Kanvas)
+ */
+export async function generateKuisPapan(params: {
+  userId: string;
+  topik?: string;
+  gambarPapan?: string;
+  jumlah?: number;
+  tingkat?: 'SD' | 'SMP';
+  game?: string;
+  simpanTemplate?: boolean;
+}): Promise<{
+  soal: AiQuestion[];
+  template?: any;
+}> {
+  const {
+    userId,
+    topik = '',
+    gambarPapan,
+    jumlah = 5,
+    tingkat = 'SD',
+    game = 'tarik_tambang',
+    simpanTemplate = false,
+  } = params;
+
+  const targetJumlah = Math.min(Math.max(jumlah, 1), 10);
+  let daftarSoal: AiQuestion[] = [];
+
+  // Panggil AI (Gemini atau Anthropic) jika API Key tersedia
+  if (config.aiApiKey) {
+    try {
+      const model = config.aiModel || 'gemini-1.5-flash';
+      const cleanBase64 = gambarPapan ? gambarPapan.replace(/^data:image\/\w+;base64,/, '') : '';
+
+      const promptTeks = `Anda adalah asisten guru cerdas untuk platform pembelajaran interaktif Discere.
+Tugas Anda: Buatlah ${targetJumlah} soal pilihan ganda untuk kuis kelas tingkat ${tingkat}${topik ? ` dengan topik "${topik}"` : ''}${gambarPapan ? '. Analisis materi, rumus, tulisan, diagram, atau peta konsep pada gambar kanvas papan tulis yang dilampirkan dan jadikan sebagai rujukan utama soal kuis.' : ''}.
+
+Kriteria wajib:
+1. Soal mendidik, bahasa ramah siswa, jelas dan mudah dipahami.
+2. Setiap soal tepat memiliki 3 pilihan jawaban: opsiA, opsiB, opsiC.
+3. Tentukan jawabanBenar persis salah satu dari: "A", "B", atau "C".
+4. Berikan penjelasan edukatif singkat.
+5. Format jawaban WAJIB berupa JSON murni tanpa markdown, tanpa backtick, dengan skema:
+{"soal": [{"teks": "...", "opsiA": "...", "opsiB": "...", "opsiC": "...", "jawabanBenar": "A", "penjelasan": "...", "dibuatAi": true}]}`;
+
+      const isClaude = model.includes('claude') || model.includes('anthropic');
+      if (!isClaude) {
+        // Endpoint Google Generative AI (Gemini)
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.aiApiKey}`;
+        const parts: any[] = [{ text: promptTeks }];
+        if (cleanBase64) {
+          parts.push({
+            inlineData: {
+              mimeType: 'image/png',
+              data: cleanBase64,
+            },
+          });
+        }
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+            },
+          }),
+        });
+
+        if (response.ok) {
+          const data = (await response.json()) as any;
+          const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (rawText) {
+            const parsed = JSON.parse(rawText);
+            const validated = aiGenerateQuestionsResponseSchema.parse(parsed);
+            daftarSoal = validated.soal;
+          }
+        }
+      } else {
+        // Claude / Anthropic
+        const userContent: any[] = [];
+        if (cleanBase64) {
+          userContent.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/png',
+              data: cleanBase64,
+            },
+          });
+        }
+        userContent.push({ type: 'text', text: promptTeks });
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': config.aiApiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-3-5-sonnet-20241022',
+            max_tokens: 3000,
+            messages: [{ role: 'user', content: userContent }],
+          }),
+        });
+
+        if (response.ok) {
+          const data = (await response.json()) as any;
+          const rawText = (data.content || []).map((c: any) => c.text || '').join('');
+          const m = rawText.match(/\{[\s\S]*\}/);
+          if (m) {
+            const parsed = JSON.parse(m[0]);
+            const validated = aiGenerateQuestionsResponseSchema.parse(parsed);
+            daftarSoal = validated.soal;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Panggilan AI Kuis gagal, beralih ke generator edukatif terstruktur:', err);
+    }
+  }
+
+  // Fallback cerdas jika AI offline/gagal
+  if (daftarSoal.length === 0) {
+    const materiTeks = topik || 'Materi Inti Pembelajaran di Papan Tulis';
+    daftarSoal = generateFallbackQuestions(materiTeks, targetJumlah, tingkat);
+  }
+
+  let createdTemplate = null;
+  if (simpanTemplate && daftarSoal.length > 0) {
+    const judulTemplate = `Kuis AI: ${(topik || 'Papan Tulis').slice(0, 32)}`;
+    const resolvedMode = game === 'panjat_pinang' || game === 'balap_karung' ? 'multi' : 'solo';
+    try {
+      createdTemplate = await prisma.$transaction(async (tx) => {
+        const t = await tx.template.create({
+          data: {
+            ownerId: userId,
+            judul: judulTemplate,
+            game: game || 'tarik_tambang',
+            mode: resolvedMode,
+            resmi: false,
+          },
+        });
+
+        await tx.question.createMany({
+          data: daftarSoal.map((q, idx) => ({
+            templateId: t.id,
+            urutan: idx + 1,
+            teks: q.teks,
+            opsiA: q.opsiA,
+            opsiB: q.opsiB,
+            opsiC: q.opsiC,
+            jawabanBenar: q.jawabanBenar,
+            penjelasan: q.penjelasan || null,
+            dibuatAi: true,
+          })),
+        });
+
+        return t;
+      });
+    } catch (dbErr) {
+      console.warn('Gagal menyimpan template kuis ke database:', dbErr);
+    }
+  }
+
+  return {
+    soal: daftarSoal,
+    template: createdTemplate,
+  };
+}
+
 // ----------------------------------------------------
 // Modul Obrolan Asisten AI di Papan Tulis
 // ----------------------------------------------------

@@ -9,7 +9,6 @@ import {
   Save,
   Loader2,
   Sparkles,
-  Info,
   AlertTriangle,
   CheckCircle2,
   Copy,
@@ -63,11 +62,6 @@ export default function TemplateForm() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiSuksesPesan, setAiSuksesPesan] = useState<string | null>(null);
-  const [aiKuota, setAiKuota] = useState<{
-    sisaKuota: number;
-    totalTerpakai: number;
-    batasHarian: number;
-  } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -104,20 +98,10 @@ export default function TemplateForm() {
     loadTemplate();
   }, [id]);
 
-  const bukaModalAi = async () => {
+  const bukaModalAi = () => {
     setAiError(null);
     setAiSuksesPesan(null);
     setModalAiOpen(true);
-    try {
-      const k = await apiRequest<any>('/ai/kuota');
-      setAiKuota({
-        sisaKuota: k.sisaKuota,
-        totalTerpakai: k.totalTerpakai,
-        batasHarian: k.batasHarian,
-      });
-    } catch {
-      // Abaikan jika info kuota gagal
-    }
   };
 
   const handleGenerateAi = async () => {
@@ -183,9 +167,6 @@ export default function TemplateForm() {
 
         setQuestions(aiQuestionsFormatted);
         setModeInput('manual');
-        if (res.kuota) {
-          setAiKuota(res.kuota);
-        }
         setAiSuksesPesan(
           `Berhasil menghasilkan ${aiQuestionsFormatted.length} soal kuis!`
         );
@@ -488,14 +469,6 @@ export default function TemplateForm() {
                     <Sparkles className="w-4 h-4" />
                     <span>AI Otomatis</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleTambahSoal}
-                    className="portal-btn ghost sm"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Tambah Soal Manual</span>
-                  </button>
                 </div>
               )}
             </div>
@@ -523,9 +496,8 @@ export default function TemplateForm() {
                 <div className="portal-card p-6 space-y-3" style={{ background: '#f5eee0', border: '2px dashed #d6c6a5' }}>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div>
-                      <h3 className="font-bold text-[#1d3b2e] text-base flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-[#8a6a00]" />
-                        <span>Belum punya soal? Salin prompt ini untuk AI</span>
+                      <h3 className="font-bold text-[#1d3b2e] text-base">
+                        Belum punya soal? Salin prompt ini untuk AI
                       </h3>
                       <p className="text-xs text-[#6b7d6c] mt-0.5">
                         Kirimkan prompt ini ke ChatGPT, Claude, atau DeepSeek untuk menghasilkan butir soal yang siap ditempel.
@@ -564,24 +536,13 @@ export default function TemplateForm() {
 
                 {/* Kotak Tempel Teks Hasil AI */}
                 <div className="portal-card p-6 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#e0d5b8] pb-3">
-                    <div>
-                      <h3 className="portal-cv text-2xl text-[#1d3b2e]">
-                        Tempelkan Teks Hasil Generate AI (ChatGPT / Claude)
-                      </h3>
-                      <p className="text-xs text-[#6b7d6c] mt-0.5">
-                        Tempelkan teks daftar soal di bawah. Sistem DISCERE akan otomatis mengekstrak nomor soal, opsi A, B, C, dan kunci jawaban.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setTeksTempelAi(CONTOH_TEXT)}
-                      className="portal-btn ghost sm shrink-0"
-                      title="Isi textarea dengan contoh format soal"
-                    >
-                      <span>Muat Contoh Format</span>
-                    </button>
+                  <div className="border-b border-[#e0d5b8] pb-3">
+                    <h3 className="portal-cv text-2xl text-[#1d3b2e]">
+                      Tempelkan Teks Hasil Generate AI (ChatGPT / Claude)
+                    </h3>
+                    <p className="text-xs text-[#6b7d6c] mt-0.5">
+                      Tempelkan teks daftar soal di bawah. Sistem DISCERE akan otomatis mengekstrak nomor soal, opsi A, B, C, dan kunci jawaban.
+                    </p>
                   </div>
 
                   {errorTempel && (
@@ -624,7 +585,6 @@ export default function TemplateForm() {
                       className="portal-btn red sm"
                       disabled={!teksTempelAi.trim()}
                     >
-                      <Sparkles className="w-4 h-4" />
                       <span>Konversi & Masukkan ke Soal</span>
                     </button>
                   </div>
@@ -779,60 +739,41 @@ export default function TemplateForm() {
           title="Buat Soal Otomatis dengan AI"
           maxWidth="lg"
         >
-          <div className="space-y-4">
-            {/* Kuota & Warning */}
-            <div className="portal-banner warn">
-              <Sparkles className="w-5 h-5 text-[#8a6a00] shrink-0" />
-              <div className="text-xs space-y-0.5">
-                <span className="font-bold block text-[#1d3b2e]">
-                  Sisa Kuota AI Hari Ini: {aiKuota ? `${aiKuota.sisaKuota} / ${aiKuota.batasHarian}` : '30'} kali
-                </span>
-                <span className="text-[#8a6a00] block">Reset otomatis setiap tengah malam</span>
-              </div>
-            </div>
-
-            {/* Peringatan Privasi UU PDP */}
-            <div className="portal-banner info">
-              <Info className="w-5 h-5 text-[#f2c230] shrink-0 mt-0.5" />
-              <p className="text-xs text-[#cfd9c3] leading-relaxed">
-                <strong className="text-[#f4ecd8]">Privasi Terisolasi:</strong> Jangan memasukkan nama siswa atau data pribadi ke dalam teks materi. Soal hasil AI wajib ditinjau guru sebelum disimpan.
-              </p>
-            </div>
-
+          <div className="space-y-3.5">
             {aiError && (
-              <div className="portal-banner error">
+              <div className="p-3 rounded-2xl bg-[#fde8e7] border border-[#c8362f]/40 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 text-[#c8362f]" />
                 <span className="text-xs font-bold text-[#c8362f]">{aiError}</span>
               </div>
             )}
 
             {aiSuksesPesan && (
-              <div className="portal-banner success">
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-[#1f4a37]" />
-                <span className="text-xs font-bold text-[#1d3b2e]">{aiSuksesPesan}</span>
+              <div className="p-3 rounded-2xl bg-[#e8f5e9] border border-[#2e7d32]/40 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-[#2e7d32]" />
+                <span className="text-xs font-bold text-[#1b5e20]">{aiSuksesPesan}</span>
               </div>
             )}
 
             {/* Input Materi */}
             <div>
-              <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1">
                 Teks Rangkuman Materi Pembelajaran
               </label>
               <textarea
-                rows={5}
+                rows={3}
                 disabled={aiLoading}
                 className="portal-input text-xs leading-relaxed"
-                placeholder="Tempelkan ringkasan materi pembelajaran, bab buku, atau catatan konsep di sini (minimal 20 karakter)... Contoh: Perkembangbiakan tumbuhan secara generatif melibatkan penyerbukan dan pembuahan melalui serbuk sari dan putik..."
+                placeholder="Tempelkan ringkasan materi pembelajaran atau bab buku di sini (minimal 20 karakter)... Contoh: Perkembangbiakan tumbuhan secara generatif melibatkan penyerbukan dan pembuahan melalui serbuk sari dan putik..."
                 value={aiMateri}
                 onChange={(e) => setAiMateri(e.target.value)}
               />
-              <span className="text-[11px] text-[#6b7d6c] mt-1 block">
+              <span className="text-[11px] text-[#6b7d6c] mt-0.5 block">
                 {aiMateri.length} karakter (minimal 20 karakter)
               </span>
             </div>
 
             {/* Pilihan Pengaturan AI */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1">
                   Jumlah Soal
@@ -867,7 +808,7 @@ export default function TemplateForm() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#e0d5b8]">
+            <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-[#e0d5b8]">
               <button
                 type="button"
                 className="portal-btn ghost sm"

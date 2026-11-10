@@ -11,6 +11,7 @@ import {
   cekBatasHarian,
   catatPemakaianAi,
   obrolDenganAI,
+  generateKuisPapan,
 } from '../ai/ai.js';
 import { config } from '../config.js';
 
@@ -269,3 +270,62 @@ aiRouter.post('/obrol', async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ pesan: safeMessage });
   }
 });
+
+// Skema validasi POST /api/ai/kuis-papan
+const kuisPapanSchema = z.object({
+  topik: z.string().max(200, 'Topik maksimal 200 karakter.').optional(),
+  gambarPapan: z.string().min(10, 'Gambar papan tidak valid.').optional(),
+  jumlah: z.number().int().min(1).max(10).default(5),
+  tingkat: z.enum(['SD', 'SMP']).default('SD'),
+  game: z.enum(['tarik_tambang', 'panjat_pinang', 'balap_karung']).default('tarik_tambang'),
+  simpanTemplate: z.boolean().default(true),
+}).refine((data) => (data.topik && data.topik.trim().length > 0) || Boolean(data.gambarPapan), {
+  message: 'Wajib mengisi topik materi atau melampirkan gambar isi papan tulis.',
+});
+
+// POST /api/ai/kuis-papan - Buat kuis interaktif AI dari topik & isi papan tulis
+aiRouter.post('/kuis-papan', async (req: AuthRequest, res: Response) => {
+  try {
+    const parsed = kuisPapanSchema.parse(req.body);
+
+    // 1. Periksa batas kuota harian
+    const kuotaCheck = await periksaDanPakaiKuota(req.user!.id);
+    if (!kuotaCheck.bisaPakai) {
+      return res.status(429).json({
+        pesan: `Batas kuota harian AI Anda (${kuotaCheck.batasHarian} request/hari) telah tercapai. Kuota akan direset besok hari.`,
+        kuota: kuotaCheck,
+      });
+    }
+
+    // 2. Generate kuis dari topik dan/atau kanvas
+    const hasil = await generateKuisPapan({
+      userId: req.user!.id,
+      topik: parsed.topik?.trim(),
+      gambarPapan: parsed.gambarPapan,
+      jumlah: parsed.jumlah,
+      tingkat: parsed.tingkat,
+      game: parsed.game,
+      simpanTemplate: parsed.simpanTemplate,
+    });
+
+    return res.json({
+      pesan: `Berhasil membuat ${hasil.soal.length} soal kuis dengan AI.`,
+      soal: hasil.soal,
+      template: hasil.template,
+      kuota: {
+        sisaKuota: kuotaCheck.sisaKuota,
+        totalTerpakai: kuotaCheck.totalTerpakai,
+        batasHarian: kuotaCheck.batasHarian,
+      },
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ pesan: err.issues[0]?.message || 'Input kuis tidak valid.' });
+    }
+    const safeMessage = err?.message && !err.message.includes('at ')
+      ? err.message
+      : 'Gagal membuat kuis dengan AI. Silakan coba kembali.';
+    return res.status(500).json({ pesan: safeMessage });
+  }
+});
+
