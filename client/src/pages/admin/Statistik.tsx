@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
-import { Modal } from '../../components';
+import { Modal, ModalProfil } from '../../components';
 import {
   LogOut,
   BarChart3,
@@ -91,6 +91,7 @@ export default function DashboardAdmin() {
 
   // Konfirmasi Keluar Modal
   const [modalKeluarOpen, setModalKeluarOpen] = useState(false);
+  const [modalProfilOpen, setModalProfilOpen] = useState(false);
 
   const handleKeluar = async () => {
     await keluar();
@@ -416,8 +417,24 @@ export default function DashboardAdmin() {
           </nav>
 
           <div className="portal-who">
-            <span className="portal-who-label">Masuk sebagai:</span>
-            <b>{user?.nama || 'Administrator'}</b>
+            <div className="flex items-center justify-between">
+              <span className="portal-who-label">Masuk sebagai:</span>
+              <button
+                type="button"
+                onClick={() => setModalProfilOpen(true)}
+                className="text-[11px] font-bold text-[#f2c230] hover:underline cursor-pointer"
+                title="Buka Pengaturan Profil Administrator"
+              >
+                Profil Admin
+              </button>
+            </div>
+            <b
+              onClick={() => setModalProfilOpen(true)}
+              className="cursor-pointer hover:text-[#f2c230] transition-colors"
+              title="Klik untuk membuka profil"
+            >
+              {user?.nama || 'Administrator'}
+            </b>
             <span>{user?.email}</span>
             <button
               type="button"
@@ -1276,6 +1293,17 @@ export default function DashboardAdmin() {
           </div>
         </div>
       </Modal>
+
+      {/* Modal Profil Admin */}
+      <ModalProfil
+        isOpen={modalProfilOpen}
+        onClose={() => setModalProfilOpen(false)}
+        stats={{
+          totalGuru: statistik?.totalGuru,
+          totalTemplateResmi: statistik?.totalTemplateResmi ?? daftarPustaka.length,
+          totalSesi: statistik?.totalSesi,
+        }}
+      />
     </div>
   );
 }
