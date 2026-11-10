@@ -338,7 +338,11 @@ export default function TemplateForm() {
                   onChange={(e) => {
                     const newGame = e.target.value;
                     setGame(newGame);
-                    if (newGame === 'makan_kerupuk' || newGame === 'panjat_pinang') {
+                    if (
+                      newGame === 'makan_kerupuk' ||
+                      newGame === 'panjat_pinang' ||
+                      newGame === 'balap_karung'
+                    ) {
                       setMode('multi');
                     }
                   }}
@@ -347,12 +351,15 @@ export default function TemplateForm() {
                   <option value="tarik_tambang">Tarik Tambang Edukasi (Beregu / Solo)</option>
                   <option value="makan_kerupuk">Makan Kerupuk Challenge (Individu 17 Agustus)</option>
                   <option value="panjat_pinang">Panjat Pinang (Individu Multiplayer)</option>
+                  <option value="balap_karung">Balap Karung Challenge (Individu Multiplayer)</option>
                 </select>
                 <span className="text-[11px] text-[#6b7d6c] mt-1 block">
                   {game === 'makan_kerupuk'
                     ? 'Lomba makan kerupuk seru dengan gacha keberuntungan gigitan dan kuis interaktif.'
                     : game === 'panjat_pinang'
                     ? 'Lomba memanjat tiang pinang menuju puncak 100% dengan bonus streak dan rintangan opsional.'
+                    : game === 'balap_karung'
+                    ? 'Lomba balap karung menjaga keseimbangan, streak, dan melompat cepat menuju garis finis.'
                     : 'Game lomba tarik tambang klasik untuk Discere.'}
                 </span>
               </div>
@@ -367,12 +374,16 @@ export default function TemplateForm() {
                   className="portal-select"
                 >
                   <option value="multi">Mode Multiplayer (HP Siswa Masing-Masing)</option>
-                  {game !== 'makan_kerupuk' && game !== 'panjat_pinang' && (
-                    <option value="solo">Mode Solo (Satu Layar Bersama)</option>
-                  )}
+                  {game !== 'makan_kerupuk' &&
+                    game !== 'panjat_pinang' &&
+                    game !== 'balap_karung' && (
+                      <option value="solo">Mode Solo (Satu Layar Bersama)</option>
+                    )}
                 </select>
                 <span className="text-[11px] text-[#6b7d6c] mt-1 block">
-                  {game === 'makan_kerupuk' || game === 'panjat_pinang'
+                  {game === 'makan_kerupuk' ||
+                  game === 'panjat_pinang' ||
+                  game === 'balap_karung'
                     ? 'Setiap siswa bergabung menggunakan HP masing-masing dan bertanding secara individu.'
                     : 'Pilih cara siswa berpartisipasi dalam sesi kelas.'}
                 </span>
