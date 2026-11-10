@@ -138,25 +138,7 @@ export const PageBar: React.FC<PageBarProps> = ({
   // Tampilan Standar di Kiri Bawah (Mirip #pgs)
   return (
     <>
-      <div
-        className="pn page-bar"
-        id="pgs"
-        style={{
-          position: 'fixed',
-          bottom: 24,
-          left: 20,
-          zIndex: 8,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-          background: 'rgba(23, 27, 44, 0.92)',
-          backdropFilter: 'blur(10px)',
-          borderRadius: 18,
-          padding: '4px 8px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
-        }}
-      >
+      <div className="pn page-bar" id="pgs">
         {/* Tombol Halaman Sebelumnya */}
         <button
           className="ib"
@@ -279,9 +261,10 @@ export const PageBar: React.FC<PageBarProps> = ({
       {/* Popover Baki Daftar Halaman / Slide */}
       {showDrawer && onSelectPage && (
         <div
+          className="page-drawer"
           style={{
             position: 'fixed',
-            bottom: 84,
+            bottom: 'var(--page-drawer-bottom, 84px)',
             left: 20,
             zIndex: 9,
             background: '#181e33',
