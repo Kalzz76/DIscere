@@ -3,7 +3,15 @@ import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
 import { Modal } from '../../components';
+import { ProfilView } from './ProfilView';
 import { RiwayatDetailModal } from './RiwayatDetailModal';
+import ModalKonfigurasiKerupuk, { KonfigurasiKerupukPayload } from './ModalKonfigurasiKerupuk';
+import ModalKonfigurasiPanjatPinang, {
+  KonfigurasiPanjatPinangPayload,
+} from './ModalKonfigurasiPanjatPinang';
+import ModalKonfigurasiBalapKarung, {
+  KonfigurasiBalapKarungPayload,
+} from './ModalKonfigurasiBalapKarung';
 import {
   LogOut,
   LayoutDashboard,
@@ -16,13 +24,31 @@ import {
   Copy,
   Trash2,
   Search,
+  X,
   Loader2,
   ChevronRight,
   ChevronLeft,
   ChevronDown,
   Check,
   ArrowRight,
+  Trophy,
+  User as UserIcon,
+  Globe,
 } from 'lucide-react';
+
+function labelJenisGame(game?: string): string {
+  if (game === 'makan_kerupuk') return 'Makan Kerupuk';
+  if (game === 'panjat_pinang') return 'Panjat Pinang';
+  if (game === 'balap_karung') return 'Balap Karung';
+  return 'Tarik Tambang';
+}
+
+function labelTombolMulai(game?: string, mode?: string): string {
+  if (game === 'makan_kerupuk') return 'Makan Kerupuk';
+  if (game === 'panjat_pinang') return 'Panjat Pinang';
+  if (game === 'balap_karung') return 'Balap Karung';
+  return mode === 'multi' ? 'Mulai Lomba' : 'Mulai Solo';
+}
 
 interface TemplateItem {
   id: string;
@@ -42,7 +68,7 @@ interface SesiRiwayatItem {
   game: string;
   mode: string;
   tanggal: string;
-  timMenang: 'merah' | 'putih' | 'seri';
+  timMenang: string;
   posisiAkhir: number;
   skorMerah: number;
   skorPutih: number;
@@ -107,10 +133,23 @@ export default function DashboardGuru() {
   const [rangeDropdownOpen, setRangeDropdownOpen] = useState(false);
   const rangeDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Dropdown filter riwayat
+  const [filterModeDropdownOpen, setFilterModeDropdownOpen] = useState(false);
+  const filterModeRef = useRef<HTMLDivElement>(null);
+
+  const [filterMenangDropdownOpen, setFilterMenangDropdownOpen] = useState(false);
+  const filterMenangRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (rangeDropdownRef.current && !rangeDropdownRef.current.contains(event.target as Node)) {
         setRangeDropdownOpen(false);
+      }
+      if (filterModeRef.current && !filterModeRef.current.contains(event.target as Node)) {
+        setFilterModeDropdownOpen(false);
+      }
+      if (filterMenangRef.current && !filterMenangRef.current.contains(event.target as Node)) {
+        setFilterMenangDropdownOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -126,6 +165,14 @@ export default function DashboardGuru() {
   const [subTabTemplate, setSubTabTemplate] = useState<'saya' | 'pustaka'>('saya');
   const [subTabAside, setSubTabAside] = useState<'hist' | 'tpl'>('hist');
   const [pencarian, setPencarian] = useState('');
+  const [searchPapan, setSearchPapan] = useState('');
+
+  // Riwayat filter & pagination states (muat 5 sesi per tabel/kotak)
+  const [riwayatHalaman, setRiwayatHalaman] = useState(1);
+  const [riwayatCari, setRiwayatCari] = useState('');
+  const [riwayatFilterMode, setRiwayatFilterMode] = useState<'semua' | 'multi' | 'solo'>('semua');
+  const [riwayatFilterMenang, setRiwayatFilterMenang] = useState<'semua' | 'merah' | 'putih' | 'seri'>('semua');
+  const RIWAYAT_PER_HALAMAN = 5;
 
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -136,6 +183,42 @@ export default function DashboardGuru() {
   const [modalHapusPapanId, setModalHapusPapanId] = useState<string | null>(null);
   const [modalGantiNamaPapan, setModalGantiNamaPapan] = useState<{ id: string; judul: string } | null>(null);
   const [inputGantiNama, setInputGantiNama] = useState('');
+  const [modalKerupukTemplate, setModalKerupukTemplate] = useState<{
+    id: string;
+    judul: string;
+    totalSoal: number;
+  } | null>(null);
+  const [kerupukCreating, setKerupukCreating] = useState(false);
+  const [modalPanjatTemplate, setModalPanjatTemplate] = useState<{
+    id: string;
+    judul: string;
+    totalSoal: number;
+  } | null>(null);
+  const [panjatCreating, setPanjatCreating] = useState(false);
+  const [modalBalapTemplate, setModalBalapTemplate] = useState<{
+    id: string;
+    judul: string;
+    totalSoal: number;
+  } | null>(null);
+  const [balapCreating, setBalapCreating] = useState(false);
+  const [modalKeluarOpen, setModalKeluarOpen] = useState(false);
+  const [sisaAi, setSisaAi] = useState<number>(30);
+
+  // Muat data kuota AI saat tab profil dibuka
+  useEffect(() => {
+    if (tabAktif === 'profil') {
+      apiRequest<{ batasHarian: number; totalTerpakai?: number; sisaKuota?: number; terpakai?: number; sisa?: number }>('/ai/kuota')
+        .then((res) => {
+          const sisa = typeof res.sisaKuota === 'number'
+            ? res.sisaKuota
+            : typeof res.sisa === 'number'
+            ? res.sisa
+            : Math.max(0, 30 - (res.totalTerpakai ?? res.terpakai ?? 0));
+          setSisaAi(sisa);
+        })
+        .catch(() => {});
+    }
+  }, [tabAktif]);
 
   const fetchRingkasan = useCallback(async () => {
     try {
@@ -148,9 +231,10 @@ export default function DashboardGuru() {
 
   const fetchTemplates = useCallback(async () => {
     try {
+      const q = encodeURIComponent(pencarian);
       const [resSaya, resPustaka] = await Promise.all([
-        apiRequest<{ templates: TemplateItem[] }>(`/template?q=${encodeURIComponent(pencarian)}`),
-        apiRequest<{ templates: TemplateItem[] }>('/template/pustaka'),
+        apiRequest<{ templates: TemplateItem[] }>(`/template?q=${q}`),
+        apiRequest<{ templates: TemplateItem[] }>(`/template/pustaka?q=${q}`),
       ]);
       setTemplates(resSaya.templates);
       setPustakaResmi(resPustaka.templates);
@@ -236,7 +320,40 @@ export default function DashboardGuru() {
   };
 
   // Handler: Mulai Game dari Template
-  const handleMulaiGame = async (templateId: string, mode?: string) => {
+  const handleMulaiGame = async (templateId: string, mode?: string, gameType?: string) => {
+    const cariTemplate = () =>
+      templates.find((t) => t.id === templateId) ||
+      pustakaResmi.find((t) => t.id === templateId) ||
+      ringkasan?.templateTerbaru?.find((t) => t.id === templateId);
+
+    // Jika game adalah Makan Kerupuk Challenge, arahkan ke halaman Pemilihan Mode (Multiplayer / Solo)
+    if (gameType === 'makan_kerupuk') {
+      navigate(`/guru/makan-kerupuk?templateId=${encodeURIComponent(templateId)}&kembali=/guru`);
+      return;
+    }
+
+    // Jika game adalah Panjat Pinang, buka modal konfigurasi Panjat Pinang
+    if (gameType === 'panjat_pinang') {
+      const tmpl = cariTemplate();
+      setModalPanjatTemplate({
+        id: templateId,
+        judul: tmpl?.judul || 'Panjat Pinang',
+        totalSoal: (tmpl as TemplateItem)?._count?.questions || tmpl?.jumlahSoal || 0,
+      });
+      return;
+    }
+
+    // Jika game adalah Balap Karung Challenge, buka modal konfigurasi Balap Karung
+    if (gameType === 'balap_karung') {
+      const tmpl = cariTemplate();
+      setModalBalapTemplate({
+        id: templateId,
+        judul: tmpl?.judul || 'Balap Karung Challenge',
+        totalSoal: (tmpl as TemplateItem)?._count?.questions || tmpl?.jumlahSoal || 0,
+      });
+      return;
+    }
+
     try {
       setActionLoadingId(templateId);
       const res = await apiRequest<{ session: { id: string } }>('/sesi', {
@@ -247,6 +364,91 @@ export default function DashboardGuru() {
     } catch (err: any) {
       alert(err.pesan || 'Gagal memulai sesi game.');
       setActionLoadingId(null);
+    }
+  };
+
+  // Handler: Konfirmasi & Mulai Sesi Balap Karung Challenge dengan Konfigurasi
+  const handleKonfirmasiBalap = async (config: KonfigurasiBalapKarungPayload) => {
+    if (!modalBalapTemplate) return;
+    try {
+      setBalapCreating(true);
+      const res = await apiRequest<{ session: { id: string } }>('/sesi', {
+        method: 'POST',
+        body: JSON.stringify({
+          templateId: modalBalapTemplate.id,
+          game: 'balap_karung',
+          mode: 'multi',
+          balapKarungConfig: config,
+        }),
+      });
+      setModalBalapTemplate(null);
+      navigate(`/guru/sesi/${res.session.id}`);
+    } catch (err: any) {
+      alert(err.pesan || 'Gagal membuat sesi Balap Karung.');
+    } finally {
+      setBalapCreating(false);
+    }
+  };
+
+  // Handler: Konfirmasi & Mulai Sesi Panjat Pinang dengan Konfigurasi
+  const handleKonfirmasiPanjat = async (config: KonfigurasiPanjatPinangPayload) => {
+    if (!modalPanjatTemplate) return;
+    try {
+      setPanjatCreating(true);
+      const res = await apiRequest<{ session: { id: string } }>('/sesi', {
+        method: 'POST',
+        body: JSON.stringify({
+          templateId: modalPanjatTemplate.id,
+          game: 'panjat_pinang',
+          mode: 'multi',
+          panjatPinangConfig: config,
+        }),
+      });
+      setModalPanjatTemplate(null);
+      navigate(`/guru/sesi/${res.session.id}`);
+    } catch (err: any) {
+      alert(err.pesan || 'Gagal membuat sesi Panjat Pinang.');
+    } finally {
+      setPanjatCreating(false);
+    }
+  };
+
+  // Handler: Konfirmasi & Mulai Sesi Makan Kerupuk Dual Mode dengan Konfigurasi
+  const handleKonfirmasiKerupuk = async (config: KonfigurasiKerupukPayload) => {
+    if (!modalKerupukTemplate) return;
+    try {
+      setKerupukCreating(true);
+      const isMulti = config.playMode === 'MULTIPLAYER';
+      const baseCfg = {
+        targetKerupuk: config.targetKerupuk,
+        targetPreset: config.targetPreset,
+        kesulitan: config.kesulitan,
+        probabilitas: config.probabilitas,
+      };
+      const res = await apiRequest<{ session: { id: string } }>('/sesi', {
+        method: 'POST',
+        body: JSON.stringify({
+          templateId: modalKerupukTemplate.id,
+          game: 'makan_kerupuk',
+          mode: isMulti ? 'multi' : 'solo',
+          playMode: config.playMode,
+          ...(isMulti
+            ? {
+                kerupukMultiConfig: {
+                  ...baseCfg,
+                  maxPeserta: config.maxPeserta ?? 45,
+                  allowLateJoin: config.allowLateJoin ?? true,
+                },
+              }
+            : { kerupukConfig: baseCfg }),
+        }),
+      });
+      setModalKerupukTemplate(null);
+      navigate(`/guru/sesi/${res.session.id}`);
+    } catch (err: any) {
+      alert(err.pesan || 'Gagal membuat sesi Makan Kerupuk.');
+    } finally {
+      setKerupukCreating(false);
     }
   };
 
@@ -302,25 +504,54 @@ export default function DashboardGuru() {
     chartLabels = MONTHS;
     chartCurrentIdx = currentMonthIdx;
     chartValues = Array(12).fill(0);
-    // Masukkan data ke bulan aktif
-    chartValues[currentMonthIdx] = totalSesi;
-    if (currentMonthIdx > 0) chartValues[currentMonthIdx - 1] = Math.max(0, Math.floor(totalSesi * 0.6));
-    if (currentMonthIdx > 1) chartValues[currentMonthIdx - 2] = Math.max(0, Math.floor(totalSesi * 0.3));
+    // Hitung sesi nyata dari riwayatList per bulan di tahun berjalan
+    riwayatList.forEach((r) => {
+      const d = new Date(r.tanggal);
+      if (d.getFullYear() === now.getFullYear()) {
+        const m = d.getMonth();
+        if (m >= 0 && m < 12) {
+          chartValues[m]++;
+        }
+      }
+    });
   } else if (rangeMode === 'Mingguan') {
     chartLabels = DAYS_OF_WEEK;
     chartCurrentIdx = currentDayOfWeekIdx;
     chartValues = Array(7).fill(0);
-    chartValues[currentDayOfWeekIdx] = totalSesi;
-    if (currentDayOfWeekIdx > 0) chartValues[currentDayOfWeekIdx - 1] = Math.max(0, Math.floor(totalSesi * 0.7));
+    // Hitung sesi nyata untuk minggu berjalan (Senin s/d Minggu)
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - currentDayOfWeekIdx);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 7);
+
+    riwayatList.forEach((r) => {
+      const d = new Date(r.tanggal);
+      if (d >= startOfWeek && d < endOfWeek) {
+        const dayIdx = (d.getDay() + 6) % 7;
+        chartValues[dayIdx]++;
+      }
+    });
   } else {
-    // Harian (7 hari terakhir)
+    // Harian (7 hari terakhir dari hari ini)
     chartLabels = [];
-    chartValues = [];
+    chartValues = Array(7).fill(0);
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
+      const slotIdx = 6 - i;
       chartLabels.push(`${d.getDate()} ${MONTHS[d.getMonth()]}`);
-      chartValues.push(i === 0 ? totalSesi : Math.max(0, Math.round(totalSesi * (0.8 - i * 0.1))));
+
+      const count = riwayatList.filter((r) => {
+        const rd = new Date(r.tanggal);
+        return (
+          rd.getDate() === d.getDate() &&
+          rd.getMonth() === d.getMonth() &&
+          rd.getFullYear() === d.getFullYear()
+        );
+      }).length;
+      chartValues[slotIdx] = count;
     }
     chartCurrentIdx = 6;
   }
@@ -343,6 +574,26 @@ export default function DashboardGuru() {
   }
   const areaPath = `${curvePath} L ${pts[n - 1][0]} 130 L 0 130 Z`;
   const [curX, curY] = pts[chartCurrentIdx] || [360, 28];
+
+  // Template filtering calculations (live client-side + server-synced)
+  const qClean = pencarian.toLowerCase().trim();
+  const templatesTersaring = templates.filter(
+    (t) => !qClean || t.judul.toLowerCase().includes(qClean)
+  );
+  const pustakaTersaring = pustakaResmi.filter(
+    (t) => !qClean || t.judul.toLowerCase().includes(qClean)
+  );
+
+  // Riwayat filtering & pagination calculations
+  const riwayatTersaring = riwayatList.filter((r) => {
+    const cocokJudul = r.templateJudul.toLowerCase().includes(riwayatCari.toLowerCase().trim());
+    const cocokMode = riwayatFilterMode === 'semua' || r.mode?.toLowerCase() === riwayatFilterMode;
+    const cocokMenang = riwayatFilterMenang === 'semua' || r.timMenang === riwayatFilterMenang;
+    return cocokJudul && cocokMode && cocokMenang;
+  });
+  const totalHalamanRiwayat = Math.max(1, Math.ceil(riwayatTersaring.length / RIWAYAT_PER_HALAMAN));
+  const indeksAwal = (riwayatHalaman - 1) * RIWAYAT_PER_HALAMAN;
+  const riwayatDitampilkan = riwayatTersaring.slice(indeksAwal, indeksAwal + RIWAYAT_PER_HALAMAN);
 
   return (
     <div className="portal-bg">
@@ -421,13 +672,38 @@ export default function DashboardGuru() {
               <PenTool className="w-4 h-4 shrink-0" />
               <span>Papan Tulis</span>
             </button>
+
+            <button
+              type="button"
+              aria-current={tabAktif === 'profil' ? 'page' : undefined}
+              onClick={() => navigate('/guru?tab=profil')}
+              title="Profil Saya"
+            >
+              <UserIcon className="w-4 h-4 shrink-0" />
+              <span>Profil Saya</span>
+            </button>
           </nav>
 
           <div className="portal-who">
             <span className="portal-who-label">Masuk sebagai:</span>
             <b>{user?.nama || 'Guru Demo'}</b>
             <span>{user?.sekolah || 'SD Negeri Merdeka 01'}</span>
-            <button type="button" onClick={handleKeluar} className="portal-out" title="Keluar">
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="portal-site"
+              title="Buka Website Discere"
+            >
+              <Globe className="w-4 h-4 shrink-0 text-[#f2c230]" />
+              <span>Lihat Website</span>
+            </a>
+            <button
+              type="button"
+              onClick={() => setModalKeluarOpen(true)}
+              className="portal-out"
+              title="Keluar"
+            >
               <LogOut className="w-4 h-4 shrink-0" />
               <span>Keluar</span>
             </button>
@@ -444,31 +720,63 @@ export default function DashboardGuru() {
                 {tabAktif === 'template' && 'Template Game'}
                 {tabAktif === 'riwayat' && 'Riwayat Sesi'}
                 {tabAktif === 'papan' && 'Papan Tulis'}
+                {tabAktif === 'profil' && 'Profil Pengajar'}
               </h1>
               <p>Selamat mengajar, Bapak/Ibu {user?.nama || 'Guru Demo'}.</p>
             </div>
 
             {tabAktif === 'template' && (
-              <button
-                type="button"
-                onClick={() => navigate('/guru/template/baru')}
-                className="portal-btn red"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Buat Template Baru</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/guru/makan-kerupuk')}
+                  className="portal-btn ghost-red"
+                >
+                  <Trophy className="w-4 h-4" />
+                  <span>Main Makan Kerupuk (Pilih Mode)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/guru/template/baru')}
+                  className="portal-btn red"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Buat Template Baru</span>
+                </button>
+              </div>
             )}
 
             {tabAktif === 'papan' && (
-              <button
-                type="button"
-                onClick={handleBuatPapanBaru}
-                disabled={actionLoadingId === 'buat_papan'}
-                className="portal-btn red"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Buat Papan Baru</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="portal-srch" style={{ minWidth: '220px', height: '38px' }}>
+                  <Search className="w-4 h-4 text-[#6b7d6c]" />
+                  <input
+                    type="search"
+                    placeholder="Cari judul papan..."
+                    value={searchPapan}
+                    onChange={(e) => setSearchPapan(e.target.value)}
+                  />
+                  {searchPapan && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchPapan('')}
+                      className="text-[#6b7d6c] hover:text-[#1d3b2e]"
+                      aria-label="Hapus pencarian"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBuatPapanBaru}
+                  disabled={actionLoadingId === 'buat_papan'}
+                  className="portal-btn red"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Buat Papan Baru</span>
+                </button>
+              </div>
             )}
           </header>
 
@@ -485,7 +793,7 @@ export default function DashboardGuru() {
                   {/* Kolom Kiri: Chart, Big Card, & 3 Template Cards */}
                   <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '22px' }}>
                     {/* Top Grid: Over Chart + Big Action Buttons */}
-                    <div className="portal-top-grid" style={{ display: 'grid', gridTemplateColumns: '1.9fr 1fr', gap: '20px' }}>
+                    <div className="portal-top-grid">
                       {/* Kartu Grafik Sesi Game Selesai (.over) */}
                       <article className="portal-over">
                         <div className="hd">
@@ -604,17 +912,17 @@ export default function DashboardGuru() {
 
                         {/* Barisan 3 Angka Statistik */}
                         <div className="portal-stats-row">
-                          <div>
+                          <div className="portal-stat-box">
                             <small>Template tersedia</small>
                             <b>{ringkasan.totalTemplate}</b>
                             <small>Template</small>
                           </div>
-                          <div className="mid">
+                          <div className="portal-stat-box highlight">
                             <small>Sesi game selesai</small>
                             <b>{ringkasan.totalSesi}</b>
                             <small>Total sesi</small>
                           </div>
-                          <div>
+                          <div className="portal-stat-box">
                             <small>Papan tersimpan</small>
                             <b>{ringkasan.totalPapan}</b>
                             <small>Papan</small>
@@ -623,23 +931,25 @@ export default function DashboardGuru() {
                       </article>
 
                       {/* Right Action Buttons */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div className="portal-actions-col">
                         {/* Tombol Merah: Buat Template Kuis Baru */}
                         <button
                           type="button"
                           onClick={() => navigate('/guru/template/baru')}
                           className="portal-big k"
                         >
-                          <div className="portal-ico">
-                            <Plus className="w-6 h-6 text-[#f4ecd8]" />
+                          <div className="portal-big-header">
+                            <div className="portal-ico">
+                              <Plus className="w-6 h-6 text-[#f4ecd8]" />
+                            </div>
+                            <span className="portal-go">
+                              <ArrowRight className="w-4 h-4 text-[#f4ecd8]" />
+                            </span>
                           </div>
                           <div>
                             <h3>Buat Template Kuis Baru</h3>
                             <p>Susun soal materi untuk dimainkan bersama kelas.</p>
                           </div>
-                          <span className="portal-go">
-                            <ArrowRight className="w-4 h-4 text-[#f4ecd8]" />
-                          </span>
                         </button>
 
                         {/* Tombol Papan Tulis Digital */}
@@ -649,38 +959,73 @@ export default function DashboardGuru() {
                           disabled={actionLoadingId === 'buat_papan'}
                           className="portal-big p"
                         >
-                          <div className="portal-ico">
-                            <PenTool className="w-6 h-6 text-[#f4ecd8]" />
+                          <div className="portal-big-header">
+                            <div className="portal-ico">
+                              <PenTool className="w-6 h-6 text-[#f4ecd8]" />
+                            </div>
+                            <span className="portal-go">
+                              <ArrowRight className="w-4 h-4 text-[#f4ecd8]" />
+                            </span>
                           </div>
                           <div>
                             <h3>Buka Papan Tulis Digital</h3>
                             <p>Kanvas tak terbatas untuk menjelaskan materi.</p>
                           </div>
-                          <span className="portal-go">
-                            <ArrowRight className="w-4 h-4 text-[#f4ecd8]" />
-                          </span>
                         </button>
                       </div>
                     </div>
 
-                    {/* Section: Template Game Terbaru */}
-                    <div className="portal-sec" style={{ margin: '4px 0 -6px' }}>
-                      <span>Template Game Terbaru</span>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/guru?tab=template')}
-                        style={{ color: '#f2c230' }}
-                      >
-                        Lihat Semua
-                      </button>
+                    {/* Section: Template Game Terbaru & Quick Search */}
+                    <div className="portal-sec flex flex-wrap items-center justify-between gap-3" style={{ margin: '4px 0 -6px' }}>
+                      <div className="flex items-center gap-2">
+                        <span>Template Game Terbaru</span>
+                        {pustakaResmi.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSubTabTemplate('pustaka');
+                              navigate('/guru?tab=template');
+                            }}
+                            className="portal-tag yellow font-bold cursor-pointer hover:opacity-90 transition-opacity"
+                            title="Klik untuk membuka pustaka resmi admin"
+                          >
+                            Resmi Admin ({pustakaResmi.length})
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="portal-srch" style={{ minWidth: '200px', height: '34px' }}>
+                          <Search className="w-3.5 h-3.5 text-[#6b7d6c]" />
+                          <input
+                            type="search"
+                            placeholder="Cari materi kuis..."
+                            value={pencarian}
+                            onChange={(e) => setPencarian(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                navigate('/guru?tab=template');
+                              }
+                            }}
+                            aria-label="Cari template materi"
+                            style={{ fontSize: '12px' }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/guru?tab=template')}
+                          style={{ color: '#f2c230' }}
+                        >
+                          Lihat Semua
+                        </button>
+                      </div>
                     </div>
 
                     {/* 3 Template Cards Sesuai Gambar 1 (.pc .card) */}
                     <div className="portal-cards-grid">
-                      {ringkasan.templateTerbaru.slice(0, 3).map((tmpl, idx) => {
-                        const totalSesiInt = Math.max(1, ringkasan.totalSesi);
-                        const playedCount = idx === 0 ? Math.min(totalSesiInt, 2) : 1;
-                        const percentage = Math.round((playedCount / totalSesiInt) * 100);
+                      {ringkasan.templateTerbaru.slice(0, 3).map((tmpl) => {
+                        const playedCount = riwayatList.filter((r) => r.templateId === tmpl.id).length;
+                        const totalSesiInt = ringkasan.totalSesi;
+                        const percentage = totalSesiInt > 0 ? Math.round((playedCount / totalSesiInt) * 100) : 0;
 
                         return (
                           <div key={tmpl.id} className="portal-card portal-pc">
@@ -692,7 +1037,7 @@ export default function DashboardGuru() {
                             <div>
                               <h4>{tmpl.judul}</h4>
                               <div style={{ fontSize: '12px', color: '#6b7d6c', marginTop: '4px' }}>
-                                {tmpl.jumlahSoal} Soal Tersedia • Tarik Tambang
+                                {tmpl.jumlahSoal} Soal Tersedia • {labelJenisGame(tmpl.game)}
                               </div>
 
                               {/* Progress bar porsi sesi */}
@@ -710,10 +1055,10 @@ export default function DashboardGuru() {
                               <span>{playedCount} dari {totalSesiInt} sesi</span>
                               <button
                                 type="button"
-                                onClick={() => handleMulaiGame(tmpl.id, tmpl.mode)}
+                                onClick={() => handleMulaiGame(tmpl.id, tmpl.mode, tmpl.game)}
                                 className="portal-chip"
                               >
-                                {tmpl.mode === 'multi' ? 'Mulai Lomba' : 'Mulai Game Solo'}
+                                {labelTombolMulai(tmpl.game, tmpl.mode)}
                               </button>
                             </div>
                           </div>
@@ -758,18 +1103,38 @@ export default function DashboardGuru() {
                         riwayatList.slice(0, 4).map((r) => {
                           const dateObj = new Date(r.tanggal);
                           const dateStr = `${dateObj.getDate()} ${MONTHS[dateObj.getMonth()]} ${dateObj.getFullYear()}, ${String(dateObj.getHours()).padStart(2, '0')}.${String(dateObj.getMinutes()).padStart(2, '0')}`;
-                          const isRedWin = r.timMenang === 'merah';
-                          const isWhiteWin = r.timMenang === 'putih';
+                          const isIndividu =
+                            r.game === 'panjat_pinang' ||
+                            r.game === 'makan_kerupuk' ||
+                            r.game === 'balap_karung';
+                          const isRedWin = !isIndividu && r.timMenang === 'merah';
+                          const isWhiteWin = !isIndividu && r.timMenang === 'putih';
 
                           return (
                             <div key={r.id} className="portal-fr">
-                              <div className={`portal-av ${isRedWin ? 'r' : isWhiteWin ? 'b' : ''}`}>
-                                {isRedWin ? '🔴' : isWhiteWin ? '⚪' : '🤝'}
+                              <div className={`portal-av ${isIndividu ? 'b' : isRedWin ? 'r' : isWhiteWin ? 'b' : ''}`}>
+                                {isIndividu ? (
+                                  <Trophy className="w-4 h-4 text-[#f4ecd8]" />
+                                ) : isRedWin ? (
+                                  '🔴'
+                                ) : isWhiteWin ? (
+                                  '⚪'
+                                ) : (
+                                  '🤝'
+                                )}
                               </div>
                               <div className="t">
                                 <b>{r.templateJudul}</b>
                                 <small>
-                                  Pemenang: {isRedWin ? 'TIM MERAH' : isWhiteWin ? 'TIM PUTIH' : 'SERI'}
+                                  {r.game === 'panjat_pinang'
+                                    ? `Juara: ${r.timMenang} (${r.posisiAkhir}%)`
+                                    : r.game === 'balap_karung'
+                                    ? `Juara: ${r.timMenang} (${r.posisiAkhir}m)`
+                                    : r.game === 'makan_kerupuk'
+                                    ? r.mode?.toLowerCase() === 'multi'
+                                      ? `Multi • Juara: ${r.timMenang} (${r.skorMerah} pt)`
+                                      : `Solo • Skor ${r.skorMerah} (${r.posisiAkhir}%)`
+                                    : `Pemenang: ${isRedWin ? 'TIM MERAH' : isWhiteWin ? 'TIM PUTIH' : 'SERI'}`}
                                   <br />
                                   {dateStr}
                                 </small>
@@ -786,18 +1151,21 @@ export default function DashboardGuru() {
                           );
                         })
                       ) : (
-                        templates.slice(0, 4).map((t) => (
+                        (templates.length > 0 ? templates : pustakaResmi).slice(0, 4).map((t) => (
                           <div key={t.id} className="portal-fr">
                             <div className="portal-av b">
                               <BookOpen className="w-4 h-4 text-[#f4ecd8]" />
                             </div>
                             <div className="t">
                               <b>{t.judul}</b>
-                              <small>{t.jumlahSoal || t._count?.questions || 0} Soal • {t.mode}</small>
+                              <small>
+                                {t.jumlahSoal || t._count?.questions || 0} Soal • {t.mode}
+                                {t.resmi ? ' • Resmi Admin' : ''}
+                              </small>
                             </div>
                             <button
                               type="button"
-                              onClick={() => handleMulaiGame(t.id, t.mode)}
+                              onClick={() => handleMulaiGame(t.id, t.mode, t.game)}
                               className="portal-msg"
                               title="Mainkan template"
                             >
@@ -858,14 +1226,14 @@ export default function DashboardGuru() {
                         className={subTabTemplate === 'saya' ? 'on' : ''}
                         onClick={() => setSubTabTemplate('saya')}
                       >
-                        Template Saya ({templates.length})
+                        Template Saya ({templatesTersaring.length})
                       </button>
                       <button
                         type="button"
                         className={subTabTemplate === 'pustaka' ? 'on' : ''}
                         onClick={() => setSubTabTemplate('pustaka')}
                       >
-                        Pustaka Resmi ({pustakaResmi.length})
+                        Pustaka Resmi Admin ({pustakaTersaring.length})
                       </button>
                     </div>
 
@@ -873,54 +1241,94 @@ export default function DashboardGuru() {
                       <Search className="w-4 h-4 text-[#6b7d6c]" />
                       <input
                         type="search"
-                        placeholder="Cari materi kuis..."
+                        placeholder={
+                          subTabTemplate === 'saya'
+                            ? 'Cari di template saya...'
+                            : 'Cari di pustaka resmi admin...'
+                        }
                         value={pencarian}
                         onChange={(e) => setPencarian(e.target.value)}
                         aria-label="Cari materi"
                       />
+                      {pencarian && (
+                        <button
+                          type="button"
+                          onClick={() => setPencarian('')}
+                          className="text-sm font-bold text-[#6b7d6c] hover:text-[#1d3b2e]"
+                          title="Hapus pencarian"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {(subTabTemplate === 'saya' ? templates : pustakaResmi).map((tmpl) => {
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    {(subTabTemplate === 'saya' ? templatesTersaring : pustakaTersaring).map((tmpl) => {
                       const jumlahSoal = tmpl._count?.questions ?? tmpl.jumlahSoal ?? 0;
+                      const isAdminOfficial = tmpl.resmi || subTabTemplate === 'pustaka';
                       return (
                         <div
                           key={tmpl.id}
-                          className="portal-card p-5 flex flex-col justify-between gap-4"
+                          className="portal-card p-4 sm:p-5 flex flex-col justify-between gap-4 overflow-hidden"
                         >
                           <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span className="portal-tag red">Tarik Tambang</span>
-                              <span className="portal-tag yellow">
-                                {tmpl.mode === 'multi' ? 'Mode Multiplayer' : 'Mode Solo'}
+                            <div className="flex items-center gap-1.5 flex-nowrap">
+                              <span
+                                className={`portal-tag xs whitespace-nowrap shrink-0 ${
+                                  tmpl.game === 'panjat_pinang'
+                                    ? 'green font-bold'
+                                    : tmpl.game === 'balap_karung'
+                                    ? 'yellow font-bold'
+                                    : tmpl.game === 'makan_kerupuk'
+                                    ? 'blue font-bold'
+                                    : 'red'
+                                }`}
+                              >
+                                {labelJenisGame(tmpl.game)}
                               </span>
+                              <span className="portal-tag xs yellow whitespace-nowrap shrink-0">
+                                {tmpl.game === 'makan_kerupuk'
+                                  ? 'Dual Mode'
+                                  : tmpl.game === 'panjat_pinang' ||
+                                    tmpl.game === 'balap_karung'
+                                  ? 'Individu'
+                                  : tmpl.mode === 'multi'
+                                  ? 'Multiplayer'
+                                  : 'Solo'}
+                              </span>
+                              {isAdminOfficial && (
+                                <span className="portal-tag xs blue font-bold whitespace-nowrap shrink-0">
+                                  Resmi
+                                </span>
+                              )}
                             </div>
                             <h3 className="portal-cv text-2xl text-[#1d3b2e] leading-snug">
                               {tmpl.judul}
                             </h3>
                             <p className="text-xs text-[#6b7d6c] font-bold">
                               {jumlahSoal} Soal Tersedia
+                              {isAdminOfficial && ' • Dibuat oleh Admin Kurikulum'}
                             </p>
                           </div>
 
-                          <div className="pt-3 border-t-2 border-dashed border-[#e0d5b8] flex flex-wrap items-center justify-between gap-2">
+                          <div className="pt-3 border-t-2 border-dashed border-[#e0d5b8] flex items-center justify-between gap-2 flex-nowrap">
                             {subTabTemplate === 'saya' ? (
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => handleMulaiGame(tmpl.id, tmpl.mode)}
-                                  className="portal-btn red sm"
+                                  onClick={() => handleMulaiGame(tmpl.id, tmpl.mode, tmpl.game)}
+                                  className="portal-btn red xs whitespace-nowrap shrink-0"
                                 >
                                   <Play className="w-3.5 h-3.5 fill-current" />
-                                  <span>{tmpl.mode === 'multi' ? 'Mulai Lomba' : 'Mulai Solo'}</span>
+                                  <span>{labelTombolMulai(tmpl.game, tmpl.mode)}</span>
                                 </button>
 
-                                <div className="inline-flex items-center gap-1.5">
+                                <div className="inline-flex items-center gap-1 shrink-0">
                                   <button
                                     type="button"
                                     onClick={() => navigate(`/guru/template/${tmpl.id}/ubah`)}
-                                    className="portal-btn ghost sm"
+                                    className="portal-btn ghost xs !p-1.5"
                                     title="Ubah Template"
                                   >
                                     <Edit3 className="w-3.5 h-3.5" />
@@ -928,7 +1336,7 @@ export default function DashboardGuru() {
                                   <button
                                     type="button"
                                     onClick={() => handleDuplikat(tmpl.id)}
-                                    className="portal-btn ghost sm"
+                                    className="portal-btn ghost xs !p-1.5"
                                     title="Duplikat Template"
                                   >
                                     <Copy className="w-3.5 h-3.5" />
@@ -936,7 +1344,7 @@ export default function DashboardGuru() {
                                   <button
                                     type="button"
                                     onClick={() => setModalHapusId(tmpl.id)}
-                                    className="portal-btn ghost-red sm"
+                                    className="portal-btn ghost-red xs !p-1.5"
                                     title="Hapus Template"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -944,14 +1352,26 @@ export default function DashboardGuru() {
                                 </div>
                               </>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleDuplikat(tmpl.id)}
-                                className="portal-btn red sm"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                                <span>Salin ke Template Saya</span>
-                              </button>
+                              <div className="w-full flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMulaiGame(tmpl.id, tmpl.mode, tmpl.game)}
+                                  className="portal-btn red xs flex-1 min-w-0 justify-center"
+                                  title="Gunakan langsung template buatan admin ini"
+                                >
+                                  <Play className="w-3.5 h-3.5 fill-current shrink-0" />
+                                  <span className="truncate">{labelTombolMulai(tmpl.game, tmpl.mode)}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDuplikat(tmpl.id)}
+                                  className="portal-btn ghost xs flex-1 min-w-0 justify-center"
+                                  title="Salin ke Template Saya untuk dimodifikasi"
+                                >
+                                  <Copy className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">Salin ke Koleksi</span>
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -959,11 +1379,45 @@ export default function DashboardGuru() {
                     })}
                   </div>
 
-                  {(subTabTemplate === 'saya' ? templates : pustakaResmi).length === 0 && (
-                    <div className="portal-over text-center py-12">
-                      <p className="portal-cv text-2xl text-[#f4ecd8]">
-                        Belum ada template materi yang sesuai.
-                      </p>
+                  {(subTabTemplate === 'saya' ? templatesTersaring : pustakaTersaring).length === 0 && (
+                    <div className="portal-over text-center py-12 px-4 space-y-3">
+                      {subTabTemplate === 'saya' && pustakaTersaring.length > 0 && qClean ? (
+                        <>
+                          <p className="portal-cv text-2xl text-[#f4ecd8]">
+                            Tidak ditemukan di Template Saya
+                          </p>
+                          <p className="text-sm text-[#cfd9c3]">
+                            Ditemukan <b>{pustakaTersaring.length} template serupa</b> yang dibuat oleh Admin!
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setSubTabTemplate('pustaka')}
+                            className="portal-btn red sm inline-flex items-center gap-2"
+                          >
+                            <BookOpen className="w-4 h-4" />
+                            <span>Gunakan Template Buatan Admin ({pustakaTersaring.length})</span>
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="portal-cv text-2xl text-[#f4ecd8]">
+                            {qClean
+                              ? `Materi "${pencarian}" tidak ditemukan.`
+                              : subTabTemplate === 'saya'
+                              ? 'Belum ada template. Buat yang pertama atau gunakan template resmi admin!'
+                              : 'Belum ada template resmi di pustaka admin.'}
+                          </p>
+                          {qClean && (
+                            <button
+                              type="button"
+                              onClick={() => setPencarian('')}
+                              className="portal-btn ghost sm"
+                            >
+                              Bersihkan Pencarian
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -990,70 +1444,328 @@ export default function DashboardGuru() {
                       </button>
                     </div>
                   ) : (
-                    <div className="portal-card overflow-hidden">
-                      <div className="divide-y-2 divide-dashed divide-[#e0d5b8]">
-                        {riwayatList.map((r) => {
-                          const isRed = r.timMenang === 'merah';
-                          const isWhite = r.timMenang === 'putih';
+                    <>
+                      {/* Bar Pencarian & Filter Riwayat */}
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="portal-srch" style={{ minWidth: '260px', flex: '1 1 260px' }}>
+                          <Search className="w-4 h-4 text-[#6b7d6c]" />
+                          <input
+                            type="search"
+                            placeholder="Cari materi sesi kuis..."
+                            value={riwayatCari}
+                            onChange={(e) => {
+                              setRiwayatCari(e.target.value);
+                              setRiwayatHalaman(1);
+                            }}
+                            aria-label="Cari riwayat materi"
+                          />
+                        </div>
 
-                          return (
-                            <div
-                              key={r.id}
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: '16px',
-                                padding: '20px 26px',
+                        {/* Custom Dropdown: Filter Mode & Hasil Pertandingan */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* Dropdown Filter Mode */}
+                          <div className="relative" ref={filterModeRef}>
+                            <button
+                              type="button"
+                              className="portal-sel"
+                              onClick={() => {
+                                setFilterModeDropdownOpen((p) => !p);
+                                setFilterMenangDropdownOpen(false);
                               }}
+                              aria-haspopup="listbox"
+                              aria-expanded={filterModeDropdownOpen}
+                              title="Filter mode game"
                             >
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="portal-tag yellow font-bold">
-                                    Mode {r.mode === 'multi' ? 'MULTI' : 'SOLO'}
-                                  </span>
-                                  <span className="text-xs text-[#6b7d6c]">
-                                    {new Date(r.tanggal).toLocaleDateString('id-ID', {
-                                      day: 'numeric',
-                                      month: 'short',
-                                      year: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })}
-                                  </span>
-                                </div>
-                                <h3 className="portal-cv text-2xl text-[#1d3b2e]">
-                                  {r.templateJudul}
-                                </h3>
-                                <div className="text-xs font-semibold text-[#1d3b2e]">
-                                  Pemenang:{' '}
-                                  <span>
-                                    {isRed
-                                      ? '🔴 Tim Merah'
-                                      : isWhite
-                                      ? '⚪ Tim Putih'
-                                      : '🤝 Seri'}
-                                  </span>{' '}
-                                  (Skor: {r.skorMerah} vs {r.skorPutih}) • Posisi Tali:{' '}
-                                  <span className="font-mono font-bold">
-                                    {r.posisiAkhir > 0 ? `+${r.posisiAkhir}` : r.posisiAkhir}
-                                  </span>
-                                </div>
-                              </div>
+                              <span>
+                                {riwayatFilterMode === 'semua'
+                                  ? 'Semua Mode'
+                                  : riwayatFilterMode === 'multi'
+                                  ? 'Multiplayer'
+                                  : 'Solo'}
+                              </span>
+                              <ChevronDown
+                                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                  filterModeDropdownOpen ? 'rotate-180' : ''
+                                }`}
+                              />
+                            </button>
 
-                              <button
-                                type="button"
-                                onClick={() => setModalDetailSessionId(r.id)}
-                                className="portal-btn ghost-red sm"
-                                style={{ flexShrink: 0 }}
-                              >
-                                Lihat Detail
-                              </button>
-                            </div>
-                          );
-                        })}
+                            {filterModeDropdownOpen && (
+                              <div className="portal-dropdown-menu">
+                                {[
+                                  { val: 'semua', label: 'Semua Mode' },
+                                  { val: 'multi', label: 'Mode Multiplayer' },
+                                  { val: 'solo', label: 'Mode Solo' },
+                                ].map((item) => (
+                                  <button
+                                    key={item.val}
+                                    type="button"
+                                    onClick={() => {
+                                      setRiwayatFilterMode(item.val as any);
+                                      setRiwayatHalaman(1);
+                                      setFilterModeDropdownOpen(false);
+                                    }}
+                                    className={`portal-dropdown-item ${
+                                      riwayatFilterMode === item.val ? 'active' : ''
+                                    }`}
+                                  >
+                                    <span>{item.label}</span>
+                                    {riwayatFilterMode === item.val && (
+                                      <Check className="w-3.5 h-3.5 text-[#f2c230]" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Dropdown Filter Hasil Pertandingan */}
+                          <div className="relative" ref={filterMenangRef}>
+                            <button
+                              type="button"
+                              className="portal-sel"
+                              onClick={() => {
+                                setFilterMenangDropdownOpen((p) => !p);
+                                setFilterModeDropdownOpen(false);
+                              }}
+                              aria-haspopup="listbox"
+                              aria-expanded={filterMenangDropdownOpen}
+                              title="Filter hasil pertandingan"
+                            >
+                              <span>
+                                {riwayatFilterMenang === 'semua'
+                                  ? 'Semua Hasil'
+                                  : riwayatFilterMenang === 'merah'
+                                  ? 'Tim Merah'
+                                  : riwayatFilterMenang === 'putih'
+                                  ? 'Tim Putih'
+                                  : 'Seri'}
+                              </span>
+                              <ChevronDown
+                                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                  filterMenangDropdownOpen ? 'rotate-180' : ''
+                                }`}
+                              />
+                            </button>
+
+                            {filterMenangDropdownOpen && (
+                              <div className="portal-dropdown-menu">
+                                {[
+                                  { val: 'semua', label: 'Semua Hasil' },
+                                  { val: 'merah', label: 'Tim Merah Menang' },
+                                  { val: 'putih', label: 'Tim Putih Menang' },
+                                  { val: 'seri', label: 'Seri' },
+                                ].map((item) => (
+                                  <button
+                                    key={item.val}
+                                    type="button"
+                                    onClick={() => {
+                                      setRiwayatFilterMenang(item.val as any);
+                                      setRiwayatHalaman(1);
+                                      setFilterMenangDropdownOpen(false);
+                                    }}
+                                    className={`portal-dropdown-item ${
+                                      riwayatFilterMenang === item.val ? 'active' : ''
+                                    }`}
+                                  >
+                                    <span>{item.label}</span>
+                                    {riwayatFilterMenang === item.val && (
+                                      <Check className="w-3.5 h-3.5 text-[#f2c230]" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+
+                      {/* Tabel Kartu Riwayat */}
+                      <div className="portal-card overflow-hidden">
+                        {riwayatTersaring.length === 0 ? (
+                          <div className="py-12 text-center text-[#6b7d6c] space-y-2">
+                            <p className="font-bold">Tidak ada riwayat yang sesuai dengan filter.</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRiwayatCari('');
+                                setRiwayatFilterMode('semua');
+                                setRiwayatFilterMenang('semua');
+                                setRiwayatHalaman(1);
+                              }}
+                              className="text-xs text-[#c8362f] underline font-bold"
+                            >
+                              Reset Filter
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="divide-y-2 divide-dashed divide-[#e0d5b8]">
+                              {riwayatDitampilkan.map((r) => {
+                                const isRed = r.timMenang === 'merah';
+                                const isWhite = r.timMenang === 'putih';
+
+                                return (
+                                  <div
+                                    key={r.id}
+                                    style={{
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center',
+                                      gap: '16px',
+                                      padding: '18px 24px',
+                                    }}
+                                  >
+                                    <div className="space-y-1">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span
+                                          className={`portal-tag font-bold ${
+                                            r.game === 'panjat_pinang'
+                                              ? 'green'
+                                              : r.game === 'balap_karung'
+                                              ? 'red'
+                                              : r.game === 'makan_kerupuk'
+                                              ? 'blue'
+                                              : 'yellow'
+                                          }`}
+                                        >
+                                          {labelJenisGame(r.game)} • {r.mode?.toLowerCase() === 'multi' ? 'MULTI' : 'SOLO'}
+                                        </span>
+                                        <span className="text-xs text-[#6b7d6c]">
+                                          {new Date(r.tanggal).toLocaleDateString('id-ID', {
+                                            day: 'numeric',
+                                            month: 'short',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                          })}
+                                        </span>
+                                      </div>
+                                      <h3 className="portal-cv text-2xl text-[#1d3b2e]">
+                                        {r.templateJudul}
+                                      </h3>
+                                      <div className="text-xs font-semibold text-[#1d3b2e]">
+                                        {r.game === 'panjat_pinang' ? (
+                                          <>
+                                            Juara 1: <span className="font-bold">{r.timMenang}</span> ({r.posisiAkhir}%) • Mencapai Puncak:{' '}
+                                            <span className="font-mono font-bold">
+                                              {r.skorMerah}/{r.skorPutih} pemain
+                                            </span>
+                                          </>
+                                        ) : r.game === 'balap_karung' ? (
+                                          <>
+                                            Juara 1: <span className="font-bold">{r.timMenang}</span> ({r.posisiAkhir}m) • Mencapai Finis:{' '}
+                                            <span className="font-mono font-bold">
+                                              {r.skorMerah}/{r.skorPutih} pelari
+                                            </span>
+                                          </>
+                                        ) : r.game === 'makan_kerupuk' ? (
+                                          r.mode?.toLowerCase() === 'multi' ? (
+                                            <>
+                                              Juara 1: <span className="font-bold">{r.timMenang}</span> • Skor Tertinggi:{' '}
+                                              <span className="font-mono font-bold">{r.skorMerah}</span> • Ludes:{' '}
+                                              <span className="font-mono font-bold">{r.skorPutih} siswa</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              Status: <span className="font-bold">{r.timMenang}</span> • Skor Total:{' '}
+                                              <span className="font-mono font-bold">{r.skorMerah}</span> • Progres:{' '}
+                                              <span className="font-mono font-bold">{r.posisiAkhir}%</span>
+                                            </>
+                                          )
+                                        ) : (
+                                          <>
+                                            Pemenang:{' '}
+                                            <span className="font-bold">
+                                              {isRed
+                                                ? 'Tim Merah'
+                                                : isWhite
+                                                ? 'Tim Putih'
+                                                : 'Seri'}
+                                            </span>{' '}
+                                            (Skor: {r.skorMerah} vs {r.skorPutih}) • Posisi Tali:{' '}
+                                            <span className="font-mono font-bold">
+                                              {r.posisiAkhir > 0 ? `+${r.posisiAkhir}` : r.posisiAkhir}
+                                            </span>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => setModalDetailSessionId(r.id)}
+                                      className="portal-btn ghost-red sm"
+                                      style={{ flexShrink: 0 }}
+                                    >
+                                      Lihat Detail
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Paginasi Riwayat */}
+                            <div className="portal-pagination">
+                              <span className="portal-pagination-info">
+                                Menampilkan {indeksAwal + 1}–{Math.min(indeksAwal + RIWAYAT_PER_HALAMAN, riwayatTersaring.length)} dari {riwayatTersaring.length} sesi
+                              </span>
+
+                              <div className="portal-pagination-btns">
+                                <button
+                                  type="button"
+                                  onClick={() => setRiwayatHalaman((p) => Math.max(1, p - 1))}
+                                  disabled={riwayatHalaman === 1}
+                                  className="portal-page-btn"
+                                  title="Halaman Sebelumnya"
+                                >
+                                  <ChevronLeft className="w-4 h-4" />
+                                </button>
+
+                                {Array.from({ length: totalHalamanRiwayat }, (_, idx) => idx + 1).map((hal) => {
+                                  if (
+                                    hal === 1 ||
+                                    hal === totalHalamanRiwayat ||
+                                    Math.abs(hal - riwayatHalaman) <= 1
+                                  ) {
+                                    return (
+                                      <button
+                                        key={hal}
+                                        type="button"
+                                        onClick={() => setRiwayatHalaman(hal)}
+                                        className={`portal-page-btn ${riwayatHalaman === hal ? 'active' : ''}`}
+                                      >
+                                        {hal}
+                                      </button>
+                                    );
+                                  } else if (
+                                    (hal === 2 && riwayatHalaman > 3) ||
+                                    (hal === totalHalamanRiwayat - 1 && riwayatHalaman < totalHalamanRiwayat - 2)
+                                  ) {
+                                    return (
+                                      <span key={hal} className="px-1 text-[#6b7d6c] font-bold">
+                                        ...
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })}
+
+                                <button
+                                  type="button"
+                                  onClick={() => setRiwayatHalaman((p) => Math.min(totalHalamanRiwayat, p + 1))}
+                                  disabled={riwayatHalaman === totalHalamanRiwayat}
+                                  className="portal-page-btn"
+                                  title="Halaman Selanjutnya"
+                                >
+                                  <ChevronRight className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -1087,10 +1799,29 @@ export default function DashboardGuru() {
                         </button>
                       </div>
                     </div>
+                  ) : boards.filter((b) => b.judul.toLowerCase().includes(searchPapan.toLowerCase().trim())).length === 0 ? (
+                    <div className="portal-over text-center py-16 space-y-3">
+                      <Search className="w-10 h-10 text-[#6b7d6c] mx-auto mb-2" />
+                      <h3 className="portal-cv text-2xl text-[#f4ecd8]">
+                        Papan Tulis Tidak Ditemukan
+                      </h3>
+                      <p className="text-sm text-[#cfd9c3]">
+                        Tidak ada papan dengan kata kunci "{searchPapan}".
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setSearchPapan('')}
+                        className="portal-btn ghost sm mt-2"
+                      >
+                        Reset Pencarian
+                      </button>
+                    </div>
                   ) : (
                     /* Saat sudah ada papan, informasi empty hilang dan langsung tampil grid kartu papan */
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {boards.map((b) => (
+                      {boards
+                        .filter((b) => b.judul.toLowerCase().includes(searchPapan.toLowerCase().trim()))
+                        .map((b) => (
                         <div
                           key={b.id}
                           className="portal-card overflow-hidden flex flex-col justify-between"
@@ -1158,6 +1889,18 @@ export default function DashboardGuru() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* TAB 5: PROFIL PENGAJAR */}
+              {tabAktif === 'profil' && (
+                <ProfilView
+                  stats={{
+                    totalTemplate: ringkasan?.totalTemplate ?? templates.length,
+                    totalSesi: ringkasan?.totalSesi ?? riwayatList.length,
+                    totalPapan: boards.length,
+                    kuotaAiSisa: sisaAi,
+                  }}
+                />
               )}
             </>
           )}
@@ -1285,6 +2028,65 @@ export default function DashboardGuru() {
               disabled={actionLoadingId === modalHapusPapanId}
             >
               Ya, Hapus Papan
+            </button>
+          </div>
+        </div>
+      </Modal>
+      {/* Modal Konfigurasi Sesi Makan Kerupuk Challenge */}
+      <ModalKonfigurasiKerupuk
+        isOpen={Boolean(modalKerupukTemplate)}
+        onClose={() => setModalKerupukTemplate(null)}
+        templateJudul={modalKerupukTemplate?.judul || ''}
+        totalSoal={modalKerupukTemplate?.totalSoal || 0}
+        onMulai={handleKonfirmasiKerupuk}
+        loading={kerupukCreating}
+      />
+
+      {/* Modal Konfigurasi Sesi Panjat Pinang */}
+      <ModalKonfigurasiPanjatPinang
+        isOpen={Boolean(modalPanjatTemplate)}
+        onClose={() => setModalPanjatTemplate(null)}
+        templateJudul={modalPanjatTemplate?.judul || ''}
+        totalSoal={modalPanjatTemplate?.totalSoal || 0}
+        onMulai={handleKonfirmasiPanjat}
+        loading={panjatCreating}
+      />
+
+      {/* Modal Konfigurasi Sesi Balap Karung Challenge */}
+      <ModalKonfigurasiBalapKarung
+        isOpen={Boolean(modalBalapTemplate)}
+        onClose={() => setModalBalapTemplate(null)}
+        templateJudul={modalBalapTemplate?.judul || ''}
+        totalSoal={modalBalapTemplate?.totalSoal || 0}
+        onMulai={handleKonfirmasiBalap}
+        loading={balapCreating}
+      />
+
+      {/* Modal Konfirmasi Keluar Akun Guru */}
+      <Modal
+        isOpen={modalKeluarOpen}
+        onClose={() => setModalKeluarOpen(false)}
+        title="Konfirmasi Keluar"
+        maxWidth="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-[#1d3b2e] leading-relaxed">
+            Apakah Anda yakin ingin keluar dari akun?
+          </p>
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#e0d5b8]">
+            <button
+              type="button"
+              onClick={() => setModalKeluarOpen(false)}
+              className="portal-btn ghost sm"
+            >
+              Tidak
+            </button>
+            <button
+              type="button"
+              onClick={handleKeluar}
+              className="portal-btn red sm"
+            >
+              Ya, Keluar
             </button>
           </div>
         </div>

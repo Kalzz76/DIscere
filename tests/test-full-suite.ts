@@ -143,6 +143,12 @@ async function runTestSuite() {
     });
     const jawabData = await jawabRes.json();
     assert(jawabRes.ok && typeof jawabData.taliPosition === 'number', 'Perhitungan pergeseran tali di server berhasil diproses', 'Solo');
+
+    // 3.4 Bersihkan Sesi Solo Uji Coba agar tidak mencemari riwayat
+    await fetch(`${BASE_URL}/api/sesi/${soloId}`, {
+      method: 'DELETE',
+      headers: { Cookie: guruCookie },
+    });
   } catch (err: any) {
     console.error('Gagal pada suite Game Solo:', err.message);
   }
@@ -203,6 +209,12 @@ async function runTestSuite() {
     siswa1Socket.disconnect();
     siswa2Socket.disconnect();
     assert(true, 'Sesi multiplayer selesai dan state dibersihkan dari RAM', 'Multiplayer');
+
+    // 4.4 Bersihkan Sesi Multi Uji Coba agar tidak mencemari riwayat
+    await fetch(`${BASE_URL}/api/sesi/${multiId}`, {
+      method: 'DELETE',
+      headers: { Cookie: guruCookie },
+    });
   } catch (err: any) {
     console.error('Gagal pada suite Multiplayer:', err.message);
   }
@@ -223,7 +235,7 @@ async function runTestSuite() {
     assert(buatPapanRes.ok && !!boardId, 'Membuat papan tulis baru', 'PapanTulis');
 
     // 5.2 Autosave Kanvas
-    const dummyCanvas = JSON.stringify({ objects: [{ type: 'rect', left: 100, top: 100, width: 80, height: 80 }] });
+    const dummyCanvas = JSON.stringify({ versi: 1, objs: [{ type: 'rect', left: 100, top: 100, width: 80, height: 80 }] });
     const autosaveRes = await fetch(`${BASE_URL}/api/papan/${boardId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Cookie: guruCookie },

@@ -153,14 +153,32 @@ export const soloManager = {
 
     // Validasi soal aktif
     const soalSaatIni = sesi.questions[sesi.currentQuestionIndex];
-    if (!soalSaatIni || soalSaatIni.id !== input.questionId) {
+    if (!soalSaatIni) {
+      throw new Error('Tidak ada soal yang sedang aktif.');
+    }
+
+    const resolvedQuestionId =
+      input.questionId && input.questionId !== 'undefined' && input.questionId !== 'null'
+        ? input.questionId
+        : soalSaatIni.id;
+
+    if (soalSaatIni.id !== resolvedQuestionId) {
       throw new Error('Soal yang dijawab tidak sesuai dengan giliran soal aktif.');
     }
 
     // Validasi kebenaran jawaban
-    const jawabanBenar = soalSaatIni.jawabanBenar.toUpperCase();
-    const jawabanDipilih = input.jawabanDipilih.toUpperCase();
-    const benar = jawabanDipilih === jawabanBenar;
+    const jawabanBenar = (soalSaatIni.jawabanBenar || '').trim().toUpperCase();
+    const cleanJawaban = (input.jawabanDipilih || '').trim().toUpperCase();
+    let benar = cleanJawaban === jawabanBenar;
+    if (!benar) {
+      if (jawabanBenar === 'A' && cleanJawaban === (soalSaatIni.opsiA || '').trim().toUpperCase()) {
+        benar = true;
+      } else if (jawabanBenar === 'B' && cleanJawaban === (soalSaatIni.opsiB || '').trim().toUpperCase()) {
+        benar = true;
+      } else if (jawabanBenar === 'C' && cleanJawaban === (soalSaatIni.opsiC || '').trim().toUpperCase()) {
+        benar = true;
+      }
+    }
 
     // Hitung posisi tali baru
     const posisiBaru = hitungPosisiTali(sesi.taliPosition, input.tim, benar);
@@ -180,7 +198,7 @@ export const soloManager = {
       nomorSoal: sesi.currentQuestionIndex + 1,
       teksSoal: soalSaatIni.teks,
       tim: input.tim,
-      jawabanDipilih,
+      jawabanDipilih: cleanJawaban,
       jawabanBenar,
       benar,
       posisiSetelah: posisiBaru,

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { apiRequest } from '../../lib/api';
 import { VisualisasiTali } from './VisualisasiTali';
-import { Button, Card, Modal } from '../../components';
+import { Button, Modal } from '../../components';
 import { soundEffects } from '../../lib/soundEffects';
 import {
   Play,
@@ -227,52 +227,56 @@ export default function LayarHostSolo() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
-        <Loader2 className="w-10 h-10 animate-spin text-[#D7262E] mb-4" />
-        <p className="font-semibold text-lg">Memuat arena permainan solo...</p>
+      <div className="portal-bg min-h-screen flex flex-col items-center justify-center text-[#f4ecd8]">
+        <Loader2 className="w-10 h-10 animate-spin text-[#f2c230] mb-4" />
+        <p className="portal-cv text-3xl">Memuat arena permainan solo...</p>
       </div>
     );
   }
 
   if (errorPesan || !sesi) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-950 text-center">
-        <Card padding="lg" className="max-w-md w-full">
-          <HelpCircle className="w-12 h-12 text-[#D7262E] mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Terjadi Kesalahan</h2>
-          <p className="text-slate-600 dark:text-slate-300 mb-6">{errorPesan}</p>
-          <Button variant="utama" onClick={() => navigate('/guru')}>
+      <div className="portal-bg min-h-screen flex flex-col items-center justify-center p-6 text-center">
+        <div className="portal-card p-8 max-w-md w-full border-2 border-[#e0d5b8] shadow-[0_6px_0_rgba(0,0,0,0.2)] rounded-3xl">
+          <HelpCircle className="w-12 h-12 text-[#c8362f] mx-auto mb-4" />
+          <h2 className="portal-cv text-3xl text-[#1d3b2e] mb-2">Terjadi Kesalahan</h2>
+          <p className="text-sm text-[#6b7d6c] mb-6">{errorPesan}</p>
+          <button
+            type="button"
+            className="portal-btn red w-full"
+            onClick={() => navigate('/guru')}
+          >
             Kembali ke Dashboard Guru
-          </Button>
-        </Card>
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 p-4 sm:p-6 md:p-8 flex flex-col justify-between select-none">
+    <div className="portal-bg min-h-screen p-4 sm:p-6 md:p-8 flex flex-col justify-between select-none">
       <div className="max-w-6xl mx-auto w-full space-y-6">
         {/* Header Layar Proyektor */}
-        <header className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-sm">
+        <header className="flex flex-wrap items-center justify-between gap-4 portal-card p-4 sm:p-6 rounded-3xl border-2 border-[#e0d5b8] shadow-[0_6px_0_rgba(0,0,0,0.18)]">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
-              <span className="text-xs uppercase font-extrabold tracking-wider px-3 py-1 bg-red-100 dark:bg-red-950/60 text-[#D7262E] rounded-full">
+              <span className="text-xs uppercase font-extrabold tracking-wider px-3 py-1 bg-[#f4ecd9] border border-[#e0d5b8] text-[#c8362f] rounded-full">
                 Mode Solo • Tarik Tambang
               </span>
-              <span className="text-xs font-semibold text-slate-500">
+              <span className="text-xs font-semibold text-[#6b7d6c]">
                 Layar Bersama Kelas
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
+            <h1 className="portal-cv text-2xl sm:text-3xl font-extrabold text-[#1d3b2e]">
               {sesi.templateJudul}
             </h1>
           </div>
 
           {/* Status & Kontrol */}
           <div className="flex items-center gap-3">
-            <div className="bg-slate-100 dark:bg-slate-800 px-4 py-2 rounded-2xl text-center">
-              <div className="text-xs text-slate-400 font-semibold">Nomor Soal</div>
-              <div className="font-extrabold text-lg text-slate-800 dark:text-slate-100">
+            <div className="bg-[#f4ecd9] border border-[#e0d5b8] px-4 py-2 rounded-2xl text-center">
+              <div className="text-xs text-[#6b7d6c] font-semibold">Nomor Soal</div>
+              <div className="font-extrabold text-lg text-[#1d3b2e]">
                 {sesi.soalSaatIni
                   ? `${sesi.soalSaatIni.nomorSoal} / ${sesi.totalSoal}`
                   : `0 / ${sesi.totalSoal}`}
@@ -280,42 +284,49 @@ export default function LayarHostSolo() {
             </div>
 
             {sesi.state !== 'READY' && (
-              <Button
-                variant={sesi.state === 'PLAYING' ? 'hantu' : 'ai'}
-                size="md"
+              <button
+                type="button"
                 onClick={handleTogglePause}
-                icon={
-                  sesi.state === 'PLAYING' ? (
-                    <Pause className="w-5 h-5 text-amber-600" />
-                  ) : (
-                    <Play className="w-5 h-5 text-slate-900" />
-                  )
-                }
+                className={`px-4 py-2.5 rounded-2xl font-bold text-sm inline-flex items-center gap-2 border-2 transition-all cursor-pointer ${
+                  sesi.state === 'PLAYING'
+                    ? 'bg-[#f4ecd9] border-[#e0d5b8] text-[#1d3b2e] hover:bg-[#e8dfc8]'
+                    : 'bg-[#f2c230] border-[#b58e1c] text-[#1d3b2e] hover:bg-[#e0b020]'
+                }`}
               >
-                {sesi.state === 'PLAYING' ? 'Jeda' : 'Lanjutkan'}
-              </Button>
+                {sesi.state === 'PLAYING' ? (
+                  <>
+                    <Pause className="w-4 h-4 text-[#d97706]" />
+                    <span>Jeda</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 text-[#1d3b2e]" />
+                    <span>Lanjutkan</span>
+                  </>
+                )}
+              </button>
             )}
 
-            <Button
-              variant="sekunder"
-              size="md"
+            <button
+              type="button"
               onClick={() => setModalAkhiriOpen(true)}
-              icon={<StopCircle className="w-5 h-5 text-[#D7262E]" />}
+              className="px-4 py-2.5 rounded-2xl font-bold text-sm inline-flex items-center gap-2 bg-[#c8362f] hover:bg-[#b52a23] text-white border-2 border-[#a3221c] shadow-sm transition-all cursor-pointer"
             >
-              Akhiri
-            </Button>
+              <StopCircle className="w-4 h-4 text-white" />
+              <span>Akhiri</span>
+            </button>
 
             {/* Tombol Efek Suara Web Audio */}
             <button
               onClick={() => setIsMuted(soundEffects.toggleMute())}
-              className="p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              className="p-2.5 rounded-2xl border-2 border-[#e0d5b8] bg-[#fbf6e9] text-[#1d3b2e] hover:bg-[#f4ecd9] shadow-sm transition-colors cursor-pointer"
               title={isMuted ? 'Nyalakan Efek Suara' : 'Bisukan Efek Suara'}
               aria-label={isMuted ? 'Nyalakan Efek Suara' : 'Bisukan Efek Suara'}
             >
               {isMuted ? (
-                <VolumeX className="w-5 h-5 text-rose-500" />
+                <VolumeX className="w-5 h-5 text-[#c8362f]" />
               ) : (
-                <Volume2 className="w-5 h-5 text-emerald-600" />
+                <Volume2 className="w-5 h-5 text-[#2e7d32]" />
               )}
             </button>
           </div>
@@ -327,54 +338,60 @@ export default function LayarHostSolo() {
           skorMerah={sesi.skorMerah}
           skorPutih={sesi.skorPutih}
           timAktif={sesi.state === 'PLAYING' ? sesi.currentTurn : undefined}
+          theme="chalk"
         />
 
         {/* Status READY: Layar Persiapan Guru */}
         {sesi.state === 'READY' && (
-          <Card padding="lg" className="text-center py-12 space-y-6">
-            <div className="w-20 h-20 bg-red-100 dark:bg-red-950/60 text-[#D7262E] rounded-3xl flex items-center justify-center mx-auto shadow-sm">
-              <Play className="w-10 h-10 ml-1 fill-[#D7262E]" />
+          <div className="portal-card p-8 sm:p-12 text-center space-y-6 rounded-3xl border-2 border-[#e0d5b8] shadow-[0_6px_0_rgba(0,0,0,0.18)]">
+            <div className="w-20 h-20 bg-[#fde8e7] border-2 border-[#e0d5b8] text-[#c8362f] rounded-3xl flex items-center justify-center mx-auto shadow-sm">
+              <Play className="w-10 h-10 ml-1 fill-[#c8362f]" />
             </div>
             <div className="max-w-lg mx-auto space-y-2">
-              <h2 className="text-2xl sm:text-3xl font-extrabold">
+              <h2 className="portal-cv text-3xl sm:text-4xl text-[#1d3b2e]">
                 Siap Memulai Lomba?
               </h2>
-              <p className="text-slate-600 dark:text-slate-300">
+              <p className="text-[#1d3b2e] text-base leading-relaxed">
                 Bagi siswa menjadi <strong>Tim Merah (kiri)</strong> dan{' '}
                 <strong>Tim Putih (kanan)</strong>. Permainan akan dimulai dari giliran
                 Tim Merah.
               </p>
             </div>
             <div>
-              <Button
-                variant="utama"
-                size="lg"
+              <button
+                type="button"
                 onClick={handleMulai}
-                loading={isSubmitting}
-                className="text-xl px-10 py-4 h-16 font-bold shadow-lg"
+                disabled={isSubmitting}
+                className="portal-btn red text-xl px-10 py-4 shadow-md inline-flex items-center gap-3 cursor-pointer"
               >
-                Mulai Tarik Tambang Sekarang
-              </Button>
+                <Play className="w-6 h-6 fill-white" />
+                <span>Mulai Tarik Tambang Sekarang</span>
+              </button>
             </div>
-          </Card>
+          </div>
         )}
 
         {/* Status PAUSED: Layar Dijeda */}
         {sesi.state === 'PAUSED' && (
-          <Card padding="lg" className="text-center py-10 bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800">
-            <div className="w-16 h-16 bg-amber-200 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 rounded-3xl flex items-center justify-center mx-auto mb-4">
+          <div className="portal-card p-8 sm:p-10 text-center rounded-3xl border-2 border-[#e0d5b8] bg-[#fbf6e9] shadow-[0_6px_0_rgba(0,0,0,0.18)]">
+            <div className="w-16 h-16 bg-[#fef3c7] border-2 border-[#f59e0b] text-[#b45309] rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm">
               <Pause className="w-8 h-8 fill-current" />
             </div>
-            <h2 className="text-2xl font-extrabold text-amber-900 dark:text-amber-200 mb-2">
+            <h2 className="portal-cv text-3xl text-[#1d3b2e] mb-2">
               Permainan Sedang Dijeda
             </h2>
-            <p className="text-amber-800 dark:text-amber-300/80 mb-6 max-w-md mx-auto">
+            <p className="text-[#6b7d6c] mb-6 max-w-md mx-auto text-base">
               Penjelasan materi atau istirahat sejenak. Posisi tali dan giliran tetap aman.
             </p>
-            <Button variant="ai" size="lg" onClick={handleTogglePause}>
-              Lanjutkan Permainan
-            </Button>
-          </Card>
+            <button
+              type="button"
+              onClick={handleTogglePause}
+              className="portal-btn text-base px-8 py-3 cursor-pointer inline-flex items-center gap-2"
+            >
+              <Play className="w-5 h-5 fill-white" />
+              <span>Lanjutkan Permainan</span>
+            </button>
+          </div>
         )}
 
         {/* Status PLAYING: Area Soal & Tombol Pilihan Jawaban */}
@@ -382,17 +399,21 @@ export default function LayarHostSolo() {
           <div className="space-y-6">
             {/* Banner Indikator Giliran Tim */}
             <div
-              className={`p-4 rounded-2xl flex items-center justify-between text-white font-bold transition-all shadow-md ${
+              className={`p-4 rounded-2xl flex items-center justify-between text-white font-bold transition-all shadow-md border-2 ${
                 sesi.currentTurn === 'merah'
-                  ? 'bg-gradient-to-r from-[#D7262E] to-[#B91C23]'
-                  : 'bg-gradient-to-r from-[#1E2A5A] to-[#2B3B7E]'
+                  ? 'bg-[#c8362f] border-[#a3221c]'
+                  : 'bg-[#1d3b2e] border-[#152b22]'
               }`}
             >
               <div className="flex items-center gap-3">
-                <span className="text-2xl">
-                  {sesi.currentTurn === 'merah' ? '🔴' : '⚪'}
-                </span>
-                <span className="text-lg sm:text-xl">
+                <span
+                  className={`w-6 h-6 rounded-full inline-block border-2 ${
+                    sesi.currentTurn === 'merah'
+                      ? 'bg-red-400 border-white'
+                      : 'bg-white border-slate-300'
+                  }`}
+                />
+                <span className="text-lg sm:text-xl tracking-wide">
                   GILIRAN: TIM {sesi.currentTurn.toUpperCase()}
                 </span>
               </div>
@@ -402,28 +423,28 @@ export default function LayarHostSolo() {
             </div>
 
             {/* Kotak Pertanyaan Utama */}
-            <Card padding="lg" className="border-2 border-slate-300 dark:border-slate-700 shadow-md">
-              <div className="text-xs font-bold text-slate-400 mb-3 tracking-wider uppercase">
+            <div className="portal-card p-6 sm:p-8 rounded-3xl border-2 border-[#e0d5b8] shadow-[0_6px_0_rgba(0,0,0,0.18)]">
+              <div className="text-xs font-bold text-[#6b7d6c] mb-3 tracking-wider uppercase">
                 Pertanyaan Soal #{sesi.soalSaatIni.nomorSoal}
               </div>
-              <p className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white leading-snug">
+              <p className="portal-cv text-2xl sm:text-3xl md:text-4xl text-[#1d3b2e] leading-snug">
                 {sesi.soalSaatIni.teks}
               </p>
-            </Card>
+            </div>
 
             {/* Feedback Jawaban */}
             {feedback && (
               <div
-                className={`p-4 rounded-2xl flex items-start gap-4 border animate-in fade-in-50 duration-300 ${
+                className={`p-4 rounded-2xl flex items-start gap-4 border-2 animate-in fade-in-50 duration-300 ${
                   feedback.benar
-                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
-                    : 'bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-900 dark:text-red-200'
+                    ? 'bg-[#e8f5e9] border-[#2e7d32] text-[#1b5e20]'
+                    : 'bg-[#fde8e7] border-[#c8362f] text-[#8e1d18]'
                 }`}
               >
                 {feedback.benar ? (
-                  <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-8 h-8 text-[#2e7d32] shrink-0 mt-0.5" />
                 ) : (
-                  <XCircle className="w-8 h-8 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                  <XCircle className="w-8 h-8 text-[#c8362f] shrink-0 mt-0.5" />
                 )}
                 <div>
                   <h4 className="font-extrabold text-lg sm:text-xl">
@@ -460,17 +481,17 @@ export default function LayarHostSolo() {
                 const isWrongSelected = feedback && isSelected && !feedback.benar;
 
                 let buttonStyles =
-                  'bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-red-500 hover:bg-red-50/40 dark:hover:bg-red-950/20';
+                  'bg-[#fbf6e9] border-2 border-[#e0d5b8] text-[#1d3b2e] hover:bg-[#f4ecd9] hover:border-[#1d3b2e] shadow-[0_5px_0_rgba(0,0,0,0.14)]';
 
                 if (isCorrect) {
                   buttonStyles =
-                    'bg-emerald-500 text-white border-2 border-emerald-600 shadow-lg scale-102';
+                    'bg-[#2e7d32] text-white border-2 border-[#1b5e20] shadow-[0_5px_0_rgba(0,0,0,0.2)] scale-102';
                 } else if (isWrongSelected) {
                   buttonStyles =
-                    'bg-[#D7262E] text-white border-2 border-red-700 shadow-md';
+                    'bg-[#c8362f] text-white border-2 border-[#a3221c] shadow-[0_5px_0_rgba(0,0,0,0.2)]';
                 } else if (feedback && !isSelected) {
                   buttonStyles =
-                    'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400 opacity-50';
+                    'bg-[#f0e7d0] border-2 border-[#d8cbb0] text-[#8c8270] opacity-50 shadow-none';
                 }
 
                 return (
@@ -479,18 +500,22 @@ export default function LayarHostSolo() {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => handlePilihJawaban(opsi.key)}
-                    className={`min-h-[90px] p-5 rounded-3xl text-left transition-all duration-200 flex items-start gap-4 cursor-pointer focus:outline-none focus:ring-4 focus:ring-red-400 disabled:pointer-events-none ${buttonStyles}`}
+                    className={`min-h-[90px] p-5 rounded-3xl text-left transition-all duration-200 flex items-start gap-4 cursor-pointer focus:outline-none focus:ring-4 focus:ring-[#f2c230] disabled:pointer-events-none ${buttonStyles}`}
                   >
                     <span
                       className={`w-10 h-10 rounded-2xl flex items-center justify-center font-extrabold text-lg shrink-0 ${
                         isCorrect || isWrongSelected
-                          ? 'bg-white/20 text-white'
-                          : 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200'
+                          ? 'bg-white/25 text-white'
+                          : 'bg-[#e8dfc8] text-[#1d3b2e]'
                       }`}
                     >
                       {opsi.key}
                     </span>
-                    <span className="font-bold text-lg sm:text-xl leading-snug self-center">
+                    <span
+                      className={`font-bold text-lg sm:text-xl leading-snug self-center ${
+                        isCorrect || isWrongSelected ? 'text-white' : 'text-[#1d3b2e]'
+                      }`}
+                    >
                       {opsi.teks}
                     </span>
                   </button>
@@ -501,6 +526,15 @@ export default function LayarHostSolo() {
         )}
       </div>
 
+      {/* Dudukan Kapur Chalkboard */}
+      <div className="portal-ledge mt-8">
+        <div className="portal-chalks">
+          <div className="portal-chalk portal-chalk-white" />
+          <div className="portal-chalk portal-chalk-yellow" />
+          <div className="portal-chalk portal-chalk-pink" />
+        </div>
+      </div>
+
       {/* Modal Konfirmasi Akhiri Permainan */}
       <Modal
         isOpen={modalAkhiriOpen}
@@ -508,23 +542,25 @@ export default function LayarHostSolo() {
         title="Akhiri Permainan Sekarang?"
       >
         <div className="space-y-4">
-          <p className="text-slate-600 dark:text-slate-300">
+          <p className="text-[#1d3b2e] dark:!text-[#1d3b2e] text-base font-medium leading-relaxed">
             Apakah Anda yakin ingin mengakhiri sesi permainan ini sekarang? Pemenang
             akan ditentukan berdasarkan posisi tali saat ini dan hasilnya akan disimpan
             ke riwayat.
           </p>
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-            <Button
-              variant="hantu"
+          <div className="flex justify-end items-center gap-3 pt-4 border-t-2 border-dashed border-[#e0d5b8]">
+            <button
+              type="button"
+              className="px-4 py-2 text-sm font-bold text-[#1d3b2e] dark:!text-[#1d3b2e] hover:bg-[#e8dfc8] rounded-xl transition-colors cursor-pointer"
               onClick={() => setModalAkhiriOpen(false)}
               disabled={isEnding}
             >
               Batal
-            </Button>
+            </button>
             <Button
               variant="utama"
               onClick={handleAkhiriPermainan}
               loading={isEnding}
+              className="bg-[#c8362f] hover:bg-[#b52a23] text-white"
             >
               Ya, Akhiri Permainan
             </Button>

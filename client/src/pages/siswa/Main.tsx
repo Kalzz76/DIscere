@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router';
+import { useSearchParams, Link } from 'react-router';
 import { getSocket } from '../../lib/socket';
 import { Button, Card } from '../../components';
 import { soundEffects } from '../../lib/soundEffects';
+import MainKerupuk from './MainKerupuk';
+import MainPanjatPinang from './MainPanjatPinang';
+import MainBalapKarung from './MainBalapKarung';
 import {
   Users,
   Trophy,
@@ -13,10 +16,12 @@ import {
   LogOut,
   ShieldAlert,
   Loader2,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface SoalData {
   id: string;
+  questionId?: string;
   nomorSoal: number;
   totalSoal: number;
   teks: string;
@@ -24,6 +29,7 @@ interface SoalData {
   opsiB: string;
   opsiC: string;
   endsAt?: number;
+  duration?: number;
 }
 
 interface SelesaiResult {
@@ -48,9 +54,22 @@ export default function MainSiswa() {
   // Session states
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [pesertaId, setPesertaId] = useState<string | null>(null);
+  const [panjatSecret, setPanjatSecret] = useState<string>('');
   const [namaPeserta, setNamaPeserta] = useState<string>('');
   const [templateJudul, setTemplateJudul] = useState<string>('');
   const [tim, setTim] = useState<'merah' | 'putih' | null>(null);
+  const [gameType, setGameType] = useState<'tarik_tambang' | 'makan_kerupuk' | 'panjat_pinang' | 'balap_karung'>('tarik_tambang');
+  const [kerupukState, setKerupukState] = useState<any>(undefined);
+  const [kerupukLeaderboard, setKerupukLeaderboard] = useState<any[]>([]);
+  const [kerupukSoalAktif, setKerupukSoalAktif] = useState<any>(null);
+  const [panjatConfig, setPanjatConfig] = useState<any>(undefined);
+  const [panjatState, setPanjatState] = useState<any>(undefined);
+  const [panjatLeaderboard, setPanjatLeaderboard] = useState<any[]>([]);
+  const [panjatSoalAktif, setPanjatSoalAktif] = useState<any>(null);
+  const [balapConfig, setBalapConfig] = useState<any>(undefined);
+  const [balapState, setBalapState] = useState<any>(undefined);
+  const [balapLeaderboard, setBalapLeaderboard] = useState<any[]>([]);
+  const [balapSoalAktif, setBalapSoalAktif] = useState<any>(null);
   const [stage, setStage] = useState<'GABUNG' | 'LOBBY' | 'PLAYING' | 'SELESAI'>('GABUNG');
 
   // Lobby states
@@ -123,12 +142,13 @@ export default function MainSiswa() {
     const savedToken = sessionStorage.getItem('discere_multi_token');
     const savedPesertaId = sessionStorage.getItem('discere_multi_peserta_id');
     const savedNama = sessionStorage.getItem('discere_multi_nama');
+    const savedSecret = sessionStorage.getItem('discere_multi_peserta_secret') || undefined;
 
     if (savedToken && savedPesertaId && savedNama) {
       const socket = getSocket();
       socket.emit(
         'sesi:gabung',
-        { token: savedToken, nama: savedNama, pesertaId: savedPesertaId },
+        { token: savedToken, nama: savedNama, pesertaId: savedPesertaId, pesertaSecret: savedSecret },
         (res: any) => {
           if (res?.success) {
             setSessionId(res.sessionId);
@@ -136,6 +156,32 @@ export default function MainSiswa() {
             setNamaPeserta(savedNama);
             setTokenInput(savedToken);
             setTemplateJudul(res.templateJudul || '');
+            if (res.pesertaSecret) {
+              sessionStorage.setItem('discere_multi_peserta_secret', res.pesertaSecret);
+              setPanjatSecret(res.pesertaSecret);
+            } else if (savedSecret) {
+              setPanjatSecret(savedSecret);
+            }
+            if (res.game === 'makan_kerupuk') {
+              setGameType('makan_kerupuk');
+              setKerupukState(res.peserta);
+              setKerupukLeaderboard(res.leaderboard || []);
+              setKerupukSoalAktif(res.soalAktif || null);
+            } else if (res.game === 'panjat_pinang') {
+              setGameType('panjat_pinang');
+              setPanjatConfig(res.config);
+              setPanjatState(res.peserta);
+              setPanjatLeaderboard(res.leaderboard || []);
+              setPanjatSoalAktif(res.soalAktif || null);
+            } else if (res.game === 'balap_karung') {
+              setGameType('balap_karung');
+              setBalapConfig(res.config);
+              setBalapState(res.peserta);
+              setBalapLeaderboard(res.leaderboard || []);
+              setBalapSoalAktif(res.soalAktif || null);
+            } else {
+              setGameType('tarik_tambang');
+            }
             if (res.tim) setTim(res.tim);
             setTaliPosition(res.taliPosition ?? 0);
             setSkorMerah(res.skorMerah ?? 0);
@@ -143,8 +189,13 @@ export default function MainSiswa() {
 
             if (res.status === 'jalan') {
               setStage('PLAYING');
-              if (res.soalAktif) {
-                setSoalAktif(res.soalAktif);
+              if (res.game !== 'panjat_pinang' && res.game !== 'balap_karung' && res.soalAktif) {
+                const resolvedId = res.soalAktif.id || (res.soalAktif as any).questionId || '';
+                setSoalAktif({
+                  ...res.soalAktif,
+                  id: resolvedId,
+                  questionId: resolvedId,
+                });
                 startCountdown(res.soalAktif.endsAt);
                 if (res.sudahJawabSoalAktif) {
                   setSudahKirim(true);
@@ -161,8 +212,9 @@ export default function MainSiswa() {
     }
   }, [startCountdown]);
 
-  // Setup Socket listeners
+  // Setup Socket listeners (khusus Tarik Tambang; game lain ditangani komponennya masing-masing)
   useEffect(() => {
+    if (gameType !== 'tarik_tambang') return;
     const socket = getSocket();
 
     // 1. Pembaruan Peserta di Lobi
@@ -181,9 +233,15 @@ export default function MainSiswa() {
     };
 
     // 3. Soal Baru Ditampilkan
-    const handleSoalTampil = (data: SoalData & { endsAt: number; duration: number }) => {
+    const handleSoalTampil = (data: any) => {
       setStage('PLAYING');
-      setSoalAktif(data);
+      const resolvedId = data.id || data.questionId || '';
+      const resolvedQuestionId = data.questionId || data.id || '';
+      setSoalAktif({
+        ...data,
+        id: resolvedId,
+        questionId: resolvedQuestionId,
+      });
       setJawabanDipilih(null);
       setSudahKirim(false);
       setFeedback(null);
@@ -217,18 +275,40 @@ export default function MainSiswa() {
 
       // Tampilkan feedback apakah jawaban pemain benar/salah
       setFeedback((prev) => {
-        if (prev?.benar) {
-          soundEffects.playCorrect();
-        } else if (prev?.benar === false) {
+        const isBenar = prev ? Boolean(prev.benar) : false;
+        if (!prev) {
+          // Siswa tidak sempat menjawab sebelum waktu berakhir
           soundEffects.playIncorrect();
         }
         return {
           tampil: true,
-          benar: prev?.benar,
-          jawabanBenar: data.jawabanBenar,
-          penjelasan: data.penjelasan,
+          benar: isBenar,
+          jawabanBenar: data.jawabanBenar || prev?.jawabanBenar,
+          penjelasan: data.penjelasan || prev?.penjelasan,
         };
       });
+    };
+
+    // 5b. Feedback Langsung Jawaban Personal
+    const handleJawabHasil = (data: {
+      success: boolean;
+      benar?: boolean;
+      jawabanBenar?: string;
+      penjelasan?: string;
+    }) => {
+      if (data?.success) {
+        if (data.benar) {
+          soundEffects.playCorrect();
+        } else {
+          soundEffects.playIncorrect();
+        }
+        setFeedback({
+          tampil: true,
+          benar: Boolean(data.benar),
+          jawabanBenar: data.jawabanBenar,
+          penjelasan: data.penjelasan,
+        });
+      }
     };
 
     // 6. Seluruh Permainan Selesai
@@ -240,6 +320,7 @@ export default function MainSiswa() {
       sessionStorage.removeItem('discere_multi_token');
       sessionStorage.removeItem('discere_multi_peserta_id');
       sessionStorage.removeItem('discere_multi_nama');
+      sessionStorage.removeItem('discere_multi_peserta_secret');
     };
 
     socket.on('lobi:update', handleLobiUpdate);
@@ -247,6 +328,7 @@ export default function MainSiswa() {
     socket.on('soal:tampil', handleSoalTampil);
     socket.on('tali:update', handleTaliUpdate);
     socket.on('soal:selesai', handleSoalSelesai);
+    socket.on('jawab:hasil', handleJawabHasil);
     socket.on('sesi:selesai', handleSesiSelesai);
 
     return () => {
@@ -255,9 +337,10 @@ export default function MainSiswa() {
       socket.off('soal:tampil', handleSoalTampil);
       socket.off('tali:update', handleTaliUpdate);
       socket.off('soal:selesai', handleSoalSelesai);
+      socket.off('jawab:hasil', handleJawabHasil);
       socket.off('sesi:selesai', handleSesiSelesai);
     };
-  }, [pesertaId, startCountdown]);
+  }, [pesertaId, startCountdown, gameType]);
 
   // Handler: Siswa Submit PIN (Langkah 1)
   const handleNextToName = (e: React.FormEvent) => {
@@ -320,11 +403,37 @@ export default function MainSiswa() {
         sessionStorage.setItem('discere_multi_token', cleanToken);
         sessionStorage.setItem('discere_multi_peserta_id', res.pesertaId!);
         sessionStorage.setItem('discere_multi_nama', cleanNama);
+        if ((res as any).pesertaSecret) {
+          sessionStorage.setItem('discere_multi_peserta_secret', (res as any).pesertaSecret);
+          setPanjatSecret((res as any).pesertaSecret);
+        }
 
         setSessionId(res.sessionId!);
         setPesertaId(res.pesertaId!);
         setNamaPeserta(cleanNama);
         setTemplateJudul(res.templateJudul || '');
+
+        if ((res as any).game === 'makan_kerupuk') {
+          setGameType('makan_kerupuk');
+          setKerupukState((res as any).peserta);
+          setKerupukLeaderboard((res as any).leaderboard || []);
+          setKerupukSoalAktif((res as any).soalAktif || null);
+        } else if ((res as any).game === 'panjat_pinang') {
+          setGameType('panjat_pinang');
+          setPanjatConfig((res as any).config);
+          setPanjatState((res as any).peserta);
+          setPanjatLeaderboard((res as any).leaderboard || []);
+          setPanjatSoalAktif((res as any).soalAktif || null);
+        } else if ((res as any).game === 'balap_karung') {
+          setGameType('balap_karung');
+          setBalapConfig((res as any).config);
+          setBalapState((res as any).peserta);
+          setBalapLeaderboard((res as any).leaderboard || []);
+          setBalapSoalAktif((res as any).soalAktif || null);
+        } else {
+          setGameType('tarik_tambang');
+        }
+
         if (res.tim) setTim(res.tim);
         setTaliPosition(res.taliPosition ?? 0);
         setSkorMerah(res.skorMerah ?? 0);
@@ -332,8 +441,18 @@ export default function MainSiswa() {
 
         if (res.status === 'jalan') {
           setStage('PLAYING');
-          if (res.soalAktif) {
-            setSoalAktif(res.soalAktif);
+          if (
+            (res as any).game !== 'makan_kerupuk' &&
+            (res as any).game !== 'panjat_pinang' &&
+            (res as any).game !== 'balap_karung' &&
+            res.soalAktif
+          ) {
+            const resolvedId = res.soalAktif.id || (res.soalAktif as any).questionId || '';
+            setSoalAktif({
+              ...res.soalAktif,
+              id: resolvedId,
+              questionId: resolvedId,
+            });
             startCountdown(res.soalAktif.endsAt);
           }
         } else {
@@ -350,23 +469,33 @@ export default function MainSiswa() {
     setJawabanDipilih(opsi);
     setSudahKirim(true);
 
+    const targetId = soalAktif.id || soalAktif.questionId || '';
+
     const socket = getSocket();
     socket.emit(
       'jawab:kirim',
       {
         sessionId,
         pesertaId,
-        questionId: soalAktif.id,
+        questionId: targetId,
+        id: targetId,
         jawaban: opsi,
       },
-      (res: { success: boolean; benar?: boolean; jawabanBenar?: string; penjelasan?: string }) => {
+      (res: { success: boolean; benar?: boolean; jawabanBenar?: string; penjelasan?: string; pesan?: string }) => {
         if (res?.success) {
+          if (res.benar) {
+            soundEffects.playCorrect();
+          } else {
+            soundEffects.playIncorrect();
+          }
           setFeedback({
             tampil: true,
-            benar: res.benar,
+            benar: Boolean(res.benar),
             jawabanBenar: res.jawabanBenar,
             penjelasan: res.penjelasan,
           });
+        } else {
+          console.error('Gagal mengirim jawaban:', res?.pesan);
         }
       }
     );
@@ -377,9 +506,19 @@ export default function MainSiswa() {
     sessionStorage.removeItem('discere_multi_token');
     sessionStorage.removeItem('discere_multi_peserta_id');
     sessionStorage.removeItem('discere_multi_nama');
+    sessionStorage.removeItem('discere_multi_peserta_secret');
     setStage('GABUNG');
     setSessionId(null);
     setPesertaId(null);
+    setPanjatSecret('');
+    setPanjatConfig(undefined);
+    setPanjatState(undefined);
+    setPanjatLeaderboard([]);
+    setPanjatSoalAktif(null);
+    setBalapConfig(undefined);
+    setBalapState(undefined);
+    setBalapLeaderboard([]);
+    setBalapSoalAktif(null);
     setTim(null);
     setSoalAktif(null);
     setFeedback(null);
@@ -406,10 +545,167 @@ export default function MainSiswa() {
           `,
         }}
       >
+        <style>{`
+          @keyframes joinBackBtnIn {
+            from {
+              opacity: 0;
+              transform: translateX(-24px) scale(0.9);
+            }
+            to {
+              opacity: 1;
+              transform: translateX(0) scale(1);
+            }
+          }
+
+          @keyframes joinLogoDrop {
+            from {
+              opacity: 0;
+              transform: translateY(-28px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          @keyframes joinCardPop {
+            from {
+              opacity: 0;
+              transform: translateY(34px) scale(0.94);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0) scale(1);
+            }
+          }
+
+          @keyframes joinDoodleIn {
+            from {
+              opacity: 0;
+              transform: scale(0.85);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1);
+            }
+          }
+
+          @keyframes joinPlaneFloat {
+            0%, 100% {
+              transform: translateY(0) rotate(0deg);
+            }
+            50% {
+              transform: translateY(-8px) rotate(-3deg);
+            }
+          }
+
+          @keyframes joinBulbGlow {
+            0%, 100% {
+              transform: translateY(0) scale(1);
+              opacity: 0.9;
+            }
+            50% {
+              transform: translateY(-4px) scale(1.03);
+              opacity: 1;
+            }
+          }
+
+          @keyframes joinBooksIn {
+            from {
+              opacity: 0;
+              transform: translateY(40px) rotate(-4deg);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0) rotate(0deg);
+            }
+          }
+
+          @keyframes joinLedgeIn {
+            from {
+              opacity: 0;
+              transform: translateY(30px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          @keyframes joinFadeUp {
+            from {
+              opacity: 0;
+              transform: translateY(18px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          .join-back-btn {
+            animation: joinBackBtnIn 0.65s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+          }
+          .join-doodle-plane {
+            animation: joinDoodleIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both,
+                       joinPlaneFloat 4s ease-in-out 0.9s infinite;
+          }
+          .join-doodle-bulb {
+            animation: joinDoodleIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both,
+                       joinBulbGlow 3.5s ease-in-out 0.95s infinite;
+          }
+          .join-doodle-stars {
+            animation: joinDoodleIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both;
+          }
+          .join-logo {
+            animation: joinLogoDrop 0.85s cubic-bezier(0.34, 1.25, 0.64, 1) 0.15s both;
+          }
+          .join-card {
+            animation: joinCardPop 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both;
+          }
+          .join-motto {
+            animation: joinFadeUp 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.45s both;
+          }
+          .join-books {
+            animation: joinBooksIn 0.95s cubic-bezier(0.34, 1.25, 0.64, 1) 0.35s both;
+          }
+          .join-ledge {
+            animation: joinLedgeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .join-back-btn,
+            .join-doodle-plane,
+            .join-doodle-bulb,
+            .join-doodle-stars,
+            .join-logo,
+            .join-card,
+            .join-motto,
+            .join-books,
+            .join-ledge {
+              animation: none !important;
+              transform: none !important;
+              opacity: 1 !important;
+            }
+          }
+        `}</style>
+
+        {/* ============================================================ */}
+        {/* TOMBOL KEMBALI KE HOME (KIRI ATAS)                           */}
+        {/* ============================================================ */}
+        <Link
+          to="/"
+          className="join-back-btn absolute top-5 left-5 sm:top-8 sm:left-8 z-40 flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#f6efe2]/90 hover:bg-[#f6efe2] text-[#163a2b] shadow-[0_4px_12px_rgba(0,0,0,0.3)] border-2 border-[#e4d7c3] transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+          title="Kembali ke Beranda"
+          aria-label="Kembali ke Beranda"
+        >
+          <ArrowLeft className="w-6 h-6 text-[#163a2b] transition-transform group-hover:-translate-x-0.5" />
+        </Link>
+
         {/* ============================================================ */}
         {/* DOODLE 1: PESAWAT KERTAS KAPUR (Kiri Atas)                   */}
         {/* ============================================================ */}
-        <div className="absolute top-6 left-6 sm:top-10 sm:left-14 w-28 h-28 sm:w-36 sm:h-36 pointer-events-none z-10 text-[#f4ecd8]/85">
+        <div className="join-doodle-plane absolute top-20 left-4 sm:top-24 sm:left-10 w-24 h-24 sm:w-32 sm:h-32 pointer-events-none z-10 text-[#f4ecd8]/75">
           <svg viewBox="0 0 130 130" fill="none" className="w-full h-full" aria-hidden="true">
             {/* Lintasan melengkung putus-putus */}
             <path
@@ -434,7 +730,7 @@ export default function MainSiswa() {
         {/* ============================================================ */}
         {/* DOODLE 2: BOHLAM IDE MENYALA (Kanan Atas)                    */}
         {/* ============================================================ */}
-        <div className="absolute top-6 right-8 sm:top-10 sm:right-20 w-28 h-28 sm:w-36 sm:h-36 pointer-events-none z-10 text-[#f4ecd8]/90">
+        <div className="join-doodle-bulb absolute top-6 right-8 sm:top-10 sm:right-20 w-28 h-28 sm:w-36 sm:h-36 pointer-events-none z-10 text-[#f4ecd8]/90">
           <svg viewBox="0 0 110 110" fill="none" className="w-full h-full" aria-hidden="true">
             {/* Kontur kaca bohlam */}
             <path
@@ -467,36 +763,38 @@ export default function MainSiswa() {
         {/* ============================================================ */}
         {/* DOODLE 3: BINTANG-BINTANG & CORETAK KAPUR SEKOLAH */}
         {/* ============================================================ */}
-        {/* Bintang kiri atas */}
-        <svg className="absolute top-[32%] left-10 sm:left-24 w-7 h-7 text-[#f4ecd8]/60 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-          <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
-        </svg>
-        {/* Bintang kiri bawah */}
-        <svg className="absolute bottom-40 left-14 sm:left-44 w-8 h-8 text-[#f4ecd8]/55 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-          <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
-        </svg>
-        {/* Bintang kanan atas */}
-        <svg className="absolute top-[28%] right-12 sm:right-32 w-6 h-6 text-[#f4ecd8]/60 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-          <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
-        </svg>
-        {/* Coretan Rumus Kapur di Kanan (Dekorasi Papan Tulis) */}
-        <div className="absolute top-[48%] right-10 sm:right-28 text-[#f4ecd8]/45 pointer-events-none select-none hidden sm:flex flex-col items-center">
-          <span className="font-['Caveat',sans-serif] text-xl tracking-widest font-bold">a² + b² = c²</span>
-          <svg className="w-16 h-2 text-[#f4ecd8]/30 mt-0.5" viewBox="0 0 70 8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <path d="M2 5 Q 35 1 68 5" />
+        <div className="join-doodle-stars pointer-events-none">
+          {/* Bintang kiri atas */}
+          <svg className="absolute top-[32%] left-10 sm:left-24 w-7 h-7 text-[#f4ecd8]/60 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
+          </svg>
+          {/* Bintang kiri bawah */}
+          <svg className="absolute bottom-40 left-14 sm:left-44 w-8 h-8 text-[#f4ecd8]/55 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
+          </svg>
+          {/* Bintang kanan atas */}
+          <svg className="absolute top-[28%] right-12 sm:right-32 w-6 h-6 text-[#f4ecd8]/60 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
+          </svg>
+          {/* Coretan Rumus Kapur di Kanan (Dekorasi Papan Tulis) */}
+          <div className="absolute top-[48%] right-10 sm:right-28 text-[#f4ecd8]/45 pointer-events-none select-none hidden sm:flex flex-col items-center">
+            <span className="font-['Caveat',sans-serif] text-xl tracking-widest font-bold">a² + b² = c²</span>
+            <svg className="w-16 h-2 text-[#f4ecd8]/30 mt-0.5" viewBox="0 0 70 8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <path d="M2 5 Q 35 1 68 5" />
+            </svg>
+          </div>
+          {/* Bintang kanan bawah */}
+          <svg className="absolute bottom-44 right-16 sm:right-40 w-7 h-7 text-[#f4ecd8]/50 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
           </svg>
         </div>
-        {/* Bintang kanan bawah */}
-        <svg className="absolute bottom-44 right-16 sm:right-40 w-7 h-7 text-[#f4ecd8]/50 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-          <path d="M12 2 L 15 9 L 22 9 L 16.5 13.5 L 18.5 20.5 L 12 16 L 5.5 20.5 L 7.5 13.5 L 2 9 L 9 9 Z" />
-        </svg>
 
         {/* ============================================================ */}
         {/* KONTEN UTAMA: LOGO, KARTU FORM, & TEKS MOTTO                 */}
         {/* ============================================================ */}
         <div className="relative z-30 w-full max-w-[430px] px-4 flex flex-col items-center my-auto pt-6 pb-28">
           {/* LOGO DISCERE DENGAN PERCIKAN KAPUR KUNING */}
-          <div className="relative flex items-center justify-center gap-2.5 mb-6 select-none">
+          <div className="join-logo relative flex items-center justify-center gap-2.5 mb-6 select-none">
             {/* Ikon Buku Terbuka */}
             <svg
               className="w-10 h-10 text-[#f4ecd8] drop-shadow-md"
@@ -544,7 +842,7 @@ export default function MainSiswa() {
           </div>
 
           {/* KARTU FORMULIR KERTAS PARCHMENT (Paper Card) */}
-          <div className="relative w-full bg-[#f6efe2] rounded-[30px] p-6 sm:p-8 shadow-[0_12px_0_rgba(0,0,0,0.18),0_25px_50px_rgba(0,0,0,0.45)] border-2 border-[#e4d7c3] text-center">
+          <div className="join-card relative w-full bg-[#f6efe2] rounded-[30px] p-6 sm:p-8 shadow-[0_12px_0_rgba(0,0,0,0.18),0_25px_50px_rgba(0,0,0,0.45)] border-2 border-[#e4d7c3] text-center">
             {/* Percikan Kapur Kuning di Samping Kiri Kartu */}
             <svg
               className="absolute -left-6 sm:-left-8 top-12 w-6 h-10 text-[#f2c230] pointer-events-none select-none"
@@ -646,7 +944,7 @@ export default function MainSiswa() {
           </div>
 
           {/* TEKS MOTTO DI BAWAH KARTU DENGAN CORETAN KAPUR KUNING */}
-          <div className="mt-6 flex flex-col items-center select-none text-center">
+          <div className="join-motto mt-6 flex flex-col items-center select-none text-center">
             <span
               className="text-lg sm:text-xl font-bold text-[#f4ecd9] tracking-wide font-['Caveat',sans-serif]"
               style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}
@@ -670,7 +968,7 @@ export default function MainSiswa() {
         {/* ============================================================ */}
         {/* TUMPUKAN 3 BUKU CAT AIR KLASIK (Kiri Bawah di Atas Meja Kayu) */}
         {/* ============================================================ */}
-        <div className="absolute bottom-12 sm:bottom-16 left-3 sm:left-12 w-32 sm:w-48 h-24 sm:h-36 pointer-events-none z-20">
+        <div className="join-books absolute bottom-12 sm:bottom-16 left-3 sm:left-12 w-32 sm:w-48 h-24 sm:h-36 pointer-events-none z-20">
           <svg viewBox="0 0 150 110" fill="none" className="w-full h-full drop-shadow-[0_8px_12px_rgba(0,0,0,0.5)]" aria-hidden="true">
             {/* Bayangan di atas dudukan kayu */}
             <ellipse cx="75" cy="98" rx="65" ry="6" fill="rgba(0,0,0,0.4)" />
@@ -707,7 +1005,7 @@ export default function MainSiswa() {
         {/* ============================================================ */}
         {/* AKSESORIS RAK KAYU: BATANG KAPUR & PENGHAPUS PAPAN TULIS     */}
         {/* ============================================================ */}
-        <div className="absolute bottom-16 sm:bottom-20 left-0 right-0 w-full pointer-events-none z-20 px-6 sm:px-16 flex justify-end items-end">
+        <div className="join-ledge absolute bottom-16 sm:bottom-20 left-0 right-0 w-full pointer-events-none z-20 px-6 sm:px-16 flex justify-end items-end">
           <div className="hidden sm:flex items-end gap-3.5 mb-0.5 opacity-95 drop-shadow-[0_4px_6px_rgba(0,0,0,0.45)]">
             {/* Batang Kapur Putih */}
             <div className="w-11 h-2.5 rounded-full bg-[#f8fafc] shadow-sm transform -rotate-3 border border-slate-300/40 relative">
@@ -728,7 +1026,7 @@ export default function MainSiswa() {
         {/* ============================================================ */}
         {/* DUDUKAN MEJA & RAK PAPAN TULIS KAYU KLASIK (FULL LEBAR)      */}
         {/* ============================================================ */}
-        <div className="absolute bottom-0 left-0 right-0 w-full pointer-events-none z-10">
+        <div className="join-ledge absolute bottom-0 left-0 right-0 w-full pointer-events-none z-10">
           {/* LIS ATAS RAK KAYU / BEVEL KILAU EMAS */}
           <div className="w-full h-1.5 bg-gradient-to-r from-[#b07f4a] via-[#e2b07a] to-[#b07f4a] shadow-sm" />
 
@@ -831,7 +1129,72 @@ export default function MainSiswa() {
   }
 
   // ==========================================
-  // RENDER STAGE 2: LOBI MENUNGGU GURU
+  // RENDER MAKAN KERUPUK CHALLENGE (MULTIPLAYER HP SISWA)
+  // ==========================================
+  if (gameType === 'makan_kerupuk' && sessionId && pesertaId) {
+    return (
+      <MainKerupuk
+        token={tokenInput}
+        nama={namaPeserta}
+        sessionId={sessionId}
+        pesertaId={pesertaId}
+        pesertaSecret={panjatSecret}
+        templateJudul={templateJudul}
+        initialStatus={stage === 'PLAYING' ? 'jalan' : stage === 'SELESAI' ? 'selesai' : 'lobi'}
+        initialPesertaState={kerupukState}
+        initialLeaderboard={kerupukLeaderboard}
+        initialSoalAktif={kerupukSoalAktif}
+        onKeluar={handleKeluar}
+      />
+    );
+  }
+
+  // ==========================================
+  // RENDER PANJAT PINANG (JIKA SESI ADALAH PANJAT PINANG)
+  // ==========================================
+  if (gameType === 'panjat_pinang' && sessionId && pesertaId) {
+    return (
+      <MainPanjatPinang
+        token={tokenInput}
+        nama={namaPeserta}
+        sessionId={sessionId}
+        pesertaId={pesertaId}
+        pesertaSecret={panjatSecret}
+        templateJudul={templateJudul}
+        config={panjatConfig}
+        initialStatus={stage === 'PLAYING' ? 'jalan' : stage === 'SELESAI' ? 'selesai' : 'lobi'}
+        initialPesertaState={panjatState}
+        initialLeaderboard={panjatLeaderboard}
+        initialSoalAktif={panjatSoalAktif}
+        onKeluar={handleKeluar}
+      />
+    );
+  }
+
+  // ==========================================
+  // RENDER BALAP KARUNG CHALLENGE (JIKA SESI ADALAH BALAP KARUNG)
+  // ==========================================
+  if (gameType === 'balap_karung' && sessionId && pesertaId) {
+    return (
+      <MainBalapKarung
+        token={tokenInput}
+        nama={namaPeserta}
+        sessionId={sessionId}
+        pesertaId={pesertaId}
+        pesertaSecret={panjatSecret}
+        templateJudul={templateJudul}
+        config={balapConfig}
+        initialStatus={stage === 'PLAYING' ? 'jalan' : stage === 'SELESAI' ? 'selesai' : 'lobi'}
+        initialPesertaState={balapState}
+        initialLeaderboard={balapLeaderboard}
+        initialSoalAktif={balapSoalAktif}
+        onKeluar={handleKeluar}
+      />
+    );
+  }
+
+  // ==========================================
+  // RENDER STAGE 2: LOBI MENUNGGU GURU (TARIK TAMBANG)
   // ==========================================
   if (stage === 'LOBBY') {
     return (
