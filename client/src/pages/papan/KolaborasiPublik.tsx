@@ -76,6 +76,8 @@ export default function KolaborasiPublik() {
 
   const [view, setView] = useState<BoardView>({ x: 0, y: 0, z: 1 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
   // Popups & Overlays
   const [activeFlyout, setActiveFlyout] = useState<ToolType | null>(null);
@@ -248,6 +250,10 @@ export default function KolaborasiPublik() {
       onViewChange: (nextView) => {
         setView({ ...nextView });
       },
+      onHistoryChange: (nextUndo, nextRedo) => {
+        setCanUndo(nextUndo);
+        setCanRedo(nextRedo);
+      },
       onOpenTextEditor: (edState) => {
         if (!isHanyaLihat) setTextEditor(edState);
       },
@@ -262,11 +268,15 @@ export default function KolaborasiPublik() {
     boardRef.current = board;
     setBoardState({ ...board.state });
     setView({ ...board.view });
+    setCanUndo(board.canUndo());
+    setCanRedo(board.canRedo());
 
     return () => {
       if (boardRef.current) {
         boardRef.current.destroy();
         boardRef.current = null;
+        setCanUndo(false);
+        setCanRedo(false);
       }
     };
   }, [isJoined, loadedObjs, peran, aksesDicabut, boardId, showToast]);
@@ -483,13 +493,13 @@ export default function KolaborasiPublik() {
 
       {/* Header Kanan: Undo/Redo (Editor), Avatar Peserta, Presentasi */}
       <TopRightBar
-        canUndo={!isHanyaLihat && board ? board.canUndo() : false}
-        canRedo={!isHanyaLihat && board ? board.canRedo() : false}
+        canUndo={!isHanyaLihat && canUndo}
+        canRedo={!isHanyaLihat && canRedo}
         pesertaList={pesertaList}
         hanyaLihat={isHanyaLihat}
-        onUndo={() => board?.undo()}
-        onRedo={() => board?.redo()}
-        onPresentation={() => board?.setPresentation(true)}
+        onUndo={() => boardRef.current?.undo()}
+        onRedo={() => boardRef.current?.redo()}
+        onPresentation={() => boardRef.current?.setPresentation(true)}
       />
 
       {/* Zoom Bar */}

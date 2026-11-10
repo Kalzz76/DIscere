@@ -17,13 +17,28 @@ export class HistoryManager {
   private redoStack: LocalOp[] = [];
   private maxEntries = 60;
   private onUbah?: (payload: UbahEventPayload) => void;
+  private onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
 
-  constructor(onUbah?: (payload: UbahEventPayload) => void) {
+  constructor(
+    onUbah?: (payload: UbahEventPayload) => void,
+    onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void
+  ) {
     this.onUbah = onUbah;
+    this.onHistoryChange = onHistoryChange;
   }
 
   setOnUbah(callback: (payload: UbahEventPayload) => void): void {
     this.onUbah = callback;
+  }
+
+  setOnHistoryChange(callback: (canUndo: boolean, canRedo: boolean) => void): void {
+    this.onHistoryChange = callback;
+  }
+
+  private notifyHistory(): void {
+    if (this.onHistoryChange) {
+      this.onHistoryChange(this.canUndo(), this.canRedo());
+    }
   }
 
   canUndo(): boolean {
@@ -37,6 +52,7 @@ export class HistoryManager {
   clear(): void {
     this.undoStack = [];
     this.redoStack = [];
+    this.notifyHistory();
   }
 
   commit(op: LocalOp, broadcast = true): void {
@@ -61,6 +77,7 @@ export class HistoryManager {
       this.undoStack.shift();
     }
     this.redoStack = [];
+    this.notifyHistory();
 
     if (broadcast && this.onUbah) {
       this.onUbah({
@@ -75,6 +92,7 @@ export class HistoryManager {
     if (this.undoStack.length === 0) return { newObjs: currentObjs, reverted: false };
     const op = this.undoStack.pop()!;
     this.redoStack.push(op);
+    this.notifyHistory();
 
     let objs = [...currentObjs];
 
@@ -115,6 +133,7 @@ export class HistoryManager {
     if (this.redoStack.length === 0) return { newObjs: currentObjs, reapplied: false };
     const op = this.redoStack.pop()!;
     this.undoStack.push(op);
+    this.notifyHistory();
 
     let objs = [...currentObjs];
 

@@ -33,6 +33,7 @@ export function TopRightBar({
         <>
           <button
             className="ib"
+            type="button"
             title="Urungkan (Ctrl+Z)"
             aria-label="Urungkan"
             disabled={!canUndo}
@@ -46,6 +47,7 @@ export function TopRightBar({
 
           <button
             className="ib"
+            type="button"
             title="Ulangi (Ctrl+Y)"
             aria-label="Ulangi"
             disabled={!canRedo}

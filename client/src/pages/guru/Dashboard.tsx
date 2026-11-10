@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
-import { Modal } from '../../components';
+import { Modal, ModalProfil } from '../../components';
 import { RiwayatDetailModal } from './RiwayatDetailModal';
 import ModalKonfigurasiKerupuk, { KonfigurasiKerupukPayload } from './ModalKonfigurasiKerupuk';
 import {
@@ -164,6 +164,19 @@ export default function DashboardGuru() {
   } | null>(null);
   const [kerupukCreating, setKerupukCreating] = useState(false);
   const [modalKeluarOpen, setModalKeluarOpen] = useState(false);
+  const [modalProfilOpen, setModalProfilOpen] = useState(false);
+  const [sisaAi, setSisaAi] = useState<number>(30);
+
+  // Muat data kuota AI saat modal profil dibuka
+  useEffect(() => {
+    if (modalProfilOpen) {
+      apiRequest<{ batasHarian: number; terpakai: number; sisa?: number }>('/ai/kuota')
+        .then((res) => {
+          setSisaAi(typeof res.sisa === 'number' ? res.sisa : Math.max(0, 30 - (res.terpakai || 0)));
+        })
+        .catch(() => {});
+    }
+  }, [modalProfilOpen]);
 
   const fetchRingkasan = useCallback(async () => {
     try {
@@ -541,8 +554,24 @@ export default function DashboardGuru() {
           </nav>
 
           <div className="portal-who">
-            <span className="portal-who-label">Masuk sebagai:</span>
-            <b>{user?.nama || 'Guru Demo'}</b>
+            <div className="flex items-center justify-between">
+              <span className="portal-who-label">Masuk sebagai:</span>
+              <button
+                type="button"
+                onClick={() => setModalProfilOpen(true)}
+                className="text-[11px] font-bold text-[#f2c230] hover:underline cursor-pointer"
+                title="Buka Pengaturan Profil Pengajar"
+              >
+                Profil Saya
+              </button>
+            </div>
+            <b
+              onClick={() => setModalProfilOpen(true)}
+              className="cursor-pointer hover:text-[#f2c230] transition-colors"
+              title="Klik untuk membuka profil"
+            >
+              {user?.nama || 'Guru Demo'}
+            </b>
             <span>{user?.sekolah || 'SD Negeri Merdeka 01'}</span>
             <button
               type="button"
@@ -1791,6 +1820,18 @@ export default function DashboardGuru() {
           </div>
         </div>
       </Modal>
+
+      {/* Modal Profil Pengajar */}
+      <ModalProfil
+        isOpen={modalProfilOpen}
+        onClose={() => setModalProfilOpen(false)}
+        stats={{
+          totalTemplate: ringkasan?.totalTemplate ?? templates.length,
+          totalSesi: ringkasan?.totalSesi ?? riwayatList.length,
+          totalPapan: boards.length,
+          kuotaAiSisa: sisaAi,
+        }}
+      />
     </div>
   );
 }

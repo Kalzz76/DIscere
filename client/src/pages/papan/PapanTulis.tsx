@@ -81,6 +81,8 @@ export default function PapanTulis() {
 
   const [view, setView] = useState<BoardView>({ x: 0, y: 0, z: 1 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
   // Popups & Overlays
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -303,7 +305,7 @@ export default function PapanTulis() {
           ubah: payload.ubah || [],
           hapus: payload.hapus || [],
         });
-        setSaveStatus('saved');
+        triggerAutosave();
       },
       onStateChange: (nextState) => {
         setBoardState({ ...nextState });
@@ -313,6 +315,10 @@ export default function PapanTulis() {
       },
       onViewChange: (nextView) => {
         setView({ ...nextView });
+      },
+      onHistoryChange: (nextUndo, nextRedo) => {
+        setCanUndo(nextUndo);
+        setCanRedo(nextRedo);
       },
       onOpenTextEditor: (edState) => {
         setTextEditor(edState);
@@ -339,11 +345,15 @@ export default function PapanTulis() {
     boardRef.current = board;
     setBoardState({ ...board.state });
     setView({ ...board.view });
+    setCanUndo(board.canUndo());
+    setCanRedo(board.canRedo());
 
     return () => {
       if (boardRef.current) {
         boardRef.current.destroy();
         boardRef.current = null;
+        setCanUndo(false);
+        setCanRedo(false);
       }
     };
   }, [loadedObjs, boardId, showToast]);
@@ -739,13 +749,13 @@ export default function PapanTulis() {
 
       {/* Top Right Panel: Undo, Redo, Game, Avatar, Presentasi, Share */}
       <TopRightBar
-        canUndo={board ? board.canUndo() : false}
-        canRedo={board ? board.canRedo() : false}
+        canUndo={canUndo}
+        canRedo={canRedo}
         pesertaList={pesertaList}
         isGameOpen={isGamePanelOpen}
-        onUndo={() => board?.undo()}
-        onRedo={() => board?.redo()}
-        onPresentation={() => board?.setPresentation(true)}
+        onUndo={() => boardRef.current?.undo()}
+        onRedo={() => boardRef.current?.redo()}
+        onPresentation={() => boardRef.current?.setPresentation(true)}
         onOpenShare={() => setIsShareOpen(true)}
         onOpenGame={() => setIsGamePanelOpen((prev) => !prev)}
       />
