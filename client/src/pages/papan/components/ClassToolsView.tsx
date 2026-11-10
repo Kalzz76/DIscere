@@ -335,7 +335,20 @@ export const ClassToolsView: React.FC<ClassToolsViewProps> = ({
   };
 
   return (
-    <div className="class-tools-container" style={{ padding: '8px 14px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div
+      id="kb"
+      className="class-tools-container"
+      style={{
+        flex: 1,
+        minHeight: 0,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        padding: '12px 14px 32px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}
+    >
       {/* 1. SEKSI TIMER KELAS */}
       <div className="tool-card" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
         <button

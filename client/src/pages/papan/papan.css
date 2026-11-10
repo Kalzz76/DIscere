@@ -1415,11 +1415,37 @@ body.pres .papan .btn-exit-pres {
 }
 
 .papan #qzb,
-.papan .game-template-list {
+.papan .game-template-list,
+.papan #kb,
+.papan .class-tools-container {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 10px 16px 16px;
+  overflow-x: hidden;
+  padding: 10px 16px 24px;
   user-select: text;
+  -webkit-overflow-scrolling: touch;
+}
+
+.papan #kb::-webkit-scrollbar,
+.papan .class-tools-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.papan #kb::-webkit-scrollbar-track,
+.papan .class-tools-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.papan #kb::-webkit-scrollbar-thumb,
+.papan .class-tools-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+}
+
+.papan #kb::-webkit-scrollbar-thumb:hover,
+.papan .class-tools-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(155, 23, 245, 0.5);
 }
 
 .papan .qc {
