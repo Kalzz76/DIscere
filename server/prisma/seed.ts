@@ -362,6 +362,58 @@ async function main() {
         },
       ],
     },
+    {
+      judul: 'Panjat Pinang 17-an: Pengetahuan Umum Nusantara',
+      game: 'panjat_pinang',
+      mode: 'multi',
+      questions: [
+        {
+          urutan: 1,
+          teks: 'Semboyan resmi bangsa Indonesia yang terdapat pada lambang Garuda Pancasila adalah...',
+          opsiA: 'Bhinneka Tunggal Ika',
+          opsiB: 'Tut Wuri Handayani',
+          opsiC: 'Ing Ngarsa Sung Tuladha',
+          jawabanBenar: 'A',
+          penjelasan: 'Bhinneka Tunggal Ika berarti berbeda-beda tetapi tetap satu jua.',
+        },
+        {
+          urutan: 2,
+          teks: 'Lagu kebangsaan Indonesia Raya pertama kali diciptakan oleh...',
+          opsiA: 'Ismail Marzuki',
+          opsiB: 'W.R. Supratman',
+          opsiC: 'Ibu Sud',
+          jawabanBenar: 'B',
+          penjelasan: 'Wage Rudolf Supratman menciptakan dan memperdengarkan Indonesia Raya pada Kongres Pemuda II.',
+        },
+        {
+          urutan: 3,
+          teks: 'Pulau terluas yang dimiliki oleh negara Indonesia adalah...',
+          opsiA: 'Pulau Jawa',
+          opsiB: 'Pulau Kalimantan',
+          opsiC: 'Pulau Bali',
+          jawabanBenar: 'B',
+          penjelasan: 'Kalimantan adalah pulau terbesar ketiga di dunia dan pulau terbesar yang wilayahnya dimiliki Indonesia.',
+        },
+        {
+          urutan: 4,
+          teks: 'Lomba memanjat batang pinang yang dilumuri pelumas pada perayaan 17 Agustus disebut...',
+          opsiA: 'Tarik Tambang',
+          opsiB: 'Balap Karung',
+          opsiC: 'Panjat Pinang',
+          jawabanBenar: 'C',
+          penjelasan: 'Panjat Pinang merupakan lomba tradisional 17 Agustus untuk memperebutkan hadiah di puncak tiang.',
+        },
+        {
+          urutan: 5,
+          teks: 'Dasar negara Republik Indonesia adalah...',
+          opsiA: 'Pancasila',
+          opsiB: 'Sumpah Pemuda',
+          opsiC: 'Proklamasi',
+          jawabanBenar: 'A',
+          penjelasan: 'Pancasila adalah dasar negara dan ideologi bangsa Indonesia.',
+        },
+      ],
+    },
   ];
 
   for (const t of templateResmiList) {
