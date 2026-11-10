@@ -6,6 +6,9 @@ import { Modal } from '../../components';
 import { ProfilView } from './ProfilView';
 import { RiwayatDetailModal } from './RiwayatDetailModal';
 import ModalKonfigurasiKerupuk, { KonfigurasiKerupukPayload } from './ModalKonfigurasiKerupuk';
+import ModalKonfigurasiPanjatPinang, {
+  KonfigurasiPanjatPinangPayload,
+} from './ModalKonfigurasiPanjatPinang';
 import {
   LogOut,
   LayoutDashboard,
@@ -24,8 +27,21 @@ import {
   ChevronDown,
   Check,
   ArrowRight,
+  Trophy,
   User as UserIcon,
 } from 'lucide-react';
+
+function labelJenisGame(game?: string): string {
+  if (game === 'makan_kerupuk') return 'Makan Kerupuk';
+  if (game === 'panjat_pinang') return 'Panjat Pinang';
+  return 'Tarik Tambang';
+}
+
+function labelTombolMulai(game?: string, mode?: string): string {
+  if (game === 'makan_kerupuk') return 'Makan Kerupuk';
+  if (game === 'panjat_pinang') return 'Panjat Pinang';
+  return mode === 'multi' ? 'Mulai Lomba' : 'Mulai Solo';
+}
 
 interface TemplateItem {
   id: string;
@@ -45,7 +61,7 @@ interface SesiRiwayatItem {
   game: string;
   mode: string;
   tanggal: string;
-  timMenang: 'merah' | 'putih' | 'seri';
+  timMenang: string;
   posisiAkhir: number;
   skorMerah: number;
   skorPutih: number;
@@ -165,6 +181,12 @@ export default function DashboardGuru() {
     totalSoal: number;
   } | null>(null);
   const [kerupukCreating, setKerupukCreating] = useState(false);
+  const [modalPanjatTemplate, setModalPanjatTemplate] = useState<{
+    id: string;
+    judul: string;
+    totalSoal: number;
+  } | null>(null);
+  const [panjatCreating, setPanjatCreating] = useState(false);
   const [modalKeluarOpen, setModalKeluarOpen] = useState(false);
   const [sisaAi, setSisaAi] = useState<number>(30);
 
@@ -280,15 +302,29 @@ export default function DashboardGuru() {
 
   // Handler: Mulai Game dari Template
   const handleMulaiGame = async (templateId: string, mode?: string, gameType?: string) => {
+    const cariTemplate = () =>
+      templates.find((t) => t.id === templateId) ||
+      pustakaResmi.find((t) => t.id === templateId) ||
+      ringkasan?.templateTerbaru?.find((t) => t.id === templateId);
+
     // Jika game adalah Makan Kerupuk Challenge, buka modal konfigurasi probabilitas terlebih dahulu
     if (gameType === 'makan_kerupuk') {
-      const tmpl =
-        templates.find((t) => t.id === templateId) ||
-        pustakaResmi.find((t) => t.id === templateId);
+      const tmpl = cariTemplate();
       setModalKerupukTemplate({
         id: templateId,
         judul: tmpl?.judul || 'Makan Kerupuk Challenge',
-        totalSoal: tmpl?._count?.questions || tmpl?.jumlahSoal || 0,
+        totalSoal: (tmpl as TemplateItem)?._count?.questions || tmpl?.jumlahSoal || 0,
+      });
+      return;
+    }
+
+    // Jika game adalah Panjat Pinang, buka modal konfigurasi Panjat Pinang
+    if (gameType === 'panjat_pinang') {
+      const tmpl = cariTemplate();
+      setModalPanjatTemplate({
+        id: templateId,
+        judul: tmpl?.judul || 'Panjat Pinang',
+        totalSoal: (tmpl as TemplateItem)?._count?.questions || tmpl?.jumlahSoal || 0,
       });
       return;
     }
@@ -303,6 +339,29 @@ export default function DashboardGuru() {
     } catch (err: any) {
       alert(err.pesan || 'Gagal memulai sesi game.');
       setActionLoadingId(null);
+    }
+  };
+
+  // Handler: Konfirmasi & Mulai Sesi Panjat Pinang dengan Konfigurasi
+  const handleKonfirmasiPanjat = async (config: KonfigurasiPanjatPinangPayload) => {
+    if (!modalPanjatTemplate) return;
+    try {
+      setPanjatCreating(true);
+      const res = await apiRequest<{ session: { id: string } }>('/sesi', {
+        method: 'POST',
+        body: JSON.stringify({
+          templateId: modalPanjatTemplate.id,
+          game: 'panjat_pinang',
+          mode: 'multi',
+          panjatPinangConfig: config,
+        }),
+      });
+      setModalPanjatTemplate(null);
+      navigate(`/guru/sesi/${res.session.id}`);
+    } catch (err: any) {
+      alert(err.pesan || 'Gagal membuat sesi Panjat Pinang.');
+    } finally {
+      setPanjatCreating(false);
     }
   };
 
@@ -872,7 +931,7 @@ export default function DashboardGuru() {
                             <div>
                               <h4>{tmpl.judul}</h4>
                               <div style={{ fontSize: '12px', color: '#6b7d6c', marginTop: '4px' }}>
-                                {tmpl.jumlahSoal} Soal Tersedia • {tmpl.game === 'makan_kerupuk' ? 'Makan Kerupuk' : 'Tarik Tambang'}
+                                {tmpl.jumlahSoal} Soal Tersedia • {labelJenisGame(tmpl.game)}
                               </div>
 
                               {/* Progress bar porsi sesi */}
@@ -893,11 +952,7 @@ export default function DashboardGuru() {
                                 onClick={() => handleMulaiGame(tmpl.id, tmpl.mode, tmpl.game)}
                                 className="portal-chip"
                               >
-                                {tmpl.game === 'makan_kerupuk'
-                                  ? 'Makan Kerupuk'
-                                  : tmpl.mode === 'multi'
-                                  ? 'Mulai Lomba'
-                                  : 'Mulai Game Solo'}
+                                {labelTombolMulai(tmpl.game, tmpl.mode)}
                               </button>
                             </div>
                           </div>
@@ -942,18 +997,31 @@ export default function DashboardGuru() {
                         riwayatList.slice(0, 4).map((r) => {
                           const dateObj = new Date(r.tanggal);
                           const dateStr = `${dateObj.getDate()} ${MONTHS[dateObj.getMonth()]} ${dateObj.getFullYear()}, ${String(dateObj.getHours()).padStart(2, '0')}.${String(dateObj.getMinutes()).padStart(2, '0')}`;
-                          const isRedWin = r.timMenang === 'merah';
-                          const isWhiteWin = r.timMenang === 'putih';
+                          const isIndividu = r.game === 'panjat_pinang' || r.game === 'makan_kerupuk';
+                          const isRedWin = !isIndividu && r.timMenang === 'merah';
+                          const isWhiteWin = !isIndividu && r.timMenang === 'putih';
 
                           return (
                             <div key={r.id} className="portal-fr">
-                              <div className={`portal-av ${isRedWin ? 'r' : isWhiteWin ? 'b' : ''}`}>
-                                {isRedWin ? '🔴' : isWhiteWin ? '⚪' : '🤝'}
+                              <div className={`portal-av ${isIndividu ? 'b' : isRedWin ? 'r' : isWhiteWin ? 'b' : ''}`}>
+                                {isIndividu ? (
+                                  <Trophy className="w-4 h-4 text-[#f4ecd8]" />
+                                ) : isRedWin ? (
+                                  '🔴'
+                                ) : isWhiteWin ? (
+                                  '⚪'
+                                ) : (
+                                  '🤝'
+                                )}
                               </div>
                               <div className="t">
                                 <b>{r.templateJudul}</b>
                                 <small>
-                                  Pemenang: {isRedWin ? 'TIM MERAH' : isWhiteWin ? 'TIM PUTIH' : 'SERI'}
+                                  {r.game === 'panjat_pinang'
+                                    ? `Juara: ${r.timMenang} (${r.posisiAkhir}%)`
+                                    : r.game === 'makan_kerupuk'
+                                    ? `Juara: ${r.timMenang}`
+                                    : `Pemenang: ${isRedWin ? 'TIM MERAH' : isWhiteWin ? 'TIM PUTIH' : 'SERI'}`}
                                   <br />
                                   {dateStr}
                                 </small>
@@ -1093,11 +1161,19 @@ export default function DashboardGuru() {
                         >
                           <div className="space-y-2">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className={`portal-tag ${tmpl.game === 'makan_kerupuk' ? 'yellow font-bold' : 'red'}`}>
-                                {tmpl.game === 'makan_kerupuk' ? 'Makan Kerupuk' : 'Tarik Tambang'}
+                              <span
+                                className={`portal-tag ${
+                                  tmpl.game === 'panjat_pinang'
+                                    ? 'green font-bold'
+                                    : tmpl.game === 'makan_kerupuk'
+                                    ? 'yellow font-bold'
+                                    : 'red'
+                                }`}
+                              >
+                                {labelJenisGame(tmpl.game)}
                               </span>
                               <span className="portal-tag yellow">
-                                {tmpl.game === 'makan_kerupuk'
+                                {tmpl.game === 'makan_kerupuk' || tmpl.game === 'panjat_pinang'
                                   ? 'Mode Individu'
                                   : tmpl.mode === 'multi'
                                   ? 'Mode Multiplayer'
@@ -1127,13 +1203,7 @@ export default function DashboardGuru() {
                                   className="portal-btn red sm"
                                 >
                                   <Play className="w-3.5 h-3.5 fill-current" />
-                                  <span>
-                                    {tmpl.game === 'makan_kerupuk'
-                                      ? 'Makan Kerupuk'
-                                      : tmpl.mode === 'multi'
-                                      ? 'Mulai Lomba'
-                                      : 'Mulai Solo'}
-                                  </span>
+                                  <span>{labelTombolMulai(tmpl.game, tmpl.mode)}</span>
                                 </button>
 
                                 <div className="inline-flex items-center gap-1.5">
@@ -1172,13 +1242,7 @@ export default function DashboardGuru() {
                                   title="Gunakan langsung template buatan admin ini"
                                 >
                                   <Play className="w-3.5 h-3.5 fill-current" />
-                                  <span>
-                                    {tmpl.game === 'makan_kerupuk'
-                                      ? 'Makan Kerupuk'
-                                      : tmpl.mode === 'multi'
-                                      ? 'Mulai Lomba'
-                                      : 'Mulai Solo'}
-                                  </span>
+                                  <span>{labelTombolMulai(tmpl.game, tmpl.mode)}</span>
                                 </button>
                                 <button
                                   type="button"
@@ -1435,9 +1499,17 @@ export default function DashboardGuru() {
                                     }}
                                   >
                                     <div className="space-y-1">
-                                      <div className="flex items-center gap-2">
-                                        <span className="portal-tag yellow font-bold">
-                                          Mode {r.mode?.toLowerCase() === 'multi' ? 'MULTI' : 'SOLO'}
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span
+                                          className={`portal-tag font-bold ${
+                                            r.game === 'panjat_pinang'
+                                              ? 'green'
+                                              : r.game === 'makan_kerupuk'
+                                              ? 'blue'
+                                              : 'yellow'
+                                          }`}
+                                        >
+                                          {labelJenisGame(r.game)} • {r.mode?.toLowerCase() === 'multi' ? 'MULTI' : 'SOLO'}
                                         </span>
                                         <span className="text-xs text-[#6b7d6c]">
                                           {new Date(r.tanggal).toLocaleDateString('id-ID', {
@@ -1453,18 +1525,34 @@ export default function DashboardGuru() {
                                         {r.templateJudul}
                                       </h3>
                                       <div className="text-xs font-semibold text-[#1d3b2e]">
-                                        Pemenang:{' '}
-                                        <span className="font-bold">
-                                          {isRed
-                                            ? 'Tim Merah'
-                                            : isWhite
-                                            ? 'Tim Putih'
-                                            : 'Seri'}
-                                        </span>{' '}
-                                        (Skor: {r.skorMerah} vs {r.skorPutih}) • Posisi Tali:{' '}
-                                        <span className="font-mono font-bold">
-                                          {r.posisiAkhir > 0 ? `+${r.posisiAkhir}` : r.posisiAkhir}
-                                        </span>
+                                        {r.game === 'panjat_pinang' ? (
+                                          <>
+                                            Juara 1: <span className="font-bold">{r.timMenang}</span> ({r.posisiAkhir}%) • Mencapai Puncak:{' '}
+                                            <span className="font-mono font-bold">
+                                              {r.skorMerah}/{r.skorPutih} pemain
+                                            </span>
+                                          </>
+                                        ) : r.game === 'makan_kerupuk' ? (
+                                          <>
+                                            Pemenang: <span className="font-bold">{r.timMenang}</span> • Skor Tertinggi:{' '}
+                                            <span className="font-mono font-bold">{r.skorMerah}</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            Pemenang:{' '}
+                                            <span className="font-bold">
+                                              {isRed
+                                                ? 'Tim Merah'
+                                                : isWhite
+                                                ? 'Tim Putih'
+                                                : 'Seri'}
+                                            </span>{' '}
+                                            (Skor: {r.skorMerah} vs {r.skorPutih}) • Posisi Tali:{' '}
+                                            <span className="font-mono font-bold">
+                                              {r.posisiAkhir > 0 ? `+${r.posisiAkhir}` : r.posisiAkhir}
+                                            </span>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
 
@@ -1797,6 +1885,16 @@ export default function DashboardGuru() {
         totalSoal={modalKerupukTemplate?.totalSoal || 0}
         onMulai={handleKonfirmasiKerupuk}
         loading={kerupukCreating}
+      />
+
+      {/* Modal Konfigurasi Sesi Panjat Pinang */}
+      <ModalKonfigurasiPanjatPinang
+        isOpen={Boolean(modalPanjatTemplate)}
+        onClose={() => setModalPanjatTemplate(null)}
+        templateJudul={modalPanjatTemplate?.judul || ''}
+        totalSoal={modalPanjatTemplate?.totalSoal || 0}
+        onMulai={handleKonfirmasiPanjat}
+        loading={panjatCreating}
       />
 
       {/* Modal Konfirmasi Keluar Akun Guru */}
