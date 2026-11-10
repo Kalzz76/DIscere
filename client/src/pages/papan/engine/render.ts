@@ -274,6 +274,10 @@ export function drawScene({
       continue;
     }
     drawObj(ctx, o, onImageLoad);
+
+    if (o.lock) {
+      drawLockIcon(ctx, b.x + b.w, b.y, view.z);
+    }
   }
 
   // Objek yang sedang digambar (preview)
@@ -436,5 +440,29 @@ export function drawScene({
     ctx.arc(mouse.x, mouse.y, (state.er * view.z) / 2 + 4, 0, Math.PI * 2);
     ctx.stroke();
   }
+}
+
+function drawLockIcon(ctx: CanvasRenderingContext2D, x: number, y: number, z: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  const s = 11 / z;
+  ctx.fillStyle = '#f59e0b';
+  ctx.beginPath();
+  ctx.arc(0, 0, s, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#111827';
+  ctx.strokeStyle = '#111827';
+  ctx.lineWidth = 1.6 / z;
+
+  const bw = 7 / z;
+  const bh = 5.5 / z;
+  ctx.fillRect(-bw / 2, -1 / z, bw, bh);
+
+  ctx.beginPath();
+  ctx.arc(0, -1 / z, 2.5 / z, Math.PI, 0, false);
+  ctx.stroke();
+
+  ctx.restore();
 }
 

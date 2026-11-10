@@ -83,9 +83,10 @@ export class HistoryManager {
               sesudah: cloneObj(u.sesudah),
             }))
           : undefined,
+      reorder: op.reorder ? { ...op.reorder } : undefined,
     };
 
-    if (!cleanOp.tambah && !cleanOp.hapus && !cleanOp.ubah) {
+    if (!cleanOp.tambah && !cleanOp.hapus && !cleanOp.ubah && !cleanOp.reorder) {
       return;
     }
 
@@ -101,6 +102,7 @@ export class HistoryManager {
         tambah: cleanOp.tambah,
         ubah: cleanOp.ubah?.map((u) => u.sesudah),
         hapus: cleanOp.hapus?.map((h) => h.id),
+        reorder: cleanOp.reorder?.sesudah,
       });
     }
   }
@@ -135,11 +137,22 @@ export class HistoryManager {
       });
     }
 
+    // Revert urutan (z-order)
+    if (op.reorder) {
+      const orderMap = new Map(op.reorder.sebelum.map((id, index) => [id, index]));
+      objs.sort((a, b) => {
+        const idxA = orderMap.has(a.id) ? orderMap.get(a.id)! : 999999;
+        const idxB = orderMap.has(b.id) ? orderMap.get(b.id)! : 999999;
+        return idxA - idxB;
+      });
+    }
+
     if (this.onUbah) {
       this.onUbah({
         tambah: op.hapus?.map(cloneObj),
         ubah: op.ubah?.map((u) => cloneObj(u.sebelum)),
         hapus: op.tambah?.map((t) => t.id),
+        reorder: op.reorder?.sebelum,
       });
     }
 
@@ -176,11 +189,22 @@ export class HistoryManager {
       });
     }
 
+    // Re-apply urutan (z-order)
+    if (op.reorder) {
+      const orderMap = new Map(op.reorder.sesudah.map((id, index) => [id, index]));
+      objs.sort((a, b) => {
+        const idxA = orderMap.has(a.id) ? orderMap.get(a.id)! : 999999;
+        const idxB = orderMap.has(b.id) ? orderMap.get(b.id)! : 999999;
+        return idxA - idxB;
+      });
+    }
+
     if (this.onUbah) {
       this.onUbah({
         tambah: op.tambah?.map(cloneObj),
         ubah: op.ubah?.map((u) => cloneObj(u.sesudah)),
         hapus: op.hapus?.map((h) => h.id),
+        reorder: op.reorder?.sesudah,
       });
     }
 

@@ -38,6 +38,7 @@ export interface BoardOptions {
   onViewChange?: (view: BoardView) => void;
   onOpenTextEditor?: (editor: TextEditorState) => void;
   onCloseTextEditor?: () => void;
+  onContextMenu?: (pos: { x: number; y: number } | null) => void;
   onToast?: (msg: string) => void;
   onLassoChange?: (lasso: Pt[] | null) => void;
   onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
@@ -373,6 +374,16 @@ export class Board {
     }
 
     if (changed) {
+      if (ops.reorder && ops.reorder.length > 0) {
+        const orderMap = new Map(ops.reorder.map((id, index) => [id, index]));
+        list.sort((a, b) => {
+          const idxA = orderMap.has(a.id) ? orderMap.get(a.id)! : 999999;
+          const idxB = orderMap.has(b.id) ? orderMap.get(b.id)! : 999999;
+          return idxA - idxB;
+        });
+        changed = true;
+      }
+
       this.objs = list;
       this.rd();
     }
@@ -461,6 +472,79 @@ export class Board {
     });
     this.toast('Grup dilepas');
     this.rd();
+  }
+
+  public zOrder(action: 'front' | 'back' | 'fwd' | 'bwd'): void {
+    if (this.hanyaLihat || this.sel.length === 0) return;
+    const I = new Set(this.sel);
+    const s = this.objs.filter((o) => I.has(o.id));
+    if (s.length === 0) return;
+
+    const prevOrder = this.objs.map((o) => o.id);
+
+    if (action === 'front') {
+      this.objs = this.objs.filter((o) => !I.has(o.id)).concat(s);
+    } else if (action === 'back') {
+      this.objs = s.concat(this.objs.filter((o) => !I.has(o.id)));
+    } else if (action === 'fwd') {
+      for (let i = this.objs.length - 2; i >= 0; i--) {
+        if (I.has(this.objs[i].id) && !I.has(this.objs[i + 1].id)) {
+          const temp = this.objs[i];
+          this.objs[i] = this.objs[i + 1];
+          this.objs[i + 1] = temp;
+        }
+      }
+    } else if (action === 'bwd') {
+      for (let i = 1; i < this.objs.length; i++) {
+        if (I.has(this.objs[i].id) && !I.has(this.objs[i - 1].id)) {
+          const temp = this.objs[i];
+          this.objs[i] = this.objs[i - 1];
+          this.objs[i - 1] = temp;
+        }
+      }
+    }
+
+    const nextOrder = this.objs.map((o) => o.id);
+    const changed = prevOrder.some((id, idx) => id !== nextOrder[idx]);
+    if (changed) {
+      this.history.commit({
+        reorder: {
+          sebelum: prevOrder,
+          sesudah: nextOrder,
+        },
+      });
+      this.rd();
+    }
+  }
+
+  public toggleLockSelected(): void {
+    if (this.hanyaLihat || this.sel.length === 0) return;
+    const targets = this.selObjs();
+    if (targets.length === 0) return;
+
+    const targetLock = !targets.some((o) => o.lock);
+    const sebelum = targets.map(cloneObj);
+    targets.forEach((o) => {
+      o.lock = targetLock;
+    });
+
+    if (targetLock) {
+      this.setSelection([]);
+    }
+
+    this.history.commit({
+      ubah: sebelum.map((s, idx) => ({ sebelum: s, sesudah: cloneObj(targets[idx]) })),
+    });
+    this.toast(targetLock ? `${targets.length} objek dikunci` : 'Objek dibuka kuncinya');
+    this.rd();
+  }
+
+  public get canPaste(): boolean {
+    return this.clip.length > 0;
+  }
+
+  public get hasLockedSelected(): boolean {
+    return this.selObjs().some((o) => !!o.lock);
   }
 
   public clearAll(): void {
@@ -725,6 +809,9 @@ export class Board {
       return;
     }
 
+    if (this.options.onContextMenu) {
+      this.options.onContextMenu(null);
+    }
     if (this.options.onCloseTextEditor) {
       this.options.onCloseTextEditor();
     }
@@ -1369,6 +1456,23 @@ export class Board {
       else this.group();
       return;
     }
+    if (m && (k === 'l' || e.code === 'KeyL')) {
+      e.preventDefault();
+      this.toggleLockSelected();
+      return;
+    }
+    if (m && (k === ']' || e.code === 'BracketRight')) {
+      e.preventDefault();
+      if (e.shiftKey) this.zOrder('front');
+      else this.zOrder('fwd');
+      return;
+    }
+    if (m && (k === '[' || e.code === 'BracketLeft')) {
+      e.preventDefault();
+      if (e.shiftKey) this.zOrder('back');
+      else this.zOrder('bwd');
+      return;
+    }
     if (m && k === 'd') {
       e.preventDefault();
       this.duplicateSelected();
@@ -1385,6 +1489,9 @@ export class Board {
       return;
     }
     if (k === 'escape') {
+      if (this.options.onContextMenu) {
+        this.options.onContextMenu(null);
+      }
       if (document.body.classList.contains('pres')) {
         this.setPresentation(false);
       } else {
@@ -1467,6 +1574,22 @@ export class Board {
     }
   };
 
+  private handleContextMenu = (e: MouseEvent): void => {
+    e.preventDefault();
+    if (this.hanyaLihat) return;
+
+    const p = this.toWorld(e.clientX, e.clientY);
+    const o = topAt(this.objs, p, 6 / this.view.z, true);
+    if (o && !this.sel.includes(o.id)) {
+      const groupIds = o.g ? this.objs.filter((x) => x.g === o.g).map((x) => x.id) : [o.id];
+      this.setSelection(groupIds);
+    }
+
+    if (this.options.onContextMenu) {
+      this.options.onContextMenu({ x: e.clientX, y: e.clientY });
+    }
+  };
+
   private bindEvents(): void {
     this.canvas.addEventListener('pointerdown', this.handlePointerDown);
     this.canvas.addEventListener('pointermove', this.handlePointerMove);
@@ -1475,7 +1598,7 @@ export class Board {
     this.canvas.addEventListener('pointerleave', this.handlePointerLeave);
     this.canvas.addEventListener('dblclick', this.handleDblClick);
     this.canvas.addEventListener('wheel', this.handleWheel, { passive: false });
-    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.canvas.addEventListener('contextmenu', this.handleContextMenu);
 
     window.addEventListener('resize', this.handleResize);
     window.addEventListener('keydown', this.handleKeyDown);
@@ -1505,6 +1628,7 @@ export class Board {
     this.canvas.removeEventListener('pointerleave', this.handlePointerLeave);
     this.canvas.removeEventListener('dblclick', this.handleDblClick);
     this.canvas.removeEventListener('wheel', this.handleWheel);
+    this.canvas.removeEventListener('contextmenu', this.handleContextMenu);
 
     window.removeEventListener('resize', this.handleResize);
     window.removeEventListener('keydown', this.handleKeyDown);

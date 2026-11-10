@@ -127,12 +127,14 @@ export interface LocalOp {
   tambah?: CanvasObj[];
   hapus?: CanvasObj[];
   ubah?: { sebelum: CanvasObj; sesudah: CanvasObj }[];
+  reorder?: { sebelum: string[]; sesudah: string[] };
 }
 
 export interface UbahEventPayload {
   tambah?: CanvasObj[];
   ubah?: CanvasObj[];
   hapus?: string[];
+  reorder?: string[];
 }
 
 export interface LaserPoint extends Pt {

@@ -188,9 +188,16 @@ export function hit(o: CanvasObj, p: Pt, t = 6): boolean {
   return pt.x >= b.x - t && pt.x <= b.x + b.w + t && pt.y >= b.y - t && pt.y <= b.y + b.h + t;
 }
 
-export function topAt(objs: CanvasObj[], p: Pt, t = 6): CanvasObj | undefined {
+export function topAt(
+  objs: CanvasObj[],
+  p: Pt,
+  t = 6,
+  includeLocked = false
+): CanvasObj | undefined {
   for (let i = objs.length - 1; i >= 0; i--) {
-    if (hit(objs[i], p, t)) return objs[i];
+    const o = objs[i];
+    if (!includeLocked && o.lock) continue;
+    if (hit(o, p, t)) return o;
   }
   return undefined;
 }
