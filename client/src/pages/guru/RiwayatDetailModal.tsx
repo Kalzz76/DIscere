@@ -114,6 +114,39 @@ interface LaporanBalapDetail {
   laporanPemain: BalapPemainLaporan[];
 }
 
+interface LaporanKerupukSoloDetail {
+  sessionId: string;
+  templateJudul: string;
+  statusAkhir: 'FINISHED' | 'STOPPED';
+  dihentikanManual: boolean;
+  konfigurasi?: {
+    targetKerupuk: number;
+    kesulitan: string;
+    probabilitas: Record<string, number>;
+  };
+  targetKerupuk: number;
+  sisaKerupuk: number;
+  progresPersen: number;
+  skorTotal: number;
+  skorPembelajaran: number;
+  skorDasarBenar: number;
+  totalBonusStreak: number;
+  bonusKeberuntungan: number;
+  bonusPenyelesaian: number;
+  totalBenar: number;
+  totalSalah: number;
+  akurasiPersen: number;
+  streakTertinggi: number;
+  rataRataWaktuJawabMs: number;
+  statistikGigitan?: {
+    besar: number;
+    sedang: number;
+    kecil: number;
+    sangat_kecil: number;
+    zonk: number;
+  };
+}
+
 interface DetailData {
   sessionId: string;
   templateJudul: string;
@@ -129,6 +162,7 @@ interface DetailData {
   totalSoalDimainkan: number;
   laporanPanjatPinang?: LaporanPanjatDetail | null;
   laporanBalapKarung?: LaporanBalapDetail | null;
+  laporanKerupukSolo?: LaporanKerupukSoloDetail | null;
   statsPerSoal: SoalStat[];
   soalPalingSeringSalah: {
     questionId: string;
@@ -219,9 +253,9 @@ export function RiwayatDetailModal({
                   : 'Materi Kuis Tarik Tambang'}
               </span>
               <span className="portal-tag yellow font-bold">
-                {detail.game === 'panjat_pinang' ||
-                detail.game === 'balap_karung' ||
-                detail.game === 'makan_kerupuk'
+                {detail.game === 'makan_kerupuk'
+                  ? 'Mode Solo (Perangkat Guru)'
+                  : detail.game === 'panjat_pinang' || detail.game === 'balap_karung'
                   ? 'Individu Multiplayer'
                   : `Mode ${detail.mode === 'multi' ? 'Multiplayer' : 'Solo'}`}
               </span>
@@ -241,7 +275,79 @@ export function RiwayatDetailModal({
             </div>
           </div>
 
-          {detail.game === 'balap_karung' && detail.laporanBalapKarung ? (
+          {detail.game === 'makan_kerupuk' && detail.laporanKerupukSolo ? (
+            <div className="space-y-4">
+              {/* Ringkasan Skor Mode Solo Makan Kerupuk */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="p-3 bg-[#1d3b2e] text-[#f4ecd8] rounded-xl">
+                  <div className="text-xs font-bold opacity-80">Skor Total</div>
+                  <div className="portal-cv text-3xl">{detail.laporanKerupukSolo.skorTotal}</div>
+                </div>
+                <div className="p-3 bg-[#f4ecd9] border border-[#e0d5b8] rounded-xl">
+                  <div className="text-xs font-bold text-[#6b7d6c]">Skor Pembelajaran</div>
+                  <div className="portal-cv text-2xl text-[#1d3b2e]">
+                    {detail.laporanKerupukSolo.skorPembelajaran}
+                  </div>
+                  <div className="text-[11px] text-[#6b7d6c]">
+                    Benar {detail.laporanKerupukSolo.skorDasarBenar} + Streak{' '}
+                    {detail.laporanKerupukSolo.totalBonusStreak}
+                  </div>
+                </div>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <div className="text-xs font-bold text-amber-800">Keberuntungan Gigitan</div>
+                  <div className="portal-cv text-2xl text-amber-800">
+                    +{detail.laporanKerupukSolo.bonusKeberuntungan}
+                  </div>
+                </div>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <div className="text-xs font-bold text-emerald-700">Bonus Penyelesaian</div>
+                  <div className="portal-cv text-2xl text-emerald-800">
+                    +{detail.laporanKerupukSolo.bonusPenyelesaian}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#fbf6e9] border border-[#e0d5b8] p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-[#1d3b2e]">
+                <span>
+                  Status Akhir:{' '}
+                  <span className="uppercase">
+                    {detail.laporanKerupukSolo.statusAkhir === 'FINISHED'
+                      ? 'Selesai (Kerupuk Habis)'
+                      : 'Dihentikan Guru'}
+                  </span>
+                </span>
+                <span>
+                  Target: {detail.laporanKerupukSolo.targetKerupuk} pt • Sisa:{' '}
+                  {detail.laporanKerupukSolo.sisaKerupuk} pt (Progres{' '}
+                  {detail.laporanKerupukSolo.progresPersen}%)
+                </span>
+                <span>
+                  Akurasi: {detail.laporanKerupukSolo.akurasiPersen}% (Streak maks{' '}
+                  {detail.laporanKerupukSolo.streakTertinggi}x)
+                </span>
+              </div>
+
+              {detail.laporanKerupukSolo.statistikGigitan && (
+                <div className="grid grid-cols-5 gap-2 text-center text-xs">
+                  {[
+                    { label: 'Besar', val: detail.laporanKerupukSolo.statistikGigitan.besar },
+                    { label: 'Sedang', val: detail.laporanKerupukSolo.statistikGigitan.sedang },
+                    { label: 'Kecil', val: detail.laporanKerupukSolo.statistikGigitan.kecil },
+                    { label: 'Mini', val: detail.laporanKerupukSolo.statistikGigitan.sangat_kecil },
+                    { label: 'Zonk', val: detail.laporanKerupukSolo.statistikGigitan.zonk },
+                  ].map((g) => (
+                    <div
+                      key={g.label}
+                      className="p-2 bg-white border border-[#e0d5b8] rounded-xl font-bold"
+                    >
+                      <div className="text-[11px] text-[#6b7d6c]">{g.label}</div>
+                      <div className="text-lg font-black text-[#1d3b2e]">{g.val}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : detail.game === 'balap_karung' && detail.laporanBalapKarung ? (
             <div className="space-y-4">
               {/* Ringkasan Lomba Balap Karung */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">

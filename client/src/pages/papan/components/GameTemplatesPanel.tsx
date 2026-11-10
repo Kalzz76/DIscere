@@ -152,7 +152,7 @@ export function GameTemplatesPanel({
         method: 'POST',
         body: JSON.stringify({
           templateId: template.id,
-          mode: template.mode,
+          mode: template.game === 'makan_kerupuk' ? 'solo' : template.mode,
           game: template.game,
         }),
       });
@@ -343,10 +343,15 @@ export function GameTemplatesPanel({
                   <span
                     style={{
                       textTransform: 'capitalize',
-                      color: item.mode === 'multi' ? '#60a5fa' : '#34d399',
+                      color:
+                        item.game !== 'makan_kerupuk' && item.mode === 'multi'
+                          ? '#60a5fa'
+                          : '#34d399',
                     }}
                   >
-                    {item.mode === 'multi' ? 'Multiplayer' : 'Solo'}
+                    {item.game !== 'makan_kerupuk' && item.mode === 'multi'
+                      ? 'Multiplayer'
+                      : 'Solo'}
                   </span>
                 </small>
               </div>

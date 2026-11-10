@@ -39,9 +39,9 @@ export const MOCK_TEMPLATES_SAYA: GameTemplateItem[] = [
     id: 'mock-saya-3',
     judul: 'Tantangan Makan Kerupuk Sains',
     game: 'makan_kerupuk',
-    mode: 'multi',
+    mode: 'solo',
     questionsCount: 10,
-    deskripsi: 'Lomba seru kerupuk virtual seputar rantai makanan dan ekosistem.',
+    deskripsi: 'Lomba seru kerupuk virtual mode solo pada perangkat guru.',
   },
 ];
 

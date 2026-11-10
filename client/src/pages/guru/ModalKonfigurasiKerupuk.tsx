@@ -1,17 +1,16 @@
-import React, { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Modal } from '../../components';
 import {
   Sparkles,
-  Users,
-  Clock,
-  UserCheck,
+  Target,
+  Play,
   AlertTriangle,
   CheckCircle2,
-  Play,
-  RotateCcw,
+  Monitor,
+  Sliders,
 } from 'lucide-react';
 
-export interface ProbabilitasForm {
+export interface ProbabilitasConfig {
   besar: number;
   sedang: number;
   kecil: number;
@@ -19,11 +18,14 @@ export interface ProbabilitasForm {
   zonk: number;
 }
 
+export type KesulitanKerupuk = 'mudah' | 'normal' | 'sulit' | 'custom';
+export type TargetKerupukPreset = '50' | '100' | '150' | '200' | 'custom';
+
 export interface KonfigurasiKerupukPayload {
-  probabilitas: ProbabilitasForm;
-  maxPeserta: number;
-  durasiSoalDetik: number;
-  allowLateJoin: boolean;
+  targetKerupuk: number;
+  targetPreset: TargetKerupukPreset;
+  kesulitan: KesulitanKerupuk;
+  probabilitas: ProbabilitasConfig;
 }
 
 interface ModalKonfigurasiKerupukProps {
@@ -35,11 +37,38 @@ interface ModalKonfigurasiKerupukProps {
   loading?: boolean;
 }
 
-const PRESET_DATA: Record<'normal' | 'mudah' | 'sulit', ProbabilitasForm> = {
-  normal: { besar: 15, sedang: 25, kecil: 35, sangat_kecil: 20, zonk: 5 },
-  mudah: { besar: 35, sedang: 30, kecil: 20, sangat_kecil: 12, zonk: 3 },
-  sulit: { besar: 5, sedang: 15, kecil: 30, sangat_kecil: 35, zonk: 15 },
+const TARGET_PRESETS: Array<{ value: number; key: TargetKerupukPreset; label: string; desc: string }> = [
+  { value: 50, key: '50', label: '50 Poin', desc: 'Cepat (~2-4 benar)' },
+  { value: 100, key: '100', label: '100 Poin', desc: 'Standar Kelas' },
+  { value: 150, key: '150', label: '150 Poin', desc: 'Sedang-Panjang' },
+  { value: 200, key: '200', label: '200 Poin', desc: 'Maraton Seru' },
+];
+
+const PRESET_DATA: Record<
+  'mudah' | 'normal' | 'sulit',
+  { label: string; deskripsi: string; probabilitas: ProbabilitasConfig }
+> = {
+  mudah: {
+    label: 'Mudah (Ceria)',
+    deskripsi: 'Peluang gigitan besar tinggi, zonk sangat jarang',
+    probabilitas: { besar: 35, sedang: 30, kecil: 20, sangat_kecil: 12, zonk: 3 },
+  },
+  normal: {
+    label: 'Normal (Seimbang)',
+    deskripsi: 'Kombinasi gigitan seimbang (standar kelas)',
+    probabilitas: { besar: 15, sedang: 25, kecil: 35, sangat_kecil: 20, zonk: 5 },
+  },
+  sulit: {
+    label: 'Sulit (Tantangan)',
+    deskripsi: 'Dominasi gigitan kecil/mini dengan peluang zonk 15%',
+    probabilitas: { besar: 5, sedang: 15, kecil: 30, sangat_kecil: 35, zonk: 15 },
+  },
 };
+
+function hitungPoinPengurangan(persen: number, target: number): number {
+  if (persen <= 0) return 0;
+  return Math.max(1, Math.round((target * persen) / 100));
+}
 
 export default function ModalKonfigurasiKerupuk({
   isOpen,
@@ -49,208 +78,317 @@ export default function ModalKonfigurasiKerupuk({
   onMulai,
   loading = false,
 }: ModalKonfigurasiKerupukProps) {
-  const [preset, setPreset] = useState<'normal' | 'mudah' | 'sulit' | 'kustom'>('normal');
-  const [probabilitas, setProbabilitas] = useState<ProbabilitasForm>({ ...PRESET_DATA.normal });
-  const [maxPeserta, setMaxPeserta] = useState<number>(30);
-  const [durasiSoalDetik, setDurasiSoalDetik] = useState<number>(15);
-  const [allowLateJoin, setAllowLateJoin] = useState<boolean>(true);
+  const [targetPreset, setTargetPreset] = useState<TargetKerupukPreset>('100');
+  const [customTargetInput, setCustomTargetInput] = useState<string>('120');
 
-  // Hitung total probabilitas live
-  const totalPersen =
-    Math.round(
-      (probabilitas.besar +
-        probabilitas.sedang +
-        probabilitas.kecil +
-        probabilitas.sangat_kecil +
-        probabilitas.zonk) *
-        100
-    ) / 100;
+  const [kesulitan, setKesulitan] = useState<KesulitanKerupuk>('normal');
+  const [probabilitas, setProbabilitas] = useState<ProbabilitasConfig>(
+    PRESET_DATA.normal.probabilitas
+  );
 
-  const isValidTotal = totalPersen === 100;
+  // Reset form ke default standar saat modal dibuka kembali
+  useEffect(() => {
+    if (isOpen) {
+      setTargetPreset('100');
+      setCustomTargetInput('120');
+      setKesulitan('normal');
+      setProbabilitas({ ...PRESET_DATA.normal.probabilitas });
+    }
+  }, [isOpen]);
 
-  const pilihPreset = (tipe: 'normal' | 'mudah' | 'sulit') => {
-    setPreset(tipe);
-    setProbabilitas({ ...PRESET_DATA[tipe] });
+  const targetKerupuk = useMemo(() => {
+    if (targetPreset === 'custom') {
+      const parsed = parseInt(customTargetInput, 10);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return parseInt(targetPreset, 10);
+  }, [targetPreset, customTargetInput]);
+
+  const isValidTarget = Number.isInteger(targetKerupuk) && targetKerupuk >= 10 && targetKerupuk <= 1000;
+
+  const totalPersen = useMemo(() => {
+    return (
+      Number(probabilitas.besar || 0) +
+      Number(probabilitas.sedang || 0) +
+      Number(probabilitas.kecil || 0) +
+      Number(probabilitas.sangat_kecil || 0) +
+      Number(probabilitas.zonk || 0)
+    );
+  }, [probabilitas]);
+
+  const isValidProb = Math.abs(totalPersen - 100) < 0.001;
+  const hasQuestions = totalSoal > 0;
+  const canSubmit = isValidTarget && isValidProb && hasQuestions && !loading;
+
+  const handlePilihPresetKesulitan = (key: 'mudah' | 'normal' | 'sulit') => {
+    setKesulitan(key);
+    setProbabilitas({ ...PRESET_DATA[key].probabilitas });
   };
 
-  const updateNilai = (kunci: keyof ProbabilitasForm, nilai: number) => {
-    setPreset('kustom');
+  const updateNilaiProb = (key: keyof ProbabilitasConfig, val: number) => {
+    const cleanVal = Number.isFinite(val) ? Math.max(0, Math.min(100, val)) : 0;
+    setKesulitan('custom');
     setProbabilitas((prev) => ({
       ...prev,
-      [kunci]: Math.max(0, Math.min(100, isNaN(nilai) ? 0 : nilai)),
+      [key]: cleanVal,
     }));
   };
 
-  const handleSimpanDanMulai = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isValidTotal) return;
+    if (!canSubmit) return;
     onMulai({
+      targetKerupuk,
+      targetPreset,
+      kesulitan,
       probabilitas,
-      maxPeserta,
-      durasiSoalDetik,
-      allowLateJoin,
     });
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Pengaturan Makan Kerupuk Challenge" maxWidth="lg">
-      <form onSubmit={handleSimpanDanMulai} className="space-y-5 text-[#1d3b2e]">
-        {/* Banner Info Materi */}
-        <div className="bg-[#fcf8ed] border border-[#e0d5b8] rounded-xl p-3.5 flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b7d6c] block">
-              Materi Kuis
-            </span>
-            <p className="font-bold text-sm text-[#1d3b2e] line-clamp-1">{templateJudul}</p>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Konfigurasi Solo — Makan Kerupuk Challenge"
+      maxWidth="lg"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4 text-[#1d3b2e]">
+        {/* Banner Informasi Mode Solo Guru */}
+        <div className="bg-[#f4ecd9] border border-[#e0d5b8] p-3.5 rounded-xl flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <div className="p-2 rounded-lg bg-[#1d3b2e] text-[#f4ecd9] shrink-0 mt-0.5">
+              <Monitor className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#6b7d6c]">
+                Mode Solo • Perangkat Guru (Tanpa PIN / HP Siswa)
+              </p>
+              <h4 className="font-bold text-sm leading-snug">{templateJudul}</h4>
+              <p className="text-xs text-[#6b7d6c] mt-0.5">
+                {totalSoal} soal tersedia • Aturan dikunci selama sesi berjalan
+              </p>
+            </div>
           </div>
-          <span className="px-2.5 py-1 bg-[#1d3b2e] text-[#f4ecd8] text-xs font-bold rounded-lg shrink-0">
-            {totalSoal} Soal
-          </span>
+          <span className="portal-tag green shrink-0 font-bold">1 Perangkat</span>
         </div>
 
-        {/* 1. Pemilihan Preset Probabilitas */}
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider mb-2 flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-[#d97706]" /> Probabilitas Peluang Gigitan
+        {!hasQuestions && (
+          <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-xs font-semibold flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>
+              Template ini belum memiliki soal. Tambahkan minimal 1 soal sebelum memulai permainan.
             </span>
-            <button
-              type="button"
-              onClick={() => pilihPreset('normal')}
-              className="text-[11px] font-semibold text-[#1d3b2e] hover:underline flex items-center gap-1"
-            >
-              <RotateCcw className="w-3 h-3" /> Reset Normal
-            </button>
+          </div>
+        )}
+
+        {/* 1. Target Poin Kerupuk */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+            <Target className="w-3.5 h-3.5 text-[#c8362f]" />
+            1. Target Poin Kerupuk
           </label>
-
-          <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            {TARGET_PRESETS.map((p) => {
+              const aktif = targetPreset === p.key;
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setTargetPreset(p.key)}
+                  className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                    aktif
+                      ? 'bg-[#c8362f] text-white border-[#c8362f] shadow-sm'
+                      : 'bg-[#fcf8ed] text-[#1d3b2e] border-[#e0d5b8] hover:border-[#c8362f]/50'
+                  }`}
+                >
+                  <div className="text-xs font-extrabold">{p.label}</div>
+                  <div className={`text-[10px] mt-0.5 ${aktif ? 'text-white/85' : 'text-[#6b7d6c]'}`}>
+                    {p.desc}
+                  </div>
+                </button>
+              );
+            })}
             <button
               type="button"
-              onClick={() => pilihPreset('normal')}
-              className={`py-2 px-3 text-xs font-bold rounded-lg border transition-all text-center ${
-                preset === 'normal'
+              onClick={() => setTargetPreset('custom')}
+              className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                targetPreset === 'custom'
                   ? 'bg-[#1d3b2e] text-white border-[#1d3b2e] shadow-sm'
-                  : 'bg-white text-[#1d3b2e] border-[#e0d5b8] hover:bg-[#f7f2e4]'
+                  : 'bg-[#fcf8ed] text-[#1d3b2e] border-[#e0d5b8] hover:border-[#1d3b2e]/50'
               }`}
             >
-              Normal (15-25-35)
-            </button>
-            <button
-              type="button"
-              onClick={() => pilihPreset('mudah')}
-              className={`py-2 px-3 text-xs font-bold rounded-lg border transition-all text-center ${
-                preset === 'mudah'
-                  ? 'bg-[#1d3b2e] text-white border-[#1d3b2e] shadow-sm'
-                  : 'bg-white text-[#1d3b2e] border-[#e0d5b8] hover:bg-[#f7f2e4]'
-              }`}
-            >
-              Mudah (Kenyang Cepat)
-            </button>
-            <button
-              type="button"
-              onClick={() => pilihPreset('sulit')}
-              className={`py-2 px-3 text-xs font-bold rounded-lg border transition-all text-center ${
-                preset === 'sulit'
-                  ? 'bg-[#1d3b2e] text-white border-[#1d3b2e] shadow-sm'
-                  : 'bg-white text-[#1d3b2e] border-[#e0d5b8] hover:bg-[#f7f2e4]'
-              }`}
-            >
-              Sulit (Banyak Zonk)
+              <div className="text-xs font-extrabold">Kustom</div>
+              <div
+                className={`text-[10px] mt-0.5 ${
+                  targetPreset === 'custom' ? 'text-white/85' : 'text-[#6b7d6c]'
+                }`}
+              >
+                10 – 1000 pt
+              </div>
             </button>
           </div>
 
-          {/* 5 Slider Probabilitas */}
+          {targetPreset === 'custom' && (
+            <div className="flex flex-wrap items-center gap-3 bg-[#fcf8ed] border border-[#e0d5b8] p-3 rounded-xl">
+              <label className="text-xs font-bold">Masukkan Target Poin (bilangan bulat):</label>
+              <input
+                type="number"
+                min={10}
+                max={1000}
+                step={1}
+                value={customTargetInput}
+                onChange={(e) => setCustomTargetInput(e.target.value)}
+                className="w-28 px-3 py-1.5 bg-white border border-[#e0d5b8] rounded-lg text-sm font-mono font-bold text-[#1d3b2e] focus:outline-none focus:border-[#1d3b2e]"
+              />
+              {!isValidTarget && (
+                <span className="text-xs font-bold text-red-600">
+                  Target harus bilangan bulat antara 10 hingga 1000.
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Pratinjau Proporsional Nilai Pengurangan */}
+          {isValidTarget && (
+            <div className="flex flex-wrap gap-2 text-[11px] bg-white/70 border border-[#e0d5b8] px-3 py-2 rounded-xl">
+              <span className="font-bold text-[#6b7d6c]">Dampak pada Target {targetKerupuk} pt:</span>
+              <span className="font-semibold text-amber-800">
+                Besar -{hitungPoinPengurangan(40, targetKerupuk)}pt
+              </span>
+              <span>•</span>
+              <span className="font-semibold text-emerald-800">
+                Sedang -{hitungPoinPengurangan(25, targetKerupuk)}pt
+              </span>
+              <span>•</span>
+              <span className="font-semibold text-blue-800">
+                Kecil -{hitungPoinPengurangan(10, targetKerupuk)}pt
+              </span>
+              <span>•</span>
+              <span className="font-semibold text-slate-700">
+                Mini -{hitungPoinPengurangan(5, targetKerupuk)}pt
+              </span>
+              <span>•</span>
+              <span className="font-semibold text-red-700">Zonk -0pt</span>
+            </div>
+          )}
+        </div>
+
+        {/* 2. Tingkat Kesulitan & Probabilitas Gigitan */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#c8362f]" />
+              2. Preset Kesulitan &amp; Probabilitas Gigitan
+            </label>
+            <span className="text-[11px] font-bold text-[#6b7d6c] flex items-center gap-1">
+              <Sliders className="w-3 h-3" />
+              {kesulitan === 'custom' ? 'Mode Kustom' : `Preset ${PRESET_DATA[kesulitan].label}`}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            {(Object.keys(PRESET_DATA) as Array<'mudah' | 'normal' | 'sulit'>).map((key) => {
+              const p = PRESET_DATA[key];
+              const isSelected = kesulitan === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handlePilihPresetKesulitan(key)}
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#1d3b2e] text-white border-[#1d3b2e] shadow-sm'
+                      : 'bg-[#fcf8ed] text-[#1d3b2e] border-[#e0d5b8] hover:border-[#1d3b2e]/50'
+                  }`}
+                >
+                  <div className="text-xs font-bold">{p.label}</div>
+                  <div
+                    className={`text-[10px] leading-tight mt-0.5 ${
+                      isSelected ? 'text-white/80' : 'text-[#6b7d6c]'
+                    }`}
+                  >
+                    {p.deskripsi}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 5 Slider & Input Probabilitas */}
           <div className="space-y-2.5 bg-[#fcf8ed] border border-[#e0d5b8] p-3.5 rounded-xl">
-            {/* Gigitan Besar */}
-            <div>
-              <div className="flex justify-between text-xs font-bold mb-1">
-                <span>🍖 Gigitan Besar (-40% kerupuk, +40 pt)</span>
-                <span className="font-mono text-sm text-[#1d3b2e]">{probabilitas.besar}%</span>
+            {[
+              {
+                key: 'besar' as const,
+                nama: 'Gigitan Besar',
+                detail: `-40% kerupuk (-${isValidTarget ? hitungPoinPengurangan(40, targetKerupuk) : '?'} pt), +40 keberuntungan`,
+                accent: 'accent-[#1d3b2e]',
+              },
+              {
+                key: 'sedang' as const,
+                nama: 'Gigitan Sedang',
+                detail: `-25% kerupuk (-${isValidTarget ? hitungPoinPengurangan(25, targetKerupuk) : '?'} pt), +25 keberuntungan`,
+                accent: 'accent-[#1d3b2e]',
+              },
+              {
+                key: 'kecil' as const,
+                nama: 'Gigitan Kecil',
+                detail: `-10% kerupuk (-${isValidTarget ? hitungPoinPengurangan(10, targetKerupuk) : '?'} pt), +10 keberuntungan`,
+                accent: 'accent-[#1d3b2e]',
+              },
+              {
+                key: 'sangat_kecil' as const,
+                nama: 'Gigitan Mini',
+                detail: `-5% kerupuk (-${isValidTarget ? hitungPoinPengurangan(5, targetKerupuk) : '?'} pt), +5 keberuntungan`,
+                accent: 'accent-[#1d3b2e]',
+              },
+              {
+                key: 'zonk' as const,
+                nama: 'Zonk / Tidak Dapat Gigitan',
+                detail: '0% kerupuk, +0 keberuntungan',
+                accent: 'accent-[#c8362f]',
+              },
+            ].map((item) => (
+              <div key={item.key}>
+                <div className="flex items-center justify-between text-xs font-bold mb-1 gap-2">
+                  <span>
+                    {item.nama}{' '}
+                    <span className="font-normal text-[#6b7d6c]">({item.detail})</span>
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={probabilitas[item.key]}
+                      onChange={(e) =>
+                        updateNilaiProb(item.key, parseFloat(e.target.value || '0'))
+                      }
+                      className="w-14 px-1.5 py-0.5 text-right font-mono text-xs bg-white border border-[#e0d5b8] rounded"
+                    />
+                    <span className="font-mono text-xs">%</span>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={probabilitas[item.key]}
+                  onChange={(e) => updateNilaiProb(item.key, parseInt(e.target.value, 10))}
+                  className={`w-full ${item.accent} h-2 bg-[#e0d5b8] rounded-lg appearance-none cursor-pointer`}
+                />
               </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={probabilitas.besar}
-                onChange={(e) => updateNilai('besar', parseInt(e.target.value))}
-                className="w-full accent-[#1d3b2e] h-2 bg-[#e0d5b8] rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-
-            {/* Gigitan Sedang */}
-            <div>
-              <div className="flex justify-between text-xs font-bold mb-1">
-                <span>🥪 Gigitan Sedang (-25% kerupuk, +25 pt)</span>
-                <span className="font-mono text-sm text-[#1d3b2e]">{probabilitas.sedang}%</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={probabilitas.sedang}
-                onChange={(e) => updateNilai('sedang', parseInt(e.target.value))}
-                className="w-full accent-[#1d3b2e] h-2 bg-[#e0d5b8] rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-
-            {/* Gigitan Kecil */}
-            <div>
-              <div className="flex justify-between text-xs font-bold mb-1">
-                <span>🍪 Gigitan Kecil (-10% kerupuk, +10 pt)</span>
-                <span className="font-mono text-sm text-[#1d3b2e]">{probabilitas.kecil}%</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={probabilitas.kecil}
-                onChange={(e) => updateNilai('kecil', parseInt(e.target.value))}
-                className="w-full accent-[#1d3b2e] h-2 bg-[#e0d5b8] rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-
-            {/* Gigitan Sangat Kecil */}
-            <div>
-              <div className="flex justify-between text-xs font-bold mb-1">
-                <span>🥟 Gigitan Sangat Kecil (-5% kerupuk, +5 pt)</span>
-                <span className="font-mono text-sm text-[#1d3b2e]">{probabilitas.sangat_kecil}%</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={probabilitas.sangat_kecil}
-                onChange={(e) => updateNilai('sangat_kecil', parseInt(e.target.value))}
-                className="w-full accent-[#1d3b2e] h-2 bg-[#e0d5b8] rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-
-            {/* Zonk */}
-            <div>
-              <div className="flex justify-between text-xs font-bold mb-1">
-                <span>💨 Zonk / Meleset (0% kerupuk, +0 pt)</span>
-                <span className="font-mono text-sm text-[#c8362f]">{probabilitas.zonk}%</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={probabilitas.zonk}
-                onChange={(e) => updateNilai('zonk', parseInt(e.target.value))}
-                className="w-full accent-[#c8362f] h-2 bg-[#e0d5b8] rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
+            ))}
           </div>
 
-          {/* Indikator Validasi Total Persen */}
-          <div className="mt-2 flex items-center justify-between px-1">
+          {/* Indikator Validasi Total 100% */}
+          <div className="flex items-center justify-between px-1">
             <span className="text-xs font-semibold">Total Probabilitas:</span>
             <div
               className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-md ${
-                isValidTotal ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'
+                isValidProb ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'
               }`}
             >
-              {isValidTotal ? (
+              {isValidProb ? (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5" /> Tepat 100% (Valid)
                 </>
@@ -263,83 +401,26 @@ export default function ModalKonfigurasiKerupuk({
           </div>
         </div>
 
-        {/* 2. Pengaturan Batas Peserta & Waktu */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          {/* Maksimum Peserta */}
-          <div className="bg-[#fcf8ed] border border-[#e0d5b8] p-3 rounded-xl">
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-[#1d3b2e]" /> Kapasitas Peserta
-            </label>
-            <select
-              value={maxPeserta}
-              onChange={(e) => setMaxPeserta(parseInt(e.target.value))}
-              className="w-full p-2 bg-white border border-[#e0d5b8] rounded-lg text-xs font-bold text-[#1d3b2e] focus:outline-none"
-            >
-              <option value={15}>15 Siswa (Kelas Kecil)</option>
-              <option value={30}>30 Siswa (Standar Kelas)</option>
-              <option value={45}>45 Siswa (Kelas Gabungan)</option>
-              <option value={60}>60 Siswa</option>
-              <option value={100}>100 Siswa (Maksimum)</option>
-            </select>
-          </div>
-
-          {/* Durasi per Soal */}
-          <div className="bg-[#fcf8ed] border border-[#e0d5b8] p-3 rounded-xl">
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-[#1d3b2e]" /> Waktu per Soal
-            </label>
-            <select
-              value={durasiSoalDetik}
-              onChange={(e) => setDurasiSoalDetik(parseInt(e.target.value))}
-              className="w-full p-2 bg-white border border-[#e0d5b8] rounded-lg text-xs font-bold text-[#1d3b2e] focus:outline-none"
-            >
-              <option value={10}>10 Detik (Cepat / Refleks)</option>
-              <option value={15}>15 Detik (Standar)</option>
-              <option value={20}>20 Detik (Santai)</option>
-              <option value={30}>30 Detik (Materi Menghitung)</option>
-            </select>
-          </div>
-        </div>
-
-        {/* 3. Izinkan Siswa Susulan (Late Join) */}
-        <div className="flex items-center justify-between bg-[#fcf8ed] border border-[#e0d5b8] p-3 rounded-xl">
-          <div className="flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-[#1d3b2e]" />
-            <div>
-              <p className="text-xs font-bold text-[#1d3b2e]">Izinkan Siswa Susulan</p>
-              <p className="text-[11px] text-[#6b7d6c]">
-                Siswa dapat bergabung ke kuis meskipun permainan sudah dimulai
-              </p>
-            </div>
-          </div>
-          <input
-            type="checkbox"
-            checked={allowLateJoin}
-            onChange={(e) => setAllowLateJoin(e.target.checked)}
-            className="w-4 h-4 accent-[#1d3b2e] cursor-pointer"
-          />
-        </div>
-
-        {/* Action Buttons */}
+        {/* Tombol Aksi */}
         <div className="flex justify-end gap-2 pt-3 border-t border-[#e0d5b8]">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 border border-[#e0d5b8] text-xs font-bold rounded-lg text-[#1d3b2e] hover:bg-[#f7f2e4] transition-colors"
+            className="px-4 py-2 border border-[#e0d5b8] text-xs font-bold rounded-lg text-[#1d3b2e] hover:bg-[#f7f2e4] transition-colors cursor-pointer"
           >
             Batal
           </button>
           <button
             type="submit"
-            disabled={!isValidTotal || loading}
+            disabled={!canSubmit}
             className={`px-5 py-2 text-xs font-bold rounded-lg flex items-center gap-2 text-white shadow-sm transition-all ${
-              !isValidTotal || loading
+              !canSubmit
                 ? 'bg-slate-400 cursor-not-allowed opacity-60'
                 : 'bg-[#1d3b2e] hover:bg-[#254b3b] cursor-pointer'
             }`}
           >
             <Play className="w-3.5 h-3.5" />
-            {loading ? 'Menyiapkan Sesi...' : 'Buat Sesi & Buka Lobi'}
+            {loading ? 'Menyiapkan Arena...' : 'Buka Arena Solo'}
           </button>
         </div>
       </form>

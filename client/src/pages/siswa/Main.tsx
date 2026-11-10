@@ -3,7 +3,6 @@ import { useSearchParams, Link } from 'react-router';
 import { getSocket } from '../../lib/socket';
 import { Button, Card } from '../../components';
 import { soundEffects } from '../../lib/soundEffects';
-import MainKerupuk from './MainKerupuk';
 import MainPanjatPinang from './MainPanjatPinang';
 import MainBalapKarung from './MainBalapKarung';
 import {
@@ -59,8 +58,6 @@ export default function MainSiswa() {
   const [templateJudul, setTemplateJudul] = useState<string>('');
   const [tim, setTim] = useState<'merah' | 'putih' | null>(null);
   const [gameType, setGameType] = useState<'tarik_tambang' | 'makan_kerupuk' | 'panjat_pinang' | 'balap_karung'>('tarik_tambang');
-  const [kerupukState, setKerupukState] = useState<any>(null);
-  const [kerupukLeaderboard, setKerupukLeaderboard] = useState<any[]>([]);
   const [panjatConfig, setPanjatConfig] = useState<any>(undefined);
   const [panjatState, setPanjatState] = useState<any>(undefined);
   const [panjatLeaderboard, setPanjatLeaderboard] = useState<any[]>([]);
@@ -163,8 +160,6 @@ export default function MainSiswa() {
             }
             if (res.game === 'makan_kerupuk') {
               setGameType('makan_kerupuk');
-              setKerupukState(res.peserta);
-              setKerupukLeaderboard(res.leaderboard || []);
             } else if (res.game === 'panjat_pinang') {
               setGameType('panjat_pinang');
               setPanjatConfig(res.config);
@@ -413,8 +408,6 @@ export default function MainSiswa() {
 
         if ((res as any).game === 'makan_kerupuk') {
           setGameType('makan_kerupuk');
-          setKerupukState((res as any).peserta);
-          setKerupukLeaderboard((res as any).leaderboard || []);
         } else if ((res as any).game === 'panjat_pinang') {
           setGameType('panjat_pinang');
           setPanjatConfig((res as any).config);
@@ -1120,23 +1113,20 @@ export default function MainSiswa() {
     );
   }
 
-  // ==========================================
-  // RENDER MAKAN KERUPUK CHALLENGE (JIKA SESI ADALAH MAKAN KERUPUK)
-  // ==========================================
-  if (gameType === 'makan_kerupuk' && sessionId && pesertaId) {
+  // Makan Kerupuk kini dijalankan pada Mode Solo perangkat guru (tidak perlu join siswa)
+  if (gameType === 'makan_kerupuk') {
     return (
-      <MainKerupuk
-        token={tokenInput}
-        nama={namaPeserta}
-        sessionId={sessionId}
-        pesertaId={pesertaId}
-        templateJudul={templateJudul}
-        initialStatus={stage === 'PLAYING' ? 'jalan' : stage === 'SELESAI' ? 'selesai' : 'lobi'}
-        initialPesertaState={kerupukState}
-        initialLeaderboard={kerupukLeaderboard}
-        initialSoalAktif={soalAktif}
-        onKeluar={handleKeluar}
-      />
+      <div className="min-h-screen bg-[#f4ecd8] flex items-center justify-center p-6">
+        <Card className="max-w-md w-full p-6 text-center space-y-4">
+          <h2 className="text-xl font-black text-[#1d3b2e]">Makan Kerupuk Mode Solo</h2>
+          <p className="text-sm text-[#6b7d6c]">
+            Permainan Makan Kerupuk Challenge dijalankan langsung oleh guru pada satu layar proyektor tanpa menggunakan kode PIN siswa.
+          </p>
+          <Button variant="utama" onClick={handleKeluar} className="w-full">
+            Kembali ke Halaman Gabung
+          </Button>
+        </Card>
+      </div>
     );
   }
 

@@ -410,7 +410,7 @@ export default function DashboardGuru() {
     }
   };
 
-  // Handler: Konfirmasi & Mulai Sesi Makan Kerupuk dengan Konfigurasi
+  // Handler: Konfirmasi & Mulai Sesi Makan Kerupuk Mode Solo dengan Konfigurasi
   const handleKonfirmasiKerupuk = async (config: KonfigurasiKerupukPayload) => {
     if (!modalKerupukTemplate) return;
     try {
@@ -420,17 +420,14 @@ export default function DashboardGuru() {
         body: JSON.stringify({
           templateId: modalKerupukTemplate.id,
           game: 'makan_kerupuk',
-          mode: 'multi',
-          probabilitas: config.probabilitas,
-          maxPeserta: config.maxPeserta,
-          durasiSoalDetik: config.durasiSoalDetik,
-          allowLateJoin: config.allowLateJoin,
+          mode: 'solo',
+          kerupukConfig: config,
         }),
       });
       setModalKerupukTemplate(null);
       navigate(`/guru/sesi/${res.session.id}`);
     } catch (err: any) {
-      alert(err.pesan || 'Gagal membuat sesi Makan Kerupuk.');
+      alert(err.pesan || 'Gagal membuat sesi Makan Kerupuk Solo.');
     } finally {
       setKerupukCreating(false);
     }
@@ -1070,7 +1067,7 @@ export default function DashboardGuru() {
                                     : r.game === 'balap_karung'
                                     ? `Juara: ${r.timMenang} (${r.posisiAkhir}m)`
                                     : r.game === 'makan_kerupuk'
-                                    ? `Juara: ${r.timMenang}`
+                                    ? `Mode Solo • Skor: ${r.skorMerah} (${r.posisiAkhir}%)`
                                     : `Pemenang: ${isRedWin ? 'TIM MERAH' : isWhiteWin ? 'TIM PUTIH' : 'SERI'}`}
                                   <br />
                                   {dateStr}
@@ -1225,9 +1222,10 @@ export default function DashboardGuru() {
                                 {labelJenisGame(tmpl.game)}
                               </span>
                               <span className="portal-tag yellow">
-                                {tmpl.game === 'makan_kerupuk' ||
-                                tmpl.game === 'panjat_pinang' ||
-                                tmpl.game === 'balap_karung'
+                                {tmpl.game === 'makan_kerupuk'
+                                  ? 'Mode Solo (Perangkat Guru)'
+                                  : tmpl.game === 'panjat_pinang' ||
+                                    tmpl.game === 'balap_karung'
                                   ? 'Mode Individu'
                                   : tmpl.mode === 'multi'
                                   ? 'Mode Multiplayer'
@@ -1597,8 +1595,9 @@ export default function DashboardGuru() {
                                           </>
                                         ) : r.game === 'makan_kerupuk' ? (
                                           <>
-                                            Pemenang: <span className="font-bold">{r.timMenang}</span> • Skor Tertinggi:{' '}
-                                            <span className="font-mono font-bold">{r.skorMerah}</span>
+                                            Status: <span className="font-bold">{r.timMenang}</span> • Skor Total:{' '}
+                                            <span className="font-mono font-bold">{r.skorMerah}</span> • Progres:{' '}
+                                            <span className="font-mono font-bold">{r.posisiAkhir}%</span>
                                           </>
                                         ) : (
                                           <>
