@@ -2,16 +2,32 @@ import crypto from 'crypto';
 import { z } from 'zod';
 
 /**
- * Modul Domain Game Edukasi: Makan Kerupuk Challenge (Mode Solo — Perangkat Guru)
- * Mengatur tipe data konfigurasi target & probabilitas gigitan, preset kesulitan,
- * gacha gigitan berbasis RNG backend, validasi jawaban berbasis choiceId & presentationId,
- * serta kalkulasi skor terpisah (Pembelajaran, Keberuntungan, Penyelesaian).
+ * Modul Domain Bersama (Shared Engine) Game Edukasi: Makan Kerupuk Challenge
+ * Digunakan bersama oleh Mode Solo (Perangkat Guru) dan Mode Multiplayer (HP Siswa):
+ * - Konfigurasi target kerupuk & probabilitas gigitan immutable
+ * - Pengacakan soal Fisher-Yates (crypto.randomInt) & anti-repeat berurutan
+ * - Pembentukan & validasi presentasi soal aman berbasis presentationId & choiceId
+ * - Undian RNG gigitan kerupuk di backend
+ * - Kalkulasi skor terpisah (Pembelajaran, Streak 3, Keberuntungan, Penyelesaian)
+ * - Kriteria pengurutan leaderboard Multiplayer
  */
 
+export type PlayModeKerupuk = 'SOLO' | 'MULTIPLAYER';
 export type TipeGigitan = 'besar' | 'sedang' | 'kecil' | 'sangat_kecil' | 'zonk';
 export type KesulitanKerupuk = 'mudah' | 'normal' | 'sulit' | 'custom';
 export type TargetKerupukPreset = '50' | '100' | '150' | '200' | 'custom';
 export type StateKerupukSolo = 'READY' | 'PLAYING' | 'PAUSED' | 'FINISHED' | 'STOPPED';
+
+export interface SoalKerupuk {
+  id: string;
+  urutan: number;
+  teks: string;
+  opsiA: string;
+  opsiB: string;
+  opsiC: string;
+  jawabanBenar: string;
+  penjelasan: string | null;
+}
 
 export interface ProbabilitasConfig {
   besar: number;        // -40% target, +40 poin keberuntungan
@@ -26,6 +42,11 @@ export interface KonfigurasiKerupukSolo {
   targetPreset: TargetKerupukPreset;
   kesulitan: KesulitanKerupuk;
   probabilitas: ProbabilitasConfig;
+}
+
+export interface KonfigurasiKerupukMulti extends KonfigurasiKerupukSolo {
+  maxPeserta: number;
+  allowLateJoin: boolean;
 }
 
 export interface HasilGachaGigitan {
@@ -52,6 +73,20 @@ export interface SoalTampilKerupuk {
   pilihan: PilihanSoalKerupuk[];
 }
 
+export interface ActivePresentationKerupuk {
+  presentationId: string;
+  questionId: string;
+  nomorSoal: number;
+  teks: string;
+  pilihanList: PilihanSoalKerupuk[];
+  pilihanMap: Map<string, 'A' | 'B' | 'C'>;
+  correctChoiceId: string;
+  jawabanBenarKode: 'A' | 'B' | 'C';
+  penjelasan: string | null;
+  tampilPadaMs: number;
+  pausedDurationMs: number;
+}
+
 export interface RiwayatGigitanItem {
   urutan: number;
   questionId: string;
@@ -76,9 +111,9 @@ export interface SoloKerupukState {
   progresPersen: number;
   sisaPersen: number;
   skorTotal: number;
-  skorPembelajaran: number; // Nilai jawaban benar (+100) + bonus streak (+50 saat mencapai streak 3)
-  skorDasarBenar: number;   // Akumulasi +100 jawaban benar
-  totalBonusStreak: number; // Akumulasi +50 setiap rangkaian streak mencapai 3
+  skorPembelajaran: number;   // Jawaban benar (+100) + bonus streak (+50 saat mencapai streak 3)
+  skorDasarBenar: number;     // Akumulasi +100 jawaban benar
+  totalBonusStreak: number;   // Akumulasi +50 setiap rangkaian mencapai 3
   kaliBonusStreak: number;
   bonusKeberuntungan: number; // Akumulasi poin dari ukuran gigitan
   bonusPenyelesaian: number;  // +100 diberikan 1x tepat saat sisaKerupuk mencapai 0
@@ -163,9 +198,16 @@ export const konfigurasiKerupukSoloSchema = z.object({
   probabilitas: probabilitasSchema.optional(),
 });
 
-/**
- * Validasi manual probabilitas gacha gigitan agar totalnya tepat 100%.
- */
+export const konfigurasiKerupukMultiSchema = konfigurasiKerupukSoloSchema.extend({
+  maxPeserta: z
+    .number()
+    .int('Kapasitas peserta harus berupa bilangan bulat.')
+    .min(5, 'Kapasitas peserta minimal 5 siswa.')
+    .max(200, 'Kapasitas peserta maksimal 200 siswa.')
+    .default(45),
+  allowLateJoin: z.boolean().default(true),
+});
+
 export function validasiProbabilitas(prob: ProbabilitasConfig): {
   valid: boolean;
   total: number;
@@ -201,10 +243,6 @@ export function validasiProbabilitas(prob: ProbabilitasConfig): {
   return { valid: true, total: 100 };
 }
 
-/**
- * Membangun snapshot konfigurasi immutable untuk sesi Solo Makan Kerupuk.
- * Melempar error jika probabilitas atau targetKerupuk tidak valid.
- */
 export function bangunKonfigurasiKerupukSolo(
   input?: Partial<{
     targetKerupuk: number;
@@ -254,20 +292,36 @@ export function bangunKonfigurasiKerupukSolo(
   });
 }
 
-/**
- * Menghitung jumlah pengurangan poin kerupuk proporsional terhadap targetKerupuk.
- * Contoh untuk target 100: Besar=40, Sedang=25, Kecil=10, Mini=5, Zonk=0.
- * Contoh untuk target 200: Besar=80, Sedang=50, Kecil=20, Mini=10, Zonk=0.
- */
+export function bangunKonfigurasiKerupukMulti(
+  input?: Partial<{
+    targetKerupuk: number;
+    targetPreset: TargetKerupukPreset;
+    kesulitan: KesulitanKerupuk;
+    probabilitas: ProbabilitasConfig;
+    maxPeserta: number;
+    allowLateJoin: boolean;
+  }>
+): KonfigurasiKerupukMulti {
+  const base = bangunKonfigurasiKerupukSolo(input);
+  const maxPeserta =
+    typeof input?.maxPeserta === 'number' && Number.isInteger(input.maxPeserta)
+      ? Math.max(5, Math.min(200, input.maxPeserta))
+      : 45;
+  const allowLateJoin = input?.allowLateJoin ?? true;
+
+  return Object.freeze({
+    ...base,
+    maxPeserta,
+    allowLateJoin,
+  });
+}
+
 export function hitungPenguranganGigitan(tipe: TipeGigitan, targetKerupuk: number): number {
   const spec = GIGITAN_INFO[tipe];
   if (spec.persen <= 0) return 0;
   return Math.max(1, Math.round((targetKerupuk * spec.persen) / 100));
 }
 
-/**
- * Menghitung persentase progres kerupuk dimakan [0..100] dan sisa persen [0..100].
- */
 export function hitungPersentaseKerupuk(sisaKerupuk: number, targetKerupuk: number): {
   progresPersen: number;
   sisaPersen: number;
@@ -279,14 +333,135 @@ export function hitungPersentaseKerupuk(sisaKerupuk: number, targetKerupuk: numb
   return { progresPersen, sisaPersen };
 }
 
+export function normalisasiKodeJawaban(raw: string): 'A' | 'B' | 'C' {
+  const cleaned = String(raw || '').trim().toUpperCase();
+  if (cleaned === 'A' || cleaned === 'B' || cleaned === 'C') {
+    return cleaned;
+  }
+  throw new Error(`Kode kunci jawaban "${raw}" tidak valid pada bank soal.`);
+}
+
 /**
- * Mengundi hasil gacha gigitan kerupuk secara acak di backend menggunakan crypto.randomInt.
- * RNG pernah tidak boleh dijalankan di client.
+ * Mengacak ID soal dengan algoritma Fisher-Yates berbasis crypto.randomInt.
+ * Mencegah soal pertama siklus baru sama dengan soal terakhir yang tampil jika bank > 1.
  */
+export function siapkanAntreanSoalKerupuk(
+  questions: SoalKerupuk[],
+  terakhirSoalId?: string
+): string[] {
+  if (!questions || questions.length === 0) return [];
+  const ids = questions.map((q) => q.id);
+
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(0, i + 1);
+    const temp = ids[i];
+    ids[i] = ids[j];
+    ids[j] = temp;
+  }
+
+  if (ids.length > 1 && terakhirSoalId && ids[0] === terakhirSoalId) {
+    const swapIdx = crypto.randomInt(1, ids.length);
+    const temp = ids[0];
+    ids[0] = ids[swapIdx];
+    ids[swapIdx] = temp;
+  }
+
+  return ids;
+}
+
+/**
+ * Mengambil & membentuk presentasi soal aman berbasis presentationId + choiceId
+ * untuk satu pemain (guru pada Solo atau tiap siswa pada Multiplayer).
+ */
+export function siapkanPresentasiSoalDariAntrean(
+  questions: SoalKerupuk[],
+  antreanSoalIds: string[],
+  terakhirSoalId: string | undefined,
+  nomorSoalBaru: number,
+  sekarangMs: number = Date.now()
+): {
+  presentation: ActivePresentationKerupuk;
+  antreanBaru: string[];
+  terakhirSoalIdBaru: string;
+} {
+  if (!questions || questions.length === 0) {
+    throw new Error('Bank soal kosong. Tambahkan minimal 1 soal untuk memulai permainan.');
+  }
+
+  const queue = antreanSoalIds.length > 0
+    ? [...antreanSoalIds]
+    : siapkanAntreanSoalKerupuk(questions, terakhirSoalId);
+
+  const nextQuestionId = queue.shift();
+  const soal = questions.find((q) => q.id === nextQuestionId) || questions[0];
+
+  const presentationId = crypto.randomUUID();
+  const jawabanBenarKode = normalisasiKodeJawaban(soal.jawabanBenar);
+
+  const pilihanRaw: Array<{ kode: 'A' | 'B' | 'C'; teks: string }> = [
+    { kode: 'A', teks: soal.opsiA },
+    { kode: 'B', teks: soal.opsiB },
+    { kode: 'C', teks: soal.opsiC },
+  ];
+
+  const pilihanMap = new Map<string, 'A' | 'B' | 'C'>();
+  let correctChoiceId = '';
+
+  const pilihanList: PilihanSoalKerupuk[] = pilihanRaw.map((item) => {
+    const choiceId = `${presentationId}_${item.kode}_${crypto.randomBytes(4).toString('hex')}`;
+    pilihanMap.set(choiceId, item.kode);
+    if (item.kode === jawabanBenarKode) {
+      correctChoiceId = choiceId;
+    }
+    return {
+      choiceId,
+      label: item.kode,
+      teks: item.teks,
+    };
+  });
+
+  return {
+    presentation: {
+      presentationId,
+      questionId: soal.id,
+      nomorSoal: nomorSoalBaru,
+      teks: soal.teks,
+      pilihanList,
+      pilihanMap,
+      correctChoiceId,
+      jawabanBenarKode,
+      penjelasan: soal.penjelasan,
+      tampilPadaMs: sekarangMs,
+      pausedDurationMs: 0,
+    },
+    antreanBaru: queue,
+    terakhirSoalIdBaru: soal.id,
+  };
+}
+
+export function serialisasiSoalTampilKerupuk(
+  pres: ActivePresentationKerupuk | null,
+  totalSoalBank: number
+): SoalTampilKerupuk | null {
+  if (!pres) return null;
+  return {
+    presentationId: pres.presentationId,
+    questionId: pres.questionId,
+    nomorSoal: pres.nomorSoal,
+    totalSoalBank,
+    teks: pres.teks,
+    pilihan: pres.pilihanList.map((p) => ({
+      choiceId: p.choiceId,
+      label: p.label,
+      teks: p.teks,
+    })),
+  };
+}
+
 export function drawGachaGigitan(
   prob: ProbabilitasConfig,
   targetKerupuk: number = 100,
-  randomNormalized?: number // opsional khusus dependency injection pada pengujian unit deterministik
+  randomNormalized?: number
 ): HasilGachaGigitan {
   const keys: TipeGigitan[] = ['besar', 'sedang', 'kecil', 'sangat_kecil', 'zonk'];
   const validKeys = keys.filter((k) => Number(prob[k]) > 0);
@@ -298,7 +473,6 @@ export function drawGachaGigitan(
   if (typeof randomNormalized === 'number') {
     rollPercent = Math.min(99.999999, Math.max(0, randomNormalized * 100));
   } else {
-    // Gunakan skala 10.000 via crypto.randomInt agar mendukung pecahan desimal probabilitas hingga 0.01%
     const r = crypto.randomInt(0, 10000);
     rollPercent = r / 100;
   }
@@ -327,10 +501,10 @@ export function drawGachaGigitan(
   };
 }
 
-/**
- * Membuat state awal Solo Kerupuk bersih (nol skor, kerupuk utuh sesuai target).
- */
-export function buatStateKerupukAwal(targetKerupuk: number): SoloKerupukState {
+export function buatStateKerupukAwal(
+  targetKerupuk: number,
+  waktuMulaiMs: number | null = null
+): SoloKerupukState {
   return {
     sisaKerupuk: targetKerupuk,
     targetKerupuk,
@@ -349,7 +523,7 @@ export function buatStateKerupukAwal(targetKerupuk: number): SoloKerupukState {
     streakTertinggi: 0,
     bonusStreakDiberikanPadaRangkaian: false,
     selesaiKerupuk: false,
-    waktuMulaiMs: null,
+    waktuMulaiMs,
     waktuSelesaiMs: null,
     totalWaktuJawabMs: 0,
     jumlahJawab: 0,
@@ -381,12 +555,8 @@ export interface HasilProsesJawabanKerupuk {
 }
 
 /**
- * Memproses hasil jawaban guru pada Solo Mode Makan Kerupuk Challenge:
- * - Hanya boleh dipanggil ketika status permainan 'PLAYING' & kerupuk belum 0.
- * - Jawaban benar: +100 skorPembelajaran, +50 sekali per rangkaian saat mencapai streak 3,
- *   undian gigitan (besar/sedang/kecil/mini/zonk), kurangi sisaKerupuk proporsional (clamp >= 0),
- *   +100 bonusPenyelesaian sekali saat sisaKerupuk tepat mencapai 0.
- * - Jawaban salah: +0 poin, reset streak & flag streak rangkaian, tanpa gigitan.
+ * Mesin inti kalkulasi jawaban, undian gigitan, streak, & skor Makan Kerupuk Challenge.
+ * Dipakai identik oleh Solo Mode maupun setiap peserta pada Multiplayer Mode.
  */
 export function hitungHasilJawabanKerupukSolo(
   state: SoloKerupukState,
@@ -451,7 +621,6 @@ export function hitungHasilJawabanKerupukSolo(
     };
   }
 
-  // Jawaban Benar
   const poinDasar = 100;
   updated.totalBenar += 1;
   updated.skorDasarBenar += poinDasar;
@@ -460,7 +629,6 @@ export function hitungHasilJawabanKerupukSolo(
     updated.streakTertinggi = updated.streakBenar;
   }
 
-  // Bonus streak +50 diberikan SATU KALI pada setiap rangkaian ketika mencapai tepat 3
   let bonusStreak = 0;
   if (updated.streakBenar === 3 && !updated.bonusStreakDiberikanPadaRangkaian) {
     bonusStreak = 50;
@@ -471,7 +639,6 @@ export function hitungHasilJawabanKerupukSolo(
 
   updated.skorPembelajaran += poinDasar + bonusStreak;
 
-  // Undi gigitan kerupuk di backend menggunakan konfigurasi snapshot sesi
   const gachaRaw = drawGachaGigitan(config.probabilitas, config.targetKerupuk, randomNormalized);
   const sisaSebelum = updated.sisaKerupuk;
   const sisaBaru = Math.max(0, sisaSebelum - gachaRaw.penguranganPoinTarget);
@@ -491,7 +658,6 @@ export function hitungHasilJawabanKerupukSolo(
   updated.progresPersen = progresPersen;
   updated.sisaPersen = sisaPersen;
 
-  // Bonus penyelesaian +100 hanya 1x ketika sisa kerupuk pertama kali mencapai 0
   let bonusPenyelesaian = 0;
   let selesaiBaru = false;
   if (sisaBaru === 0 && !updated.selesaiKerupuk) {
@@ -538,4 +704,45 @@ export function hitungHasilJawabanKerupukSolo(
     stateUpdated: updated,
     gigitanLogItem: logBenar,
   };
+}
+
+export interface RankableKerupukPlayer {
+  id: string;
+  nama: string;
+  skorTotal: number;
+  totalBenar: number;
+  sisaKerupuk: number;
+  sisaPersen: number;
+  rataRataWaktuJawabMs: number;
+  jumlahJawab: number;
+}
+
+/**
+ * Kriteria pengurutan leaderboard Multiplayer Makan Kerupuk Challenge:
+ * 1. Total skor tertinggi (skorTotal desc)
+ * 2. Jumlah jawaban benar terbanyak (totalBenar desc)
+ * 3. Persentase kerupuk tersisa paling sedikit (sisaPersen asc)
+ * 4. Rata-rata waktu menjawab paling cepat (rataRataWaktuJawabMs asc)
+ * 5. Tie-break konsisten: nama alfabetis asc, lalu ID
+ */
+export function urutkanLeaderboardKerupuk<T extends RankableKerupukPlayer>(list: T[]): T[] {
+  return [...list].sort((a, b) => {
+    if (b.skorTotal !== a.skorTotal) {
+      return b.skorTotal - a.skorTotal;
+    }
+    if (b.totalBenar !== a.totalBenar) {
+      return b.totalBenar - a.totalBenar;
+    }
+    if (a.sisaPersen !== b.sisaPersen) {
+      return a.sisaPersen - b.sisaPersen;
+    }
+    const waktuA = a.jumlahJawab > 0 ? a.rataRataWaktuJawabMs : Number.MAX_SAFE_INTEGER;
+    const waktuB = b.jumlahJawab > 0 ? b.rataRataWaktuJawabMs : Number.MAX_SAFE_INTEGER;
+    if (waktuA !== waktuB) {
+      return waktuA - waktuB;
+    }
+    const cmpNama = a.nama.localeCompare(b.nama);
+    if (cmpNama !== 0) return cmpNama;
+    return a.id.localeCompare(b.id);
+  });
 }

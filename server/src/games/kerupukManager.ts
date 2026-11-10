@@ -1,46 +1,29 @@
-import crypto from 'crypto';
 import { prisma } from '../db.js';
 import {
+  ActivePresentationKerupuk,
+  HasilGachaGigitan,
   KonfigurasiKerupukSolo,
-  SoloKerupukState,
+  RiwayatGigitanItem,
+  SoalKerupuk,
   SoalTampilKerupuk,
+  SoloKerupukState,
   StateKerupukSolo,
   TipeGigitan,
-  RiwayatGigitanItem,
-  HasilGachaGigitan,
   bangunKonfigurasiKerupukSolo,
   buatStateKerupukAwal,
   hitungHasilJawabanKerupukSolo,
+  serialisasiSoalTampilKerupuk,
+  siapkanAntreanSoalKerupuk,
+  siapkanPresentasiSoalDariAntrean,
   validasiProbabilitas,
 } from './makanKerupuk.js';
 
-export interface SoalKerupuk {
-  id: string;
-  urutan: number;
-  teks: string;
-  opsiA: string;
-  opsiB: string;
-  opsiC: string;
-  jawabanBenar: string;
-  penjelasan: string | null;
-}
-
-export interface ActivePresentationKerupuk {
-  presentationId: string;
-  questionId: string;
-  nomorSoal: number;
-  teks: string;
-  pilihanList: Array<{ choiceId: string; label: 'A' | 'B' | 'C'; teks: string }>;
-  pilihanMap: Map<string, 'A' | 'B' | 'C'>;
-  correctChoiceId: string;
-  jawabanBenarKode: 'A' | 'B' | 'C';
-  penjelasan: string | null;
-  tampilPadaMs: number;
-  pausedDurationMs: number;
-}
+export type { SoalKerupuk };
+export const siapkanAntreanSoal = siapkanAntreanSoalKerupuk;
 
 export interface LaporanKerupukSolo {
   sessionId: string;
+  playMode: 'SOLO';
   templateId: string;
   templateJudul: string;
   statusAkhir: 'FINISHED' | 'STOPPED';
@@ -69,6 +52,7 @@ export interface LaporanKerupukSolo {
 
 export interface SesiKerupukSoloActive {
   sessionId: string;
+  playMode: 'SOLO';
   templateId: string;
   templateJudul: string;
   hostId: string;
@@ -87,123 +71,24 @@ export interface SesiKerupukSoloActive {
 
 const sesiKerupukMap = new Map<string, SesiKerupukSoloActive>();
 
-function normalisasiKodeJawaban(raw: string): 'A' | 'B' | 'C' {
-  const cleaned = String(raw || '').trim().toUpperCase();
-  if (cleaned === 'A' || cleaned === 'B' || cleaned === 'C') {
-    return cleaned;
-  }
-  throw new Error(`Kode kunci jawaban "${raw}" tidak valid pada bank soal.`);
-}
-
-/**
- * Mengacak daftar ID soal dengan algoritma Fisher-Yates berbasis crypto.randomInt.
- * Memastikan soal pertama pada siklus baru tidak sama dengan terakhirSoalId jika soal > 1.
- */
-export function siapkanAntreanSoal(questions: SoalKerupuk[], terakhirSoalId?: string): string[] {
-  if (!questions || questions.length === 0) return [];
-  const ids = questions.map((q) => q.id);
-
-  for (let i = ids.length - 1; i > 0; i--) {
-    const j = crypto.randomInt(0, i + 1);
-    const temp = ids[i];
-    ids[i] = ids[j];
-    ids[j] = temp;
-  }
-
-  if (ids.length > 1 && terakhirSoalId && ids[0] === terakhirSoalId) {
-    const swapIdx = crypto.randomInt(1, ids.length);
-    const temp = ids[0];
-    ids[0] = ids[swapIdx];
-    ids[swapIdx] = temp;
-  }
-
-  return ids;
-}
-
-/**
- * Membentuk presentasi soal aman untuk dikirim ke client:
- * - Memiliki presentationId unik
- * - Setiap opsi memiliki choiceId unik
- * - Tidak mengandung indikator jawabanBenar atau isCorrect
- */
-function buatPresentasiSoal(
+function buatPresentasiSoalSolo(
   sesi: SesiKerupukSoloActive,
   sekarangMs: number = Date.now()
 ): ActivePresentationKerupuk {
-  if (sesi.questions.length === 0) {
-    throw new Error('Bank soal kosong. Tambahkan minimal 1 soal untuk memulai permainan.');
-  }
-
-  if (sesi.antreanSoalIds.length === 0) {
-    sesi.antreanSoalIds = siapkanAntreanSoal(sesi.questions, sesi.terakhirSoalId);
-  }
-
-  const nextQuestionId = sesi.antreanSoalIds.shift();
-  const soal = sesi.questions.find((q) => q.id === nextQuestionId) || sesi.questions[0];
-
-  sesi.terakhirSoalId = soal.id;
   sesi.nomorSoalCounter += 1;
-
-  const presentationId = crypto.randomUUID();
-  const jawabanBenarKode = normalisasiKodeJawaban(soal.jawabanBenar);
-
-  const pilihanRaw: Array<{ kode: 'A' | 'B' | 'C'; teks: string }> = [
-    { kode: 'A', teks: soal.opsiA },
-    { kode: 'B', teks: soal.opsiB },
-    { kode: 'C', teks: soal.opsiC },
-  ];
-
-  const pilihanMap = new Map<string, 'A' | 'B' | 'C'>();
-  let correctChoiceId = '';
-
-  const pilihanList = pilihanRaw.map((item) => {
-    const choiceId = `${presentationId}_${item.kode}_${crypto.randomBytes(4).toString('hex')}`;
-    pilihanMap.set(choiceId, item.kode);
-    if (item.kode === jawabanBenarKode) {
-      correctChoiceId = choiceId;
-    }
-    return {
-      choiceId,
-      label: item.kode,
-      teks: item.teks,
-    };
-  });
-
-  return {
-    presentationId,
-    questionId: soal.id,
-    nomorSoal: sesi.nomorSoalCounter,
-    teks: soal.teks,
-    pilihanList,
-    pilihanMap,
-    correctChoiceId,
-    jawabanBenarKode,
-    penjelasan: soal.penjelasan,
-    tampilPadaMs: sekarangMs,
-    pausedDurationMs: 0,
-  };
+  const hasil = siapkanPresentasiSoalDariAntrean(
+    sesi.questions,
+    sesi.antreanSoalIds,
+    sesi.terakhirSoalId,
+    sesi.nomorSoalCounter,
+    sekarangMs
+  );
+  sesi.antreanSoalIds = hasil.antreanBaru;
+  sesi.terakhirSoalId = hasil.terakhirSoalIdBaru;
+  return hasil.presentation;
 }
 
-export function serialisasiSoalTampil(
-  pres: ActivePresentationKerupuk | null,
-  totalSoalBank: number
-): SoalTampilKerupuk | null {
-  if (!pres) return null;
-  return {
-    presentationId: pres.presentationId,
-    questionId: pres.questionId,
-    nomorSoal: pres.nomorSoal,
-    totalSoalBank,
-    teks: pres.teks,
-    pilihan: pres.pilihanList.map((p) => ({
-      choiceId: p.choiceId,
-      label: p.label,
-      teks: p.teks,
-    })),
-  };
-}
-
-function bangunLaporanAkhir(
+function bangunLaporanAkhirSolo(
   sesi: SesiKerupukSoloActive,
   statusAkhir: 'FINISHED' | 'STOPPED',
   sekarangMs: number = Date.now()
@@ -216,6 +101,7 @@ function bangunLaporanAkhir(
 
   return {
     sessionId: sesi.sessionId,
+    playMode: 'SOLO',
     templateId: sesi.templateId,
     templateJudul: sesi.templateJudul,
     statusAkhir,
@@ -244,10 +130,6 @@ function bangunLaporanAkhir(
 }
 
 export const kerupukManager = {
-  /**
-   * Menginisialisasi sesi Solo Makan Kerupuk pada status awal READY.
-   * Menolak jika bank soal kosong atau konfigurasi probabilitas/target tidak valid.
-   */
   inisialisasiSesi(
     sessionId: string,
     hostId: string,
@@ -267,10 +149,11 @@ export const kerupukManager = {
     }
 
     const configSnapshot = bangunKonfigurasiKerupukSolo(userConfig);
-    const antreanSoalIds = siapkanAntreanSoal(questions);
+    const antreanSoalIds = siapkanAntreanSoalKerupuk(questions);
 
     const sesi: SesiKerupukSoloActive = {
       sessionId,
+      playMode: 'SOLO',
       templateId: template.id,
       templateJudul: template.judul,
       hostId,
@@ -292,12 +175,9 @@ export const kerupukManager = {
     return sesiKerupukMap.get(sessionId);
   },
 
-  /**
-   * Memulai permainan Solo: READY -> PLAYING, menampilkan soal pertama dengan presentationId unik.
-   */
   mulaiPermainan(sessionId: string, hostId: string): SesiKerupukSoloActive {
     const sesi = sesiKerupukMap.get(sessionId);
-    if (!sesi) throw new Error('Sesi Makan Kerupuk tidak ditemukan.');
+    if (!sesi) throw new Error('Sesi Makan Kerupuk Solo tidak ditemukan.');
     if (sesi.hostId !== hostId) {
       throw new Error('Anda tidak memiliki hak akses untuk mengendalikan sesi ini.');
     }
@@ -311,17 +191,13 @@ export const kerupukManager = {
     const now = Date.now();
     sesi.state = 'PLAYING';
     sesi.pemainState.waktuMulaiMs = now;
-    sesi.activePresentation = buatPresentasiSoal(sesi, now);
+    sesi.activePresentation = buatPresentasiSoalSolo(sesi, now);
     return sesi;
   },
 
-  /**
-   * Menjeda permainan: PLAYING -> PAUSED.
-   * Soal aktif dan sisa kerupuk tetap dipertahankan; jawaban tidak dapat dikirim saat PAUSED.
-   */
   jedaPermainan(sessionId: string, hostId: string): SesiKerupukSoloActive {
     const sesi = sesiKerupukMap.get(sessionId);
-    if (!sesi) throw new Error('Sesi Makan Kerupuk tidak ditemukan.');
+    if (!sesi) throw new Error('Sesi Makan Kerupuk Solo tidak ditemukan.');
     if (sesi.hostId !== hostId) {
       throw new Error('Anda tidak memiliki hak akses untuk mengendalikan sesi ini.');
     }
@@ -334,13 +210,9 @@ export const kerupukManager = {
     return sesi;
   },
 
-  /**
-   * Melanjutkan permainan dari jeda: PAUSED -> PLAYING.
-   * Mempertahankan soal yang sama persis tanpa memotong atau mereset progres.
-   */
   lanjutPermainan(sessionId: string, hostId: string): SesiKerupukSoloActive {
     const sesi = sesiKerupukMap.get(sessionId);
-    if (!sesi) throw new Error('Sesi Makan Kerupuk tidak ditemukan.');
+    if (!sesi) throw new Error('Sesi Makan Kerupuk Solo tidak ditemukan.');
     if (sesi.hostId !== hostId) {
       throw new Error('Anda tidak memiliki hak akses untuk mengendalikan sesi ini.');
     }
@@ -357,9 +229,6 @@ export const kerupukManager = {
     return sesi;
   },
 
-  /**
-   * Mengubah state pause/resume secara terpadu.
-   */
   ubahStatePermainan(
     sessionId: string,
     hostId: string,
@@ -371,11 +240,6 @@ export const kerupukManager = {
     return this.lanjutPermainan(sessionId, hostId);
   },
 
-  /**
-   * Memproses jawaban guru secara otoritatif di backend.
-   * Validasi berbasis presentationId & choiceId (mengabaikan flag isCorrect dari client).
-   * Memblokir semua mutasi jika status bukan PLAYING atau kerupuk sudah habis.
-   */
   prosesJawaban(
     sessionId: string,
     hostId: string,
@@ -413,7 +277,7 @@ export const kerupukManager = {
     gigitanLogItem: RiwayatGigitanItem;
   } {
     const sesi = sesiKerupukMap.get(sessionId);
-    if (!sesi) throw new Error('Sesi Makan Kerupuk tidak ditemukan.');
+    if (!sesi) throw new Error('Sesi Makan Kerupuk Solo tidak ditemukan.');
     if (sesi.hostId !== hostId) {
       throw new Error('Anda tidak memiliki hak akses ke sesi ini.');
     }
@@ -456,7 +320,6 @@ export const kerupukManager = {
       (p) => p.choiceId === activePres.correctChoiceId
     );
 
-    // Catat statistik jawaban per soal
     const prevStat = sesi.questionStatsMap.get(activePres.questionId) || {
       jumlahBenar: 0,
       jumlahSalah: 0,
@@ -484,11 +347,11 @@ export const kerupukManager = {
     if (hasilKalkulasi.selesaiBaru || sesi.pemainState.sisaKerupuk <= 0) {
       sesi.state = 'FINISHED';
       sesi.activePresentation = null;
-      sesi.hasil = bangunLaporanAkhir(sesi, 'FINISHED', sekarangMs);
+      sesi.hasil = bangunLaporanAkhirSolo(sesi, 'FINISHED', sekarangMs);
     } else {
-      const nextPres = buatPresentasiSoal(sesi, sekarangMs);
+      const nextPres = buatPresentasiSoalSolo(sesi, sekarangMs);
       sesi.activePresentation = nextPres;
-      soalBerikutnya = serialisasiSoalTampil(nextPres, sesi.questions.length);
+      soalBerikutnya = serialisasiSoalTampilKerupuk(nextPres, sesi.questions.length);
     }
 
     return {
@@ -517,13 +380,9 @@ export const kerupukManager = {
     };
   },
 
-  /**
-   * Menghentikan permainan secara manual oleh guru: status -> STOPPED.
-   * Tidak memberikan bonus penyelesaian (+100) karena kerupuk belum 0.
-   */
   hentikanPermainan(sessionId: string, hostId: string): SesiKerupukSoloActive {
     const sesi = sesiKerupukMap.get(sessionId);
-    if (!sesi) throw new Error('Sesi Makan Kerupuk tidak ditemukan.');
+    if (!sesi) throw new Error('Sesi Makan Kerupuk Solo tidak ditemukan.');
     if (sesi.hostId !== hostId) {
       throw new Error('Anda tidak memiliki hak akses untuk menghentikan sesi ini.');
     }
@@ -536,17 +395,13 @@ export const kerupukManager = {
     sesi.pausedAtMs = undefined;
     sesi.activePresentation = null;
     sesi.pemainState.waktuSelesaiMs = now;
-    sesi.hasil = bangunLaporanAkhir(sesi, 'STOPPED', now);
+    sesi.hasil = bangunLaporanAkhirSolo(sesi, 'STOPPED', now);
     return sesi;
   },
 
-  /**
-   * Mereset sesi aktif ke status awal READY dengan skor 0 dan kerupuk penuh sesuai config snapshot.
-   * Memastikan tidak ada skor atau sisa kerupuk sesi sebelumnya yang terbawa.
-   */
   ulangPermainan(sessionId: string, hostId: string): SesiKerupukSoloActive {
     const sesi = sesiKerupukMap.get(sessionId);
-    if (!sesi) throw new Error('Sesi Makan Kerupuk tidak ditemukan.');
+    if (!sesi) throw new Error('Sesi Makan Kerupuk Solo tidak ditemukan.');
     if (sesi.hostId !== hostId) {
       throw new Error('Anda tidak memiliki hak akses untuk mengulang sesi ini.');
     }
@@ -556,22 +411,20 @@ export const kerupukManager = {
     sesi.activePresentation = null;
     sesi.terakhirSoalId = undefined;
     sesi.nomorSoalCounter = 0;
-    sesi.antreanSoalIds = siapkanAntreanSoal(sesi.questions);
+    sesi.antreanSoalIds = siapkanAntreanSoalKerupuk(sesi.questions);
     sesi.pemainState = buatStateKerupukAwal(sesi.config.targetKerupuk);
     sesi.questionStatsMap = new Map();
     sesi.hasil = undefined;
     return sesi;
   },
 
-  /**
-   * Membentuk snapshot status ringkas untuk dikirim ke frontend guru (LayarHostKerupuk).
-   */
   serialisasiSesiUntukClient(sesi: SesiKerupukSoloActive) {
     const st = sesi.pemainState;
     return {
       sessionId: sesi.sessionId,
       game: 'makan_kerupuk' as const,
       mode: 'solo' as const,
+      playMode: 'SOLO' as const,
       templateId: sesi.templateId,
       templateJudul: sesi.templateJudul,
       state: sesi.state,
@@ -598,17 +451,13 @@ export const kerupukManager = {
       statistikGigitan: st.statistikGigitan,
       soalSaatIni:
         sesi.state === 'PLAYING' || sesi.state === 'PAUSED'
-          ? serialisasiSoalTampil(sesi.activePresentation, sesi.questions.length)
+          ? serialisasiSoalTampilKerupuk(sesi.activePresentation, sesi.questions.length)
           : null,
       isFinished: sesi.state === 'FINISHED' || sesi.state === 'STOPPED',
       hasil: sesi.hasil || null,
     };
   },
 
-  /**
-   * Menyimpan hasil akhir Makan Kerupuk Mode Solo ke database (Session, SessionResult, QuestionStat)
-   * Tanpa membuat baris SessionPlayer maupun token PIN.
-   */
   async simpanHasilKeDatabase(sessionId: string): Promise<void> {
     const sesi = sesiKerupukMap.get(sessionId);
     if (!sesi || !sesi.hasil) return;
@@ -624,6 +473,7 @@ export const kerupukManager = {
           mode: 'solo',
           selesaiPada: new Date(),
           konfigurasi: JSON.stringify({
+            playMode: 'SOLO',
             config: sesi.config,
             laporanKerupukSolo: laporan,
           }),
@@ -664,9 +514,6 @@ export const kerupukManager = {
     });
   },
 
-  /**
-   * Memuat laporan hasil Makan Kerupuk Mode Solo dari database (saat sudah tidak di memori).
-   */
   async muatLaporanDariDatabase(sessionId: string): Promise<LaporanKerupukSolo | null> {
     const sessionDb = await prisma.session.findUnique({
       where: { id: sessionId },
@@ -679,7 +526,7 @@ export const kerupukManager = {
       },
     });
 
-    if (!sessionDb || sessionDb.template.game !== 'makan_kerupuk') {
+    if (!sessionDb || sessionDb.template.game !== 'makan_kerupuk' || sessionDb.mode !== 'solo') {
       return null;
     }
 
@@ -687,10 +534,13 @@ export const kerupukManager = {
       try {
         const parsed = JSON.parse(sessionDb.konfigurasi);
         if (parsed?.laporanKerupukSolo) {
-          return parsed.laporanKerupukSolo as LaporanKerupukSolo;
+          return {
+            playMode: 'SOLO',
+            ...parsed.laporanKerupukSolo,
+          } as LaporanKerupukSolo;
         }
       } catch {
-        // lanjut fallback di bawah
+        // fallback ke result DB
       }
     }
 
@@ -702,7 +552,7 @@ export const kerupukManager = {
         const raw = JSON.parse(sessionDb.konfigurasi);
         parsedConfig = bangunKonfigurasiKerupukSolo(raw?.config || raw);
       } catch {
-        // default config
+        // default
       }
     }
 
@@ -712,6 +562,7 @@ export const kerupukManager = {
 
     return {
       sessionId: sessionDb.id,
+      playMode: 'SOLO',
       templateId: sessionDb.templateId,
       templateJudul: sessionDb.template.judul,
       statusAkhir: sessionDb.result.skorPutih === 0 ? 'FINISHED' : 'STOPPED',
@@ -739,9 +590,6 @@ export const kerupukManager = {
     };
   },
 
-  /**
-   * Memulihkan sesi Makan Kerupuk dari DB ke memori apabila belum selesai (READY).
-   */
   async pulihkanSesiDariDb(sessionId: string): Promise<SesiKerupukSoloActive | null> {
     const existing = sesiKerupukMap.get(sessionId);
     if (existing) return existing;
@@ -756,7 +604,7 @@ export const kerupukManager = {
       },
     });
 
-    if (!sessionDb || sessionDb.template.game !== 'makan_kerupuk') {
+    if (!sessionDb || sessionDb.template.game !== 'makan_kerupuk' || sessionDb.mode !== 'solo') {
       return null;
     }
 
@@ -813,6 +661,7 @@ export const kerupukManager = {
 
       const restoredFinished: SesiKerupukSoloActive = {
         sessionId: sessionDb.id,
+        playMode: 'SOLO',
         templateId: sessionDb.templateId,
         templateJudul: sessionDb.template.judul,
         hostId: sessionDb.hostId,

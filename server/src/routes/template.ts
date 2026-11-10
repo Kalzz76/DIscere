@@ -117,7 +117,8 @@ templateRouter.get('/:id', async (req: AuthRequest, res: Response) => {
 templateRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const parsed = templateInputSchema.parse(req.body);
-    const resolvedMode = parsed.game === 'makan_kerupuk' ? 'solo' : parsed.mode;
+    const resolvedMode =
+      parsed.game === 'panjat_pinang' || parsed.game === 'balap_karung' ? 'multi' : parsed.mode;
 
     const template = await prisma.$transaction(async (tx) => {
       const created = await tx.template.create({
@@ -181,7 +182,8 @@ templateRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     }
 
     const parsed = templateInputSchema.parse(req.body);
-    const resolvedMode = parsed.game === 'makan_kerupuk' ? 'solo' : parsed.mode;
+    const resolvedMode =
+      parsed.game === 'panjat_pinang' || parsed.game === 'balap_karung' ? 'multi' : parsed.mode;
 
     await prisma.$transaction(async (tx) => {
       await tx.template.update({
