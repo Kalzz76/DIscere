@@ -729,14 +729,6 @@ export default function DashboardGuru() {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => navigate('/guru/makan-kerupuk')}
-                  className="portal-btn ghost-red"
-                >
-                  <Trophy className="w-4 h-4" />
-                  <span>Main Makan Kerupuk (Pilih Mode)</span>
-                </button>
-                <button
-                  type="button"
                   onClick={() => navigate('/guru/template/baru')}
                   className="portal-btn red"
                 >

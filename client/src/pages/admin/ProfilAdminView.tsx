@@ -166,12 +166,13 @@ export function ProfilAdminView({ stats }: ProfilAdminViewProps) {
                     Nama Administrator
                   </label>
                   <div className="relative">
-                    <UserIcon className="w-4 h-4 text-[#6b7d6c] absolute left-3.5 top-3" />
+                    <UserIcon className="w-4 h-4 text-[#6b7d6c] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       value={nama}
                       onChange={(e) => setNama(e.target.value)}
-                      className="portal-input pl-10"
+                      className="portal-input has-icon !pl-11"
+                      style={{ paddingLeft: '42px' }}
                       placeholder="Nama lengkap administrator"
                       required
                     />
@@ -183,12 +184,13 @@ export function ProfilAdminView({ stats }: ProfilAdminViewProps) {
                     Peran / Role Akun
                   </label>
                   <div className="relative">
-                    <Shield className="w-4 h-4 text-[#6b7d6c] absolute left-3.5 top-3" />
+                    <Shield className="w-4 h-4 text-[#6b7d6c] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       value="Administrator Sistem"
                       disabled
-                      className="portal-input pl-10 opacity-75 cursor-not-allowed bg-[#efe6d0]"
+                      className="portal-input has-icon !pl-11 opacity-75 cursor-not-allowed bg-[#efe6d0]"
+                      style={{ paddingLeft: '42px' }}
                     />
                   </div>
                 </div>
@@ -199,12 +201,13 @@ export function ProfilAdminView({ stats }: ProfilAdminViewProps) {
                   Alamat Email (Identitas Masuk)
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-[#6b7d6c] absolute left-3.5 top-3" />
+                  <Mail className="w-4 h-4 text-[#6b7d6c] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="email"
                     value={user?.email || ''}
                     disabled
-                    className="portal-input pl-10 opacity-75 cursor-not-allowed bg-[#efe6d0]"
+                    className="portal-input has-icon !pl-11 opacity-75 cursor-not-allowed bg-[#efe6d0]"
+                    style={{ paddingLeft: '42px' }}
                   />
                 </div>
                 <span className="text-[11px] text-[#6b7d6c] mt-1 block">

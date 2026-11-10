@@ -181,12 +181,13 @@ export function ProfilView({ stats }: ProfilViewProps) {
                     Nama Lengkap
                   </label>
                   <div className="relative">
-                    <UserIcon className="w-4 h-4 text-[#6b7d6c] absolute left-3.5 top-3" />
+                    <UserIcon className="w-4 h-4 text-[#6b7d6c] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       value={nama}
                       onChange={(e) => setNama(e.target.value)}
-                      className="portal-input pl-10"
+                      className="portal-input has-icon !pl-11"
+                      style={{ paddingLeft: '42px' }}
                       placeholder="Nama lengkap Anda"
                       required
                     />
@@ -198,12 +199,13 @@ export function ProfilView({ stats }: ProfilViewProps) {
                     Asal Sekolah / Instansi
                   </label>
                   <div className="relative">
-                    <School className="w-4 h-4 text-[#6b7d6c] absolute left-3.5 top-3" />
+                    <School className="w-4 h-4 text-[#6b7d6c] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       value={sekolah}
                       onChange={(e) => setSekolah(e.target.value)}
-                      className="portal-input pl-10"
+                      className="portal-input has-icon !pl-11"
+                      style={{ paddingLeft: '42px' }}
                       placeholder="Contoh: SD Negeri Merdeka 01"
                     />
                   </div>
@@ -215,12 +217,13 @@ export function ProfilView({ stats }: ProfilViewProps) {
                   Alamat Email (Akun Masuk)
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-[#6b7d6c] absolute left-3.5 top-3" />
+                  <Mail className="w-4 h-4 text-[#6b7d6c] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="email"
                     value={user?.email || ''}
                     disabled
-                    className="portal-input pl-10 opacity-75 cursor-not-allowed bg-[#efe6d0]"
+                    className="portal-input has-icon !pl-11 opacity-75 cursor-not-allowed bg-[#efe6d0]"
+                    style={{ paddingLeft: '42px' }}
                   />
                 </div>
                 <span className="text-[11px] text-[#6b7d6c] mt-1 block">

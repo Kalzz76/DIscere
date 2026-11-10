@@ -1022,6 +1022,11 @@ select.portal-sel {
   box-sizing: border-box;
 }
 
+.portal-input.has-icon,
+.portal-input-icon {
+  padding-left: 42px !important;
+}
+
 select.portal-select {
   appearance: none;
   -webkit-appearance: none;
