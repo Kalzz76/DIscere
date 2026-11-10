@@ -27,6 +27,7 @@ export interface BoardOptions {
   onCloseTextEditor?: () => void;
   onToast?: (msg: string) => void;
   onLassoChange?: (lasso: Pt[] | null) => void;
+  onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
 }
 
 export class Board {
@@ -93,11 +94,18 @@ export class Board {
     this.options = options;
     this.hanyaLihat = !!options.hanyaLihat;
 
-    this.history = new HistoryManager((payload) => {
-      if (this.options.onUbah) {
-        this.options.onUbah(payload);
+    this.history = new HistoryManager(
+      (payload) => {
+        if (this.options.onUbah) {
+          this.options.onUbah(payload);
+        }
+      },
+      (canUndo, canRedo) => {
+        if (this.options.onHistoryChange) {
+          this.options.onHistoryChange(canUndo, canRedo);
+        }
       }
-    });
+    );
 
     ensureFontLoaded(() => this.rd());
     this.initCanvasSize();
@@ -280,6 +288,9 @@ export class Board {
     const res = this.history.redo(this.objs);
     if (res.reapplied) {
       this.objs = res.newObjs;
+      if (this.sel && !this.objs.some((o) => o.id === this.sel)) {
+        this.setSelection(null);
+      }
       this.rd();
     }
   }
@@ -606,6 +617,9 @@ export class Board {
 
     if (this.options.onCloseTextEditor) {
       this.options.onCloseTextEditor();
+    }
+    if (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) {
+      (document.activeElement as HTMLElement).blur();
     }
     try {
       this.canvas.setPointerCapture(e.pointerId);
@@ -1049,13 +1063,13 @@ export class Board {
     const k = e.key.toLowerCase();
     const m = e.ctrlKey || e.metaKey;
 
-    if (m && k === 'z') {
+    if (m && (k === 'z' || e.code === 'KeyZ')) {
       e.preventDefault();
       if (e.shiftKey) this.redo();
       else this.undo();
       return;
     }
-    if (m && k === 'y') {
+    if (m && (k === 'y' || e.code === 'KeyY')) {
       e.preventDefault();
       this.redo();
       return;
