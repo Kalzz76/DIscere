@@ -567,7 +567,7 @@ export function prosesJawabanPanjatPinang(
 
   const updated = clonePesertaPanjat(peserta);
   const benar = cekPilihan.benar;
-  const waktuJawabMs = Math.max(50, nowMs - presentasi.ditampilkanPadaMs);
+  const waktuJawabMs = Math.max(1, nowMs - presentasi.ditampilkanPadaMs);
 
   updated.totalWaktuJawabMs += waktuJawabMs;
   updated.jumlahJawab += 1;
@@ -733,7 +733,7 @@ export function prosesJawabanPanjatPinang(
     updated.posisi = 100;
     updated.status = 'selesai';
     updated.selesaiPada = nowMs;
-    updated.waktuSelesaiMs = Math.max(100, nowMs - gameMulaiPadaMs);
+    updated.waktuSelesaiMs = Math.max(1, nowMs - gameMulaiPadaMs);
     updated.efekAktif.menungguBonusKulitPisang = false;
     updated.efekAktif.tiangLicin = false;
     selesaiBaru = true;
