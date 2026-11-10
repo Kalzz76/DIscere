@@ -312,7 +312,20 @@ export function GameTemplatesPanel({
           onChangeTimerTotal={onChangeTimerTotal}
         />
       ) : (
-        <>
+        <div
+          id="qzb"
+          className="game-template-list"
+          style={{
+            flex: '1 1 auto',
+            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            padding: '10px 14px 40px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
           {/* Tombol Tempel Hasil Sesi Game Terakhir */}
           {onPasteLastGameResult && (
             <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--ln)' }}>
@@ -395,7 +408,7 @@ export function GameTemplatesPanel({
       </div>
 
       {/* Konten Daftar Kartu Template */}
-      <div id="qzb" className="game-template-list">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {loading && (
           <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--mu)' }}>
             <span>Memuat template…</span>
@@ -477,8 +490,8 @@ export function GameTemplatesPanel({
               </button>
             </div>
           ))}
+        </div>
       </div>
-      </>
       )}
     </aside>
   );

@@ -1433,23 +1433,31 @@ body.pres .papan .btn-exit-pres {
 }
 
 .papan #kb::-webkit-scrollbar,
-.papan .class-tools-container::-webkit-scrollbar {
+.papan .class-tools-container::-webkit-scrollbar,
+.papan #qzb::-webkit-scrollbar,
+.papan .game-template-list::-webkit-scrollbar {
   width: 6px;
 }
 
 .papan #kb::-webkit-scrollbar-track,
-.papan .class-tools-container::-webkit-scrollbar-track {
+.papan .class-tools-container::-webkit-scrollbar-track,
+.papan #qzb::-webkit-scrollbar-track,
+.papan .game-template-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .papan #kb::-webkit-scrollbar-thumb,
-.papan .class-tools-container::-webkit-scrollbar-thumb {
+.papan .class-tools-container::-webkit-scrollbar-thumb,
+.papan #qzb::-webkit-scrollbar-thumb,
+.papan .game-template-list::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 6px;
 }
 
 .papan #kb::-webkit-scrollbar-thumb:hover,
-.papan .class-tools-container::-webkit-scrollbar-thumb:hover {
+.papan .class-tools-container::-webkit-scrollbar-thumb:hover,
+.papan #qzb::-webkit-scrollbar-thumb:hover,
+.papan .game-template-list::-webkit-scrollbar-thumb:hover {
   background: rgba(155, 23, 245, 0.5);
 }
 
