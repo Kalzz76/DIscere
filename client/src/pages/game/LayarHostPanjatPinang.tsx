@@ -5,6 +5,7 @@ import { getSocket } from '../../lib/socket';
 import { Button, Card, Modal } from '../../components';
 import { soundEffects } from '../../lib/soundEffects';
 import TiangPinangVisual, { EfekAktifVisual } from '../siswa/TiangPinangVisual';
+import KarakterPanjatPinang, { EkspresiKarakterPanjat } from '../siswa/KarakterPanjatPinang';
 import {
   Trophy,
   Users,
@@ -167,6 +168,7 @@ export default function LayarHostPanjatPinang() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardItemHost[]>([]);
   const [totalPeserta, setTotalPeserta] = useState(0);
   const [deltaMap, setDeltaMap] = useState<Record<string, number | null>>({});
+  const [ekspresiMap, setEkspresiMap] = useState<Record<string, EkspresiKarakterPanjat>>({});
   const [tampilSemuaTiang, setTampilSemuaTiang] = useState(false);
 
   const [liveFeed, setLiveFeed] = useState<
@@ -284,16 +286,36 @@ export default function LayarHostPanjatPinang() {
 
       const aksi = data.terakhirAksi;
       if (aksi) {
+        const ekspresiAksi: EkspresiKarakterPanjat = aksi.selesaiBaru
+          ? 'puncak'
+          : aksi.benar
+          ? 'bahagia'
+          : 'sedih';
+
         setDeltaMap((prev) => ({
           ...prev,
           [aksi.pesertaId]: aksi.perubahanPosisi,
         }));
+        setEkspresiMap((prev) => ({
+          ...prev,
+          [aksi.pesertaId]: ekspresiAksi,
+        }));
+
         setTimeout(() => {
           setDeltaMap((prev) => ({
             ...prev,
             [aksi.pesertaId]: null,
           }));
         }, 1400);
+
+        if (!aksi.selesaiBaru) {
+          setTimeout(() => {
+            setEkspresiMap((prev) => ({
+              ...prev,
+              [aksi.pesertaId]: 'netral',
+            }));
+          }, 2200);
+        }
 
         let teks = '';
         let tipe: 'naik' | 'turun' | 'bonus' | 'puncak' | 'rintangan' = aksi.benar ? 'naik' : 'turun';
@@ -696,15 +718,23 @@ export default function LayarHostPanjatPinang() {
             </div>
           </div>
 
-          {/* Top 3 Podium */}
+          {/* Top 3 Podium dengan Karakter 2D Juara */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-            {/* Juara 2 */}
+            {/* Juara 2: Kalung Medali Perak */}
             {podium.juara2 && (
-              <div className="order-2 md:order-1 bg-slate-800/90 border border-slate-600 rounded-3xl p-5 text-center shadow-lg">
-                <span className="inline-block px-3 py-1 rounded-full bg-slate-700 text-slate-200 text-xs font-black mb-2">
-                  Juara 2
+              <div className="order-2 md:order-1 bg-slate-800/90 border border-slate-500 rounded-3xl p-5 text-center shadow-lg flex flex-col items-center">
+                <KarakterPanjatPinang
+                  nama={podium.juara2.nama}
+                  pose="podium"
+                  ekspresi="bahagia"
+                  podiumRank={2}
+                  size="md"
+                  className="mb-2"
+                />
+                <span className="inline-block px-3 py-1 rounded-full bg-slate-600/80 border border-slate-400/60 text-slate-100 text-xs font-black mb-2">
+                  Juara 2 • Kalung Perak
                 </span>
-                <h3 className="text-xl font-black text-white truncate">{podium.juara2.nama}</h3>
+                <h3 className="text-xl font-black text-white truncate max-w-full">{podium.juara2.nama}</h3>
                 <p className="text-2xl font-black text-emerald-300 mt-1">{podium.juara2.posisi}%</p>
                 <p className="text-xs text-slate-400 mt-1">
                   Akurasi {podium.juara2.akurasiPersen}% • Rata-rata {formatDurasiDetik(podium.juara2.rataRataWaktuJawabMs)}
@@ -712,16 +742,21 @@ export default function LayarHostPanjatPinang() {
               </div>
             )}
 
-            {/* Juara 1 */}
+            {/* Juara 1: Mahkota Emas */}
             {podium.juara1 && (
-              <div className="order-1 md:order-2 bg-gradient-to-b from-amber-500/20 to-slate-800/95 border-2 border-amber-400 rounded-3xl p-6 text-center shadow-2xl">
-                <div className="w-12 h-12 mx-auto mb-2 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center">
-                  <Trophy className="w-7 h-7" />
-                </div>
+              <div className="order-1 md:order-2 bg-gradient-to-b from-amber-500/20 to-slate-800/95 border-2 border-amber-400 rounded-3xl p-6 text-center shadow-2xl flex flex-col items-center">
+                <KarakterPanjatPinang
+                  nama={podium.juara1.nama}
+                  pose="podium"
+                  ekspresi="bahagia"
+                  podiumRank={1}
+                  size="lg"
+                  className="mb-2"
+                />
                 <span className="inline-block px-3 py-1 rounded-full bg-amber-400 text-slate-950 text-xs font-black mb-2">
-                  Juara 1 Puncak Pinang
+                  Juara 1 • Mahkota Puncak Pinang
                 </span>
-                <h3 className="text-2xl font-black text-white truncate">{podium.juara1.nama}</h3>
+                <h3 className="text-2xl font-black text-white truncate max-w-full">{podium.juara1.nama}</h3>
                 <p className="text-3xl font-black text-amber-300 mt-1">{podium.juara1.posisi}%</p>
                 <p className="text-xs text-slate-300 mt-1">
                   Benar {podium.juara1.totalBenar} • Akurasi {podium.juara1.akurasiPersen}% •{' '}
@@ -732,13 +767,21 @@ export default function LayarHostPanjatPinang() {
               </div>
             )}
 
-            {/* Juara 3 */}
+            {/* Juara 3: Kalung Medali Perunggu */}
             {podium.juara3 && (
-              <div className="order-3 bg-slate-800/90 border border-amber-800/60 rounded-3xl p-5 text-center shadow-lg">
-                <span className="inline-block px-3 py-1 rounded-full bg-amber-900/50 text-amber-300 text-xs font-black mb-2">
-                  Juara 3
+              <div className="order-3 bg-slate-800/90 border border-amber-700/70 rounded-3xl p-5 text-center shadow-lg flex flex-col items-center">
+                <KarakterPanjatPinang
+                  nama={podium.juara3.nama}
+                  pose="podium"
+                  ekspresi="bahagia"
+                  podiumRank={3}
+                  size="md"
+                  className="mb-2"
+                />
+                <span className="inline-block px-3 py-1 rounded-full bg-amber-900/60 border border-amber-600/60 text-amber-200 text-xs font-black mb-2">
+                  Juara 3 • Kalung Perunggu
                 </span>
-                <h3 className="text-xl font-black text-white truncate">{podium.juara3.nama}</h3>
+                <h3 className="text-xl font-black text-white truncate max-w-full">{podium.juara3.nama}</h3>
                 <p className="text-2xl font-black text-emerald-300 mt-1">{podium.juara3.posisi}%</p>
                 <p className="text-xs text-slate-400 mt-1">
                   Akurasi {podium.juara3.akurasiPersen}% • Rata-rata {formatDurasiDetik(podium.juara3.rataRataWaktuJawabMs)}
@@ -1040,6 +1083,8 @@ export default function LayarHostPanjatPinang() {
                   namaPemain={p.nama}
                   efekAktif={p.efekAktif}
                   lastDelta={deltaMap[p.id]}
+                  ekspresi={ekspresiMap[p.id]}
+                  streak={p.streakSaatIni}
                   status={p.status}
                   compact
                 />

@@ -3,6 +3,7 @@ import { getSocket } from '../../lib/socket';
 import { Button } from '../../components';
 import { soundEffects } from '../../lib/soundEffects';
 import TiangPinangVisual, { EfekAktifVisual } from './TiangPinangVisual';
+import KarakterPanjatPinang from './KarakterPanjatPinang';
 import {
   Users,
   Trophy,
@@ -579,6 +580,8 @@ export default function MainPanjatPinang({
               namaPemain={nama}
               efekAktif={myState.efekAktif}
               lastDelta={lastDelta}
+              ekspresi={feedback?.tampil ? (feedback.benar ? 'bahagia' : 'sedih') : 'netral'}
+              streak={myState.streakSaatIni}
               status={myState.status}
             />
           </div>
@@ -760,40 +763,63 @@ export default function MainPanjatPinang({
         )}
       </div>
 
-      {/* Podium 1, 2, 3 */}
-      <div className="flex items-end justify-center gap-2 pt-6 pb-4">
+      {/* Podium 1, 2, 3 dengan Karakter 2D Juara */}
+      <div className="flex items-end justify-center gap-2 pt-4 pb-4">
         {juara2 && (
           <div className="flex flex-col items-center w-24 text-center">
-            <span className="text-xl mb-1">🥈</span>
+            <KarakterPanjatPinang
+              nama={juara2.nama}
+              pose="podium"
+              ekspresi="bahagia"
+              podiumRank={2}
+              size="sm"
+              className="mb-1"
+            />
             <span className="text-xs font-bold text-slate-200 truncate w-full">{juara2.nama}</span>
             <span className="text-[10px] font-mono text-slate-400 mb-1">{juara2.posisi}%</span>
-            <div className="w-full bg-slate-700 h-20 rounded-t-xl flex items-center justify-center font-black text-slate-300 text-lg border-t-2 border-slate-500">
-              2
+            <div className="w-full bg-slate-700 h-20 rounded-t-xl flex flex-col items-center justify-center font-black text-slate-300 border-t-2 border-slate-400">
+              <span className="text-lg leading-none">2</span>
+              <span className="text-[9px] font-bold uppercase text-sky-300">Perak</span>
             </div>
           </div>
         )}
 
         {juara1 && (
           <div className="flex flex-col items-center w-28 text-center -mt-4">
-            <span className="text-3xl mb-1">👑</span>
+            <KarakterPanjatPinang
+              nama={juara1.nama}
+              pose="podium"
+              ekspresi="bahagia"
+              podiumRank={1}
+              size="md"
+              className="mb-1"
+            />
             <span className="text-xs font-black text-amber-300 truncate w-full">{juara1.nama}</span>
             <span className="text-[11px] font-mono font-bold text-amber-400 mb-1">
               {juara1.posisi}%
             </span>
             <div className="w-full bg-amber-500 h-28 rounded-t-xl flex flex-col items-center justify-center font-black text-slate-950 text-2xl border-t-2 border-amber-300">
               <span>1</span>
-              <span className="text-[9px] font-bold uppercase tracking-wider">Juara</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider">Mahkota Juara</span>
             </div>
           </div>
         )}
 
         {juara3 && (
           <div className="flex flex-col items-center w-24 text-center">
-            <span className="text-xl mb-1">🥉</span>
+            <KarakterPanjatPinang
+              nama={juara3.nama}
+              pose="podium"
+              ekspresi="bahagia"
+              podiumRank={3}
+              size="sm"
+              className="mb-1"
+            />
             <span className="text-xs font-bold text-slate-200 truncate w-full">{juara3.nama}</span>
             <span className="text-[10px] font-mono text-slate-400 mb-1">{juara3.posisi}%</span>
-            <div className="w-full bg-amber-800/80 h-14 rounded-t-xl flex items-center justify-center font-black text-amber-300 text-lg border-t-2 border-amber-600">
-              3
+            <div className="w-full bg-amber-800/80 h-14 rounded-t-xl flex flex-col items-center justify-center font-black text-amber-300 border-t-2 border-amber-600">
+              <span className="text-lg leading-none">3</span>
+              <span className="text-[9px] font-bold uppercase text-amber-200">Perunggu</span>
             </div>
           </div>
         )}

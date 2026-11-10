@@ -1,4 +1,5 @@
 import { Shield, HandMetal, Droplets, Flag, Trophy, ArrowUp, ArrowDown } from 'lucide-react';
+import KarakterPanjatPinang, { EkspresiKarakterPanjat } from './KarakterPanjatPinang';
 
 export interface EfekAktifVisual {
   tiangLicin?: boolean;
@@ -12,6 +13,8 @@ interface TiangPinangVisualProps {
   namaPemain?: string;
   efekAktif?: EfekAktifVisual;
   lastDelta?: number | null;
+  ekspresi?: EkspresiKarakterPanjat;
+  streak?: number;
   status?: 'bermain' | 'selesai';
   compact?: boolean;
 }
@@ -21,20 +24,32 @@ export default function TiangPinangVisual({
   namaPemain,
   efekAktif,
   lastDelta,
+  ekspresi = 'netral',
+  streak = 0,
   status = 'bermain',
   compact = false,
 }: TiangPinangVisualProps) {
   const safePosisi = Math.max(0, Math.min(100, Math.round(posisi)));
   const isPuncak = safePosisi >= 100 || status === 'selesai';
 
-  // Peta 0..100% ke area panjat di dalam tiang (8%..84% dari bawah agar karakter muat utuh)
-  const bottomPercent = 8 + safePosisi * 0.74;
+  // Peta 0..100% ke area panjat di dalam tiang agar karakter 2D muat utuh dari dasar rumput ke puncak
+  const bottomPercent = compact ? 16 + safePosisi * 0.62 : 14 + safePosisi * 0.68;
 
   const hasLicin = Boolean(efekAktif?.tiangLicin);
   const hasPerisai = Boolean(efekAktif?.perisaiKulitPisang);
   const hasPegangan = Boolean(efekAktif?.peganganKuat);
 
-  const heightClass = compact ? 'h-40 w-24' : 'h-60 sm:h-72 w-44 sm:w-52';
+  const resolvedEkspresi: EkspresiKarakterPanjat = isPuncak
+    ? 'puncak'
+    : ekspresi && ekspresi !== 'netral'
+    ? ekspresi
+    : lastDelta !== undefined && lastDelta !== null && lastDelta > 0
+    ? 'bahagia'
+    : lastDelta !== undefined && lastDelta !== null && lastDelta < 0
+    ? 'sedih'
+    : 'netral';
+
+  const heightClass = compact ? 'h-44 w-26' : 'h-64 sm:h-76 w-48 sm:w-56';
 
   return (
     <div className="flex flex-col items-center gap-2 select-none">
@@ -114,31 +129,32 @@ export default function TiangPinangVisual({
             </span>
           )}
 
-          {/* Avatar Pemanjat dengan aura efek */}
+          {/* Karakter 2D Pemanjat Panjat Pinang dengan aura efek */}
           <div
-            className={`relative flex items-center justify-center rounded-full border-2 shadow-lg transition-transform ${
-              compact ? 'w-7 h-7' : 'w-9 h-9 sm:w-10 sm:h-10'
-            } ${
+            className={`relative flex items-center justify-center rounded-2xl transition-transform ${
               isPuncak
-                ? 'bg-amber-400 border-white text-slate-950 ring-4 ring-amber-300/60 scale-110'
+                ? 'ring-2 ring-amber-300/70 bg-amber-400/15 scale-105'
                 : hasPerisai
-                ? 'bg-emerald-600 border-emerald-300 text-white ring-4 ring-emerald-400/50'
+                ? 'ring-2 ring-emerald-400/60 bg-emerald-500/15'
                 : hasPegangan
-                ? 'bg-amber-600 border-amber-300 text-white ring-4 ring-amber-400/40'
+                ? 'ring-2 ring-amber-400/50 bg-amber-500/15'
                 : hasLicin
-                ? 'bg-sky-700 border-cyan-300 text-white ring-2 ring-cyan-300/60'
-                : 'bg-[#D7262E] border-white text-white'
+                ? 'ring-2 ring-cyan-300/60 bg-sky-500/15'
+                : ''
             }`}
           >
-            {/* Kepala / inisial pemain */}
-            <span className="text-xs font-black uppercase">
-              {isPuncak ? '🏆' : (namaPemain?.trim()?.[0] || 'P')}
-            </span>
+            <KarakterPanjatPinang
+              nama={namaPemain}
+              ekspresi={resolvedEkspresi}
+              pose="panjat"
+              size={compact ? 'xs' : 'sm'}
+              streak={streak}
+            />
 
             {/* Ikon Perisai / Pegangan aktif */}
             {hasPerisai && (
               <span
-                className="absolute -right-1.5 -top-1.5 bg-emerald-400 text-slate-950 rounded-full p-0.5 shadow"
+                className="absolute -right-1 -top-1 bg-emerald-400 text-slate-950 rounded-full p-0.5 shadow"
                 title="Perisai Kulit Pisang Aktif"
               >
                 <Shield className="w-2.5 h-2.5" />
@@ -146,7 +162,7 @@ export default function TiangPinangVisual({
             )}
             {hasPegangan && (
               <span
-                className="absolute -left-1.5 -top-1.5 bg-amber-400 text-slate-950 rounded-full p-0.5 shadow"
+                className="absolute -left-1 -top-1 bg-amber-400 text-slate-950 rounded-full p-0.5 shadow"
                 title="Pegangan Kuat Aktif"
               >
                 <HandMetal className="w-2.5 h-2.5" />
@@ -154,7 +170,7 @@ export default function TiangPinangVisual({
             )}
             {hasLicin && (
               <span
-                className="absolute -right-1.5 -bottom-1 bg-cyan-400 text-slate-950 rounded-full p-0.5 shadow"
+                className="absolute -right-1 -bottom-0.5 bg-cyan-400 text-slate-950 rounded-full p-0.5 shadow"
                 title="Awas Tiang Licin"
               >
                 <Droplets className="w-2.5 h-2.5" />
