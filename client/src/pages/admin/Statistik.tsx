@@ -26,8 +26,17 @@ import {
   ChevronLeft,
   ChevronRight,
   User as UserIcon,
+  Sparkles,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import {
+  parseAiQuizText,
+  PROMPT_TEMPLATE,
+  CONTOH_TEXT,
+  type QuestionItem as AdminQuestionItem,
+} from '../../lib/quizParser';
 
 type AdminTab = 'statistik' | 'guru' | 'pustaka' | 'ai' | 'log' | 'profil';
 
@@ -60,17 +69,7 @@ export default function DashboardAdmin() {
   const [templateJudul, setTemplateJudul] = useState('');
   const [templateGame, setTemplateGame] = useState('tarik_tambang');
   const [templateMode, setTemplateMode] = useState<'solo' | 'multi'>('solo');
-  const [templateSoal, setTemplateSoal] = useState<
-    Array<{
-      urutan: number;
-      teks: string;
-      opsiA: string;
-      opsiB: string;
-      opsiC: string;
-      jawabanBenar: 'A' | 'B' | 'C';
-      penjelasan: string;
-    }>
-  >([
+  const [templateSoal, setTemplateSoal] = useState<AdminQuestionItem[]>([
     {
       urutan: 1,
       teks: '',
@@ -79,11 +78,28 @@ export default function DashboardAdmin() {
       opsiC: '',
       jawabanBenar: 'A',
       penjelasan: '',
+      dibuatAi: false,
     },
   ]);
   const [submittingTemplate, setSubmittingTemplate] = useState(false);
   const [modalHapusTemplateOpen, setModalHapusTemplateOpen] = useState(false);
   const [targetHapusTemplate, setTargetHapusTemplate] = useState<any>(null);
+
+  // Mode Input Template (Manual vs Tempel Teks AI)
+  const [templateInputMode, setTemplateInputMode] = useState<'manual' | 'tempel_ai'>('manual');
+  const [templateTeksAi, setTemplateTeksAi] = useState('');
+  const [templateErrorTempel, setTemplateErrorTempel] = useState<string | null>(null);
+  const [templateSuksesTempel, setTemplateSuksesTempel] = useState<string | null>(null);
+  const [templatePromptCopied, setTemplatePromptCopied] = useState(false);
+
+  // Generator AI Otomatis (Admin)
+  const [modalAiAdminOpen, setModalAiAdminOpen] = useState(false);
+  const [aiMateri, setAiMateri] = useState('');
+  const [aiJumlah, setAiJumlah] = useState<number>(5);
+  const [aiTingkat, setAiTingkat] = useState<'SD' | 'SMP'>('SD');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiSuksesPesan, setAiSuksesPesan] = useState<string | null>(null);
 
   // 4. Data Monitoring AI
   const [aiData, setAiData] = useState<any>(null);
@@ -215,6 +231,10 @@ export default function DashboardAdmin() {
     setTemplateJudul('');
     setTemplateGame('tarik_tambang');
     setTemplateMode('solo');
+    setTemplateInputMode('manual');
+    setTemplateTeksAi('');
+    setTemplateErrorTempel(null);
+    setTemplateSuksesTempel(null);
     setTemplateSoal([
       {
         urutan: 1,
@@ -224,6 +244,7 @@ export default function DashboardAdmin() {
         opsiC: '',
         jawabanBenar: 'A',
         penjelasan: '',
+        dibuatAi: false,
       },
     ]);
     setModalTemplateOpen(true);
@@ -235,6 +256,10 @@ export default function DashboardAdmin() {
     setTemplateJudul(tmpl.judul);
     setTemplateGame(tmpl.game || 'tarik_tambang');
     setTemplateMode(tmpl.mode || 'solo');
+    setTemplateInputMode('manual');
+    setTemplateTeksAi('');
+    setTemplateErrorTempel(null);
+    setTemplateSuksesTempel(null);
     if (tmpl.questions && tmpl.questions.length > 0) {
       setTemplateSoal(
         tmpl.questions.map((q: any, idx: number) => ({
@@ -245,6 +270,7 @@ export default function DashboardAdmin() {
           opsiC: q.opsiC,
           jawabanBenar: q.jawabanBenar,
           penjelasan: q.penjelasan || '',
+          dibuatAi: Boolean(q.dibuatAi),
         }))
       );
     } else {
@@ -257,10 +283,147 @@ export default function DashboardAdmin() {
           opsiC: '',
           jawabanBenar: 'A',
           penjelasan: '',
+          dibuatAi: false,
         },
       ]);
     }
     setModalTemplateOpen(true);
+  };
+
+  const handleTambahSoalAdmin = () => {
+    setTemplateSoal((prev) => [
+      ...prev,
+      {
+        urutan: prev.length + 1,
+        teks: '',
+        opsiA: '',
+        opsiB: '',
+        opsiC: '',
+        jawabanBenar: 'A',
+        penjelasan: '',
+        dibuatAi: false,
+      },
+    ]);
+  };
+
+  const handleHapusSoalAdmin = (index: number) => {
+    if (templateSoal.length <= 1) return;
+    setTemplateSoal((prev) =>
+      prev.filter((_, i) => i !== index).map((q, i) => ({ ...q, urutan: i + 1 }))
+    );
+  };
+
+  const handleUpdateSoalAdmin = (index: number, field: string, val: any) => {
+    setTemplateSoal((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: val };
+      return copy;
+    });
+  };
+
+  const handleSalinPromptAdmin = async () => {
+    try {
+      await navigator.clipboard.writeText(PROMPT_TEMPLATE);
+      setTemplatePromptCopied(true);
+      setTimeout(() => setTemplatePromptCopied(false), 2000);
+    } catch {
+      alert('Gagal menyalin otomatis. Silakan salin teks di dalam kotak secara manual.');
+    }
+  };
+
+  const handleKonversiTeksAiAdmin = () => {
+    setTemplateErrorTempel(null);
+    setTemplateSuksesTempel(null);
+
+    if (!templateTeksAi.trim()) {
+      setTemplateErrorTempel('Silakan tempelkan teks hasil generate dari ChatGPT / Claude terlebih dahulu.');
+      return;
+    }
+
+    const hasilParse = parseAiQuizText(templateTeksAi);
+    if (hasilParse.length === 0) {
+      setTemplateErrorTempel(
+        'Format teks belum terbaca dengan tepat. Pastikan terdapat nomor soal, opsi A, B, C, serta baris "Jawaban: X" sesuai format.'
+      );
+      return;
+    }
+
+    setTemplateSoal(hasilParse);
+    setTemplateSuksesTempel(`Berhasil mengimpor ${hasilParse.length} butir soal dari AI! Anda dapat meninjau dan mengeditnya di tab Input Manual.`);
+    setTemplateInputMode('manual');
+  };
+
+  const handleGenerateAiAdmin = async () => {
+    if (!aiMateri.trim() || aiMateri.trim().length < 20) {
+      setAiError('Teks materi minimal 20 karakter agar AI dapat menyusun soal yang mendidik.');
+      return;
+    }
+
+    try {
+      setAiLoading(true);
+      setAiError(null);
+      const res = await apiRequest<{
+        sukses?: boolean;
+        soal?: Array<{
+          urutan?: number;
+          teks: string;
+          opsiA: string;
+          opsiB: string;
+          opsiC: string;
+          jawabanBenar: 'A' | 'B' | 'C';
+          penjelasan?: string;
+        }>;
+        questions?: Array<{
+          urutan?: number;
+          teks: string;
+          opsiA: string;
+          opsiB: string;
+          opsiC: string;
+          jawabanBenar: 'A' | 'B' | 'C';
+          penjelasan?: string;
+        }>;
+      }>('/ai/soal', {
+        method: 'POST',
+        body: JSON.stringify({
+          materi: aiMateri.trim(),
+          jumlah: aiJumlah,
+          tingkat: aiTingkat,
+          jumlahSoal: aiJumlah,
+          jenjang: aiTingkat,
+        }),
+      });
+
+      const daftarSoal = res.soal || res.questions || [];
+
+      if (daftarSoal.length > 0) {
+        const formatted: AdminQuestionItem[] = daftarSoal.map((q, idx) => ({
+          urutan: idx + 1,
+          teks: q.teks,
+          opsiA: q.opsiA,
+          opsiB: q.opsiB,
+          opsiC: q.opsiC,
+          jawabanBenar: q.jawabanBenar,
+          penjelasan: q.penjelasan || '',
+          dibuatAi: true,
+        }));
+
+        setTemplateSoal(formatted);
+        setTemplateInputMode('manual');
+        setAiSuksesPesan(`Berhasil menghasilkan ${formatted.length} butir soal kuis!`);
+
+        setTimeout(() => {
+          setModalAiAdminOpen(false);
+          setAiSuksesPesan(null);
+          setAiMateri('');
+        }, 1200);
+      } else {
+        setAiError('Tidak ada soal yang berhasil dihasilkan. Silakan coba lagi.');
+      }
+    } catch (err: any) {
+      setAiError(err.pesan || 'Gagal menghasilkan soal dengan AI.');
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   // Simpan Template Resmi
@@ -284,7 +447,8 @@ export default function DashboardAdmin() {
           opsiB: q.opsiB.trim(),
           opsiC: q.opsiC.trim(),
           jawabanBenar: q.jawabanBenar,
-          penjelasan: q.penjelasan.trim() || null,
+          penjelasan: q.penjelasan ? q.penjelasan.trim() : null,
+          dibuatAi: Boolean(q.dibuatAi),
         })),
       };
 
@@ -1051,7 +1215,7 @@ export default function DashboardAdmin() {
         isOpen={modalTemplateOpen}
         onClose={() => !submittingTemplate && setModalTemplateOpen(false)}
         title={editTemplateId ? 'Ubah Template Resmi' : 'Buat Template Resmi Baru'}
-        maxWidth="lg"
+        maxWidth="3xl"
       >
         <form onSubmit={handleSimpanTemplateResmi} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
           <div>
@@ -1068,7 +1232,23 @@ export default function DashboardAdmin() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1">
+                Jenis Lomba / Mini-Game
+              </label>
+              <select
+                value={templateGame}
+                onChange={(e) => setTemplateGame(e.target.value)}
+                className="portal-select"
+              >
+                <option value="tarik_tambang">Tarik Tambang (Layar Bersama & Multiplayer)</option>
+                <option value="balap_karung">Balap Karung (Lomba Cepat & Multiplayer)</option>
+                <option value="panjat_pinang">Panjat Pinang (Tantangan Strategis)</option>
+                <option value="makan_kerupuk">Makan Kerupuk Challenge (Dual Mode: Multi / Solo)</option>
+              </select>
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1">
                 Mode Permainan
@@ -1078,148 +1258,260 @@ export default function DashboardAdmin() {
                 onChange={(e) => setTemplateMode(e.target.value as any)}
                 className="portal-select"
               >
-                <option value="solo">Mode Solo (Satu Layar)</option>
-                <option value="multi">Mode Multiplayer (HP Siswa)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1">
-                Jenis Lomba
-              </label>
-              <select
-                disabled
-                value="tarik_tambang"
-                className="portal-select opacity-75 cursor-not-allowed"
-              >
-                <option value="tarik_tambang">Tarik Tambang (Aktif)</option>
+                <option value="solo">Mode Solo (Layar Bersama / 1 Layar)</option>
+                <option value="multi">Mode Multiplayer (Siswa Join via HP / PIN)</option>
               </select>
             </div>
           </div>
 
-          {/* Daftar Soal */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between border-b-2 border-dashed border-[#e0d5b8] pb-2">
-              <span className="portal-cv text-xl text-[#1d3b2e]">
-                Daftar Soal ({templateSoal.length})
-              </span>
+          {/* Action Header & Segmented Switcher Mode Input */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t-2 border-dashed border-[#e0d5b8]">
+            <div className="inline-flex p-1 bg-[#ecdcb9] rounded-2xl border border-[#d8c29d] gap-1 shadow-inner">
               <button
                 type="button"
-                onClick={() =>
-                  setTemplateSoal((prev) => [
-                    ...prev,
-                    {
-                      urutan: prev.length + 1,
-                      teks: '',
-                      opsiA: '',
-                      opsiB: '',
-                      opsiC: '',
-                      jawabanBenar: 'A',
-                      penjelasan: '',
-                    },
-                  ])
-                }
-                className="portal-btn sm"
+                onClick={() => setTemplateInputMode('manual')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                  templateInputMode === 'manual'
+                    ? 'bg-[#1f4a37] text-[#f4ecd8] shadow-md'
+                    : 'text-[#1d3b2e] hover:bg-[#e4d3ad]'
+                }`}
               >
-                <Plus className="w-3.5 h-3.5" /> Tambah Soal
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>Input Manual ({templateSoal.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTemplateInputMode('tempel_ai')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                  templateInputMode === 'tempel_ai'
+                    ? 'bg-[#1f4a37] text-[#f4ecd8] shadow-md'
+                    : 'text-[#1d3b2e] hover:bg-[#e4d3ad]'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#f2c230]" />
+                <span>Tempel Teks (AI)</span>
               </button>
             </div>
 
-            {templateSoal.map((soal, idx) => (
-              <div
-                key={idx}
-                className="p-3.5 rounded-2xl bg-[#f4ecd9] border border-[#e0d5b8] space-y-2.5"
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAiError(null);
+                  setAiSuksesPesan(null);
+                  setModalAiAdminOpen(true);
+                }}
+                className="portal-btn yellow sm"
               >
-                <div className="flex items-center justify-between">
-                  <span className="portal-cv text-lg text-[#c8362f]">Soal #{idx + 1}</span>
-                  {templateSoal.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setTemplateSoal((prev) =>
-                          prev.filter((_, i) => i !== idx).map((q, i) => ({ ...q, urutan: i + 1 }))
-                        )
-                      }
-                      className="text-[#6b7d6c] hover:text-[#c8362f] p-1 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-
-                <input
-                  type="text"
-                  required
-                  placeholder="Teks pertanyaan kuis..."
-                  value={soal.teks}
-                  onChange={(e) => {
-                    const copy = [...templateSoal];
-                    copy[idx].teks = e.target.value;
-                    setTemplateSoal(copy);
-                  }}
-                  className="portal-input"
-                />
-
-                <div className="grid grid-cols-3 gap-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Pilihan A"
-                    value={soal.opsiA}
-                    onChange={(e) => {
-                      const copy = [...templateSoal];
-                      copy[idx].opsiA = e.target.value;
-                      setTemplateSoal(copy);
-                    }}
-                    className="portal-input text-xs"
-                  />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Pilihan B"
-                    value={soal.opsiB}
-                    onChange={(e) => {
-                      const copy = [...templateSoal];
-                      copy[idx].opsiB = e.target.value;
-                      setTemplateSoal(copy);
-                    }}
-                    className="portal-input text-xs"
-                  />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Pilihan C"
-                    value={soal.opsiC}
-                    onChange={(e) => {
-                      const copy = [...templateSoal];
-                      copy[idx].opsiC = e.target.value;
-                      setTemplateSoal(copy);
-                    }}
-                    className="portal-input text-xs"
-                  />
-                </div>
-
-                <div className="flex items-center gap-4 pt-1">
-                  <span className="text-xs font-bold text-[#1d3b2e]">Kunci Jawaban:</span>
-                  {(['A', 'B', 'C'] as const).map((opt) => (
-                    <label key={opt} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1d3b2e] cursor-pointer">
-                      <input
-                        type="radio"
-                        name={`jawaban-${idx}`}
-                        checked={soal.jawabanBenar === opt}
-                        onChange={() => {
-                          const copy = [...templateSoal];
-                          copy[idx].jawabanBenar = opt;
-                          setTemplateSoal(copy);
-                        }}
-                      />
-                      <span>{opt}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
+                <Sparkles className="w-4 h-4 text-[#8a6a00]" />
+                <span>AI Otomatis</span>
+              </button>
+              {templateInputMode === 'manual' && (
+                <button
+                  type="button"
+                  onClick={handleTambahSoalAdmin}
+                  className="portal-btn sm"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tambah Soal</span>
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Notifikasi Impor Sukses / Gagal */}
+          {templateSuksesTempel && (
+            <div className="portal-banner success">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-[#1f4a37]" />
+              <span className="text-xs font-bold text-[#1d3b2e]">{templateSuksesTempel}</span>
+              <button
+                type="button"
+                onClick={() => setTemplateSuksesTempel(null)}
+                className="ml-auto text-xs underline text-[#1f4a37] cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          )}
+
+          {templateErrorTempel && (
+            <div className="portal-banner error">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-[#c8362f]" />
+              <span className="text-xs font-bold text-[#c8362f]">{templateErrorTempel}</span>
+            </div>
+          )}
+
+          {/* TAB 1: TEMPEL TEKS DARI AI */}
+          {templateInputMode === 'tempel_ai' && (
+            <div className="space-y-4 pt-1">
+              {/* Kotak Prompt Siap Salin */}
+              <div className="p-4 rounded-2xl bg-[#efe4ce] border border-[#d8c5a0] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#1d3b2e] uppercase tracking-wider">
+                    Belum punya soal? Salin prompt ini untuk AI
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSalinPromptAdmin}
+                    className="portal-btn sm"
+                  >
+                    {templatePromptCopied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700 font-bold">Tersalin!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Salin Prompt</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <pre className="text-[11px] leading-relaxed font-mono bg-[#fdfbf7] p-3 rounded-xl border border-[#e2d5bc] text-[#334155] whitespace-pre-wrap max-h-36 overflow-y-auto">
+                  {PROMPT_TEMPLATE}
+                </pre>
+                <p className="text-[11px] text-[#6b7d6c] italic">
+                  Tips: Ganti <strong>[jumlah]</strong> dan <strong>[topik]</strong> sebelum dikirimkan ke ChatGPT / Claude / DeepSeek.
+                </p>
+              </div>
+
+              {/* Area Paste */}
+              <div>
+                <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1.5">
+                  Tempelkan Teks Hasil Generate AI (ChatGPT / Claude)
+                </label>
+                <textarea
+                  rows={8}
+                  className="portal-input font-mono text-xs leading-relaxed"
+                  placeholder="Tempelkan hasil generate kuis di sini... Contoh:&#10;1. Apa ibu kota Indonesia?&#10;A. Bandung&#10;B. Jakarta&#10;C. Surabaya&#10;Jawaban: B&#10;Pembahasan: Jakarta adalah ibu kota Indonesia."
+                  value={templateTeksAi}
+                  onChange={(e) => setTemplateTeksAi(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={() => setTemplateTeksAi(CONTOH_TEXT)}
+                  className="portal-btn ghost sm text-xs"
+                >
+                  Muat Contoh Format
+                </button>
+                <button
+                  type="button"
+                  onClick={handleKonversiTeksAiAdmin}
+                  className="portal-btn red sm"
+                  disabled={!templateTeksAi.trim()}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Konversi & Masukkan ke Soal</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: INPUT MANUAL (KARTU SOAL LENGKAP) */}
+          {templateInputMode === 'manual' && (
+            <div className="space-y-4 pt-1">
+              {templateSoal.map((soal, idx) => (
+                <div
+                  key={idx}
+                  className="p-4 rounded-2xl bg-[#fffdf6] border-2 border-[#e0d5b8] space-y-3.5 relative shadow-sm"
+                >
+                  <div className="flex items-center justify-between border-b-2 border-dashed border-[#e0d5b8] pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="portal-cv text-xl text-[#c8362f]">Soal #{idx + 1}</span>
+                      {soal.dibuatAi && (
+                        <span className="portal-tag yellow">
+                          <Sparkles className="w-3 h-3 text-[#8a6a00]" /> Dibuat AI
+                        </span>
+                      )}
+                    </div>
+                    {templateSoal.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleHapusSoalAdmin(idx)}
+                        className="portal-btn ghost-red sm"
+                        title="Hapus Soal"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#6b7d6c] uppercase tracking-wider mb-1">
+                      Teks Pertanyaan Kuis
+                    </label>
+                    <textarea
+                      rows={2}
+                      required
+                      placeholder={`Tuliskan pertanyaan soal nomor ${idx + 1}...`}
+                      value={soal.teks}
+                      onChange={(e) => handleUpdateSoalAdmin(idx, 'teks', e.target.value)}
+                      className="portal-input font-medium"
+                    />
+                  </div>
+
+                  {/* 3 Opsi Jawaban */}
+                  <div className="space-y-2.5 pt-1">
+                    <label className="block text-xs font-bold text-[#6b7d6c] uppercase tracking-wider">
+                      Pilihan Jawaban & Kunci Benar (Klik Huruf untuk Menjadikan Kunci)
+                    </label>
+
+                    {(['A', 'B', 'C'] as const).map((opsiKey) => {
+                      const fieldKey = `opsi${opsiKey}` as keyof AdminQuestionItem;
+                      const isSelected = soal.jawabanBenar === opsiKey;
+
+                      return (
+                        <div key={opsiKey} className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateSoalAdmin(idx, 'jawabanBenar', opsiKey)}
+                            className={`w-9 h-9 rounded-xl font-extrabold flex items-center justify-center shrink-0 transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#1f4a37] text-[#f4ecd8] shadow-md ring-2 ring-[#f2c230]'
+                                : 'bg-[#f4ecd9] text-[#1d3b2e] hover:bg-[#e0d5b8]'
+                            }`}
+                            title={`Jadikan Opsi ${opsiKey} sebagai Kunci Jawaban`}
+                          >
+                            {opsiKey}
+                          </button>
+                          <input
+                            type="text"
+                            required
+                            placeholder={`Jawaban untuk Pilihan ${opsiKey}...`}
+                            value={(soal[fieldKey] as string) || ''}
+                            onChange={(e) => handleUpdateSoalAdmin(idx, fieldKey, e.target.value)}
+                            className="portal-input flex-1"
+                          />
+                          {isSelected && (
+                            <span className="portal-tag green shrink-0">
+                              ✓ Kunci Benar
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#6b7d6c] uppercase tracking-wider mb-1">
+                      Penjelasan Pembahasan (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Pembahasan singkat mengapa jawaban ini benar..."
+                      value={soal.penjelasan || ''}
+                      onChange={(e) => handleUpdateSoalAdmin(idx, 'penjelasan', e.target.value)}
+                      className="portal-input"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#e0d5b8]">
             <button
@@ -1239,6 +1531,103 @@ export default function DashboardAdmin() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* ========================================================= */}
+      {/* SUBMODAL BUAT SOAL OTOMATIS DENGAN AI (ADMIN) */}
+      {/* ========================================================= */}
+      <Modal
+        isOpen={modalAiAdminOpen}
+        onClose={() => !aiLoading && setModalAiAdminOpen(false)}
+        title="Buat Soal Otomatis dengan AI"
+        maxWidth="lg"
+      >
+        <div className="space-y-4">
+          {aiError && (
+            <div className="portal-banner error">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-[#c8362f]" />
+              <span className="text-xs font-bold text-[#c8362f]">{aiError}</span>
+            </div>
+          )}
+
+          {aiSuksesPesan && (
+            <div className="portal-banner success">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-[#1f4a37]" />
+              <span className="text-xs font-bold text-[#1d3b2e]">{aiSuksesPesan}</span>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1.5">
+              Teks Rangkuman Materi Pembelajaran
+            </label>
+            <textarea
+              rows={5}
+              disabled={aiLoading}
+              className="portal-input text-xs leading-relaxed"
+              placeholder="Tempelkan ringkasan materi pembelajaran atau bab konsep di sini (minimal 20 karakter)..."
+              value={aiMateri}
+              onChange={(e) => setAiMateri(e.target.value)}
+            />
+            <span className="text-[11px] text-[#6b7d6c] mt-1 block">
+              {aiMateri.length} karakter (minimal 20 karakter)
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1">
+                Jumlah Soal
+              </label>
+              <select
+                disabled={aiLoading}
+                value={aiJumlah}
+                onChange={(e) => setAiJumlah(parseInt(e.target.value, 10))}
+                className="portal-select"
+              >
+                <option value={5}>5 Soal (Rekomendasi Cepat)</option>
+                <option value={8}>8 Soal</option>
+                <option value={10}>10 Soal (Lomba Standar)</option>
+                <option value={15}>15 Soal (Maksimal)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#1d3b2e] uppercase tracking-wider mb-1">
+                Jenjang / Tingkat
+              </label>
+              <select
+                disabled={aiLoading}
+                value={aiTingkat}
+                onChange={(e) => setAiTingkat(e.target.value as 'SD' | 'SMP')}
+                className="portal-select"
+              >
+                <option value="SD">Sekolah Dasar (SD Kelas 4 - 6)</option>
+                <option value="SMP">Sekolah Menengah Pertama (SMP)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#e0d5b8]">
+            <button
+              type="button"
+              className="portal-btn ghost sm"
+              onClick={() => setModalAiAdminOpen(false)}
+              disabled={aiLoading}
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              className="portal-btn red sm"
+              onClick={handleGenerateAiAdmin}
+              disabled={aiLoading || aiMateri.trim().length < 20}
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>{aiLoading ? 'Menyusun Soal...' : 'Buat Soal Sekarang'}</span>
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* ========================================================= */}

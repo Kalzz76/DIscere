@@ -930,6 +930,11 @@ select.portal-select {
   box-sizing: border-box;
 }
 
+.portal-input.has-icon,
+.portal-input-icon {
+  padding-left: 42px !important;
+}
+
 .portal-input:focus, .portal-select:focus {
   outline: 2px solid var(--portal-yellow);
   background: #fff;
