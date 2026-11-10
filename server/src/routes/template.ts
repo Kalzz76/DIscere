@@ -26,7 +26,9 @@ const questionSchema = z.object({
 
 const templateInputSchema = z.object({
   judul: z.string().min(3, 'Judul template minimal 3 karakter.'),
-  game: z.enum(['tarik_tambang', 'makan_kerupuk', 'panjat_pinang']).default('tarik_tambang'),
+  game: z
+    .enum(['tarik_tambang', 'makan_kerupuk', 'panjat_pinang', 'balap_karung'])
+    .default('tarik_tambang'),
   mode: z.enum(['solo', 'multi']).default('solo'),
   questions: z.array(questionSchema).min(1, 'Minimal sertakan 1 soal dalam template.'),
 });
@@ -115,6 +117,8 @@ templateRouter.get('/:id', async (req: AuthRequest, res: Response) => {
 templateRouter.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const parsed = templateInputSchema.parse(req.body);
+    const resolvedMode =
+      parsed.game === 'panjat_pinang' || parsed.game === 'balap_karung' ? 'multi' : parsed.mode;
 
     const template = await prisma.$transaction(async (tx) => {
       const created = await tx.template.create({
@@ -122,7 +126,7 @@ templateRouter.post('/', async (req: AuthRequest, res: Response) => {
           ownerId: req.user!.id,
           judul: parsed.judul,
           game: parsed.game,
-          mode: parsed.mode,
+          mode: resolvedMode,
           resmi: false,
         },
       });
@@ -178,6 +182,8 @@ templateRouter.put('/:id', async (req: AuthRequest, res: Response) => {
     }
 
     const parsed = templateInputSchema.parse(req.body);
+    const resolvedMode =
+      parsed.game === 'panjat_pinang' || parsed.game === 'balap_karung' ? 'multi' : parsed.mode;
 
     await prisma.$transaction(async (tx) => {
       await tx.template.update({
@@ -185,7 +191,7 @@ templateRouter.put('/:id', async (req: AuthRequest, res: Response) => {
         data: {
           judul: parsed.judul,
           game: parsed.game,
-          mode: parsed.mode,
+          mode: resolvedMode,
         },
       });
 

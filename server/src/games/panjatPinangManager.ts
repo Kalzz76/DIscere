@@ -16,7 +16,6 @@ import {
   urutkanLeaderboardPanjatPinang,
 } from './panjatPinang.js';
 import { multiManager } from './multiManager.js';
-import { kerupukManager } from './kerupukManager.js';
 import { prisma } from '../db.js';
 
 export interface SoalPublikPanjat {
@@ -268,8 +267,7 @@ export const panjatPinangManager = {
       token = crypto.randomInt(100000, 1000000).toString();
       exists =
         tokenToSessionIdMap.has(token) ||
-        Boolean(multiManager.dapatkanSesiDariToken(token)) ||
-        Boolean(kerupukManager.dapatkanSesiDariToken(token));
+        Boolean(multiManager.dapatkanSesiDariToken(token));
     }
 
     if (exists) {

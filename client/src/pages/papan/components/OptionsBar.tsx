@@ -5,21 +5,41 @@ import { STY } from '../engine/shapes';
 export interface OptionsBarProps {
   state: BoardState;
   hasSelection: boolean;
+  selectedCount?: number;
+  isGrouped?: boolean;
+  isLocked?: boolean;
   hanyaLihat?: boolean;
   onUpdateState: (patch: Partial<BoardState>) => void;
   onOpenColorPicker: (btnEl: HTMLElement) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onGroup?: () => void;
+  onUngroup?: () => void;
+  onCopy?: () => void;
+  onCut?: () => void;
+  onPaste?: () => void;
+  onZOrder?: (action: 'front' | 'back' | 'fwd' | 'bwd') => void;
+  onToggleLock?: () => void;
 }
 
 export function OptionsBar({
   state,
   hasSelection,
+  selectedCount = 0,
+  isGrouped = false,
+  isLocked = false,
   hanyaLihat = false,
   onUpdateState,
   onOpenColorPicker,
   onDuplicate,
   onDelete,
+  onGroup,
+  onUngroup,
+  onCopy,
+  onCut,
+  onPaste,
+  onZOrder,
+  onToggleLock,
 }: OptionsBarProps) {
   const t = state.tool;
 
@@ -220,12 +240,79 @@ export function OptionsBar({
       {/* SELECT OPTIONS */}
       {t === 'select' && (
         <>
-          <span className="hint">Klik untuk memilih, seret untuk memindah</span>
+          <span className="hint">
+            {selectedCount > 1
+              ? `Terpilih: ${selectedCount} objek`
+              : hasSelection
+              ? '1 objek terpilih'
+              : 'Klik objek atau seret kotak seleksi (Shift+klik multi-select)'}
+          </span>
+
+          {hasSelection && onCopy && (
+            <button className="chip" onClick={onCopy} title="Salin objek (Ctrl+C)">
+              Salin
+            </button>
+          )}
+
+          {hasSelection && onCut && (
+            <button className="chip" onClick={onCut} title="Potong objek (Ctrl+X)">
+              Potong
+            </button>
+          )}
+
+          {onPaste && (
+            <button className="chip" onClick={onPaste} title="Tempel objek (Ctrl+V)">
+              Tempel
+            </button>
+          )}
+
+          {selectedCount >= 2 && onGroup && !isGrouped && (
+            <button className="chip" onClick={onGroup} title="Kelompokkan (Ctrl+G)">
+              Grup
+            </button>
+          )}
+
+          {isGrouped && onUngroup && (
+            <button className="chip" onClick={onUngroup} title="Lepas grup (Ctrl+Shift+G)">
+              Lepas Grup
+            </button>
+          )}
+
+          {hasSelection && onToggleLock && (
+            <button
+              className="chip"
+              onClick={onToggleLock}
+              title={isLocked ? 'Buka Kunci Objek' : 'Kunci Objek'}
+            >
+              {isLocked ? '🔓 Buka Kunci' : '🔒 Kunci'}
+            </button>
+          )}
+
+          {hasSelection && onZOrder && (
+            <>
+              <button
+                className="chip"
+                onClick={() => onZOrder('front')}
+                title="Bawa ke Paling Depan (Ctrl+Shift+])"
+              >
+                Ke Depan
+              </button>
+              <button
+                className="chip"
+                onClick={() => onZOrder('back')}
+                title="Kirim ke Paling Belakang (Ctrl+Shift+[)"
+              >
+                Ke Belakang
+              </button>
+            </>
+          )}
+
           <button
             className="chip"
             disabled={!hasSelection}
             style={!hasSelection ? { opacity: 0.4, cursor: 'default' } : undefined}
             onClick={onDuplicate}
+            title="Duplikat (Ctrl+D)"
           >
             Duplikat
           </button>
@@ -234,6 +321,7 @@ export function OptionsBar({
             disabled={!hasSelection}
             style={!hasSelection ? { opacity: 0.4, cursor: 'default' } : undefined}
             onClick={onDelete}
+            title="Hapus (Delete / Backspace)"
           >
             Hapus
           </button>

@@ -9,6 +9,9 @@ import ModalKonfigurasiKerupuk, { KonfigurasiKerupukPayload } from './ModalKonfi
 import ModalKonfigurasiPanjatPinang, {
   KonfigurasiPanjatPinangPayload,
 } from './ModalKonfigurasiPanjatPinang';
+import ModalKonfigurasiBalapKarung, {
+  KonfigurasiBalapKarungPayload,
+} from './ModalKonfigurasiBalapKarung';
 import {
   LogOut,
   LayoutDashboard,
@@ -34,12 +37,14 @@ import {
 function labelJenisGame(game?: string): string {
   if (game === 'makan_kerupuk') return 'Makan Kerupuk';
   if (game === 'panjat_pinang') return 'Panjat Pinang';
+  if (game === 'balap_karung') return 'Balap Karung';
   return 'Tarik Tambang';
 }
 
 function labelTombolMulai(game?: string, mode?: string): string {
   if (game === 'makan_kerupuk') return 'Makan Kerupuk';
   if (game === 'panjat_pinang') return 'Panjat Pinang';
+  if (game === 'balap_karung') return 'Balap Karung';
   return mode === 'multi' ? 'Mulai Lomba' : 'Mulai Solo';
 }
 
@@ -187,6 +192,12 @@ export default function DashboardGuru() {
     totalSoal: number;
   } | null>(null);
   const [panjatCreating, setPanjatCreating] = useState(false);
+  const [modalBalapTemplate, setModalBalapTemplate] = useState<{
+    id: string;
+    judul: string;
+    totalSoal: number;
+  } | null>(null);
+  const [balapCreating, setBalapCreating] = useState(false);
   const [modalKeluarOpen, setModalKeluarOpen] = useState(false);
   const [sisaAi, setSisaAi] = useState<number>(30);
 
@@ -307,14 +318,9 @@ export default function DashboardGuru() {
       pustakaResmi.find((t) => t.id === templateId) ||
       ringkasan?.templateTerbaru?.find((t) => t.id === templateId);
 
-    // Jika game adalah Makan Kerupuk Challenge, buka modal konfigurasi probabilitas terlebih dahulu
+    // Jika game adalah Makan Kerupuk Challenge, arahkan ke halaman Pemilihan Mode (Multiplayer / Solo)
     if (gameType === 'makan_kerupuk') {
-      const tmpl = cariTemplate();
-      setModalKerupukTemplate({
-        id: templateId,
-        judul: tmpl?.judul || 'Makan Kerupuk Challenge',
-        totalSoal: (tmpl as TemplateItem)?._count?.questions || tmpl?.jumlahSoal || 0,
-      });
+      navigate(`/guru/makan-kerupuk?templateId=${encodeURIComponent(templateId)}&kembali=/guru`);
       return;
     }
 
@@ -324,6 +330,17 @@ export default function DashboardGuru() {
       setModalPanjatTemplate({
         id: templateId,
         judul: tmpl?.judul || 'Panjat Pinang',
+        totalSoal: (tmpl as TemplateItem)?._count?.questions || tmpl?.jumlahSoal || 0,
+      });
+      return;
+    }
+
+    // Jika game adalah Balap Karung Challenge, buka modal konfigurasi Balap Karung
+    if (gameType === 'balap_karung') {
+      const tmpl = cariTemplate();
+      setModalBalapTemplate({
+        id: templateId,
+        judul: tmpl?.judul || 'Balap Karung Challenge',
         totalSoal: (tmpl as TemplateItem)?._count?.questions || tmpl?.jumlahSoal || 0,
       });
       return;
@@ -339,6 +356,29 @@ export default function DashboardGuru() {
     } catch (err: any) {
       alert(err.pesan || 'Gagal memulai sesi game.');
       setActionLoadingId(null);
+    }
+  };
+
+  // Handler: Konfirmasi & Mulai Sesi Balap Karung Challenge dengan Konfigurasi
+  const handleKonfirmasiBalap = async (config: KonfigurasiBalapKarungPayload) => {
+    if (!modalBalapTemplate) return;
+    try {
+      setBalapCreating(true);
+      const res = await apiRequest<{ session: { id: string } }>('/sesi', {
+        method: 'POST',
+        body: JSON.stringify({
+          templateId: modalBalapTemplate.id,
+          game: 'balap_karung',
+          mode: 'multi',
+          balapKarungConfig: config,
+        }),
+      });
+      setModalBalapTemplate(null);
+      navigate(`/guru/sesi/${res.session.id}`);
+    } catch (err: any) {
+      alert(err.pesan || 'Gagal membuat sesi Balap Karung.');
+    } finally {
+      setBalapCreating(false);
     }
   };
 
@@ -365,21 +405,34 @@ export default function DashboardGuru() {
     }
   };
 
-  // Handler: Konfirmasi & Mulai Sesi Makan Kerupuk dengan Konfigurasi
+  // Handler: Konfirmasi & Mulai Sesi Makan Kerupuk Dual Mode dengan Konfigurasi
   const handleKonfirmasiKerupuk = async (config: KonfigurasiKerupukPayload) => {
     if (!modalKerupukTemplate) return;
     try {
       setKerupukCreating(true);
+      const isMulti = config.playMode === 'MULTIPLAYER';
+      const baseCfg = {
+        targetKerupuk: config.targetKerupuk,
+        targetPreset: config.targetPreset,
+        kesulitan: config.kesulitan,
+        probabilitas: config.probabilitas,
+      };
       const res = await apiRequest<{ session: { id: string } }>('/sesi', {
         method: 'POST',
         body: JSON.stringify({
           templateId: modalKerupukTemplate.id,
           game: 'makan_kerupuk',
-          mode: 'multi',
-          probabilitas: config.probabilitas,
-          maxPeserta: config.maxPeserta,
-          durasiSoalDetik: config.durasiSoalDetik,
-          allowLateJoin: config.allowLateJoin,
+          mode: isMulti ? 'multi' : 'solo',
+          playMode: config.playMode,
+          ...(isMulti
+            ? {
+                kerupukMultiConfig: {
+                  ...baseCfg,
+                  maxPeserta: config.maxPeserta ?? 45,
+                  allowLateJoin: config.allowLateJoin ?? true,
+                },
+              }
+            : { kerupukConfig: baseCfg }),
         }),
       });
       setModalKerupukTemplate(null);
@@ -655,14 +708,24 @@ export default function DashboardGuru() {
             </div>
 
             {tabAktif === 'template' && (
-              <button
-                type="button"
-                onClick={() => navigate('/guru/template/baru')}
-                className="portal-btn red"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Buat Template Baru</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/guru/makan-kerupuk')}
+                  className="portal-btn ghost-red"
+                >
+                  <Trophy className="w-4 h-4" />
+                  <span>Main Makan Kerupuk (Pilih Mode)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/guru/template/baru')}
+                  className="portal-btn red"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Buat Template Baru</span>
+                </button>
+              </div>
             )}
 
             {tabAktif === 'papan' && (
@@ -997,7 +1060,10 @@ export default function DashboardGuru() {
                         riwayatList.slice(0, 4).map((r) => {
                           const dateObj = new Date(r.tanggal);
                           const dateStr = `${dateObj.getDate()} ${MONTHS[dateObj.getMonth()]} ${dateObj.getFullYear()}, ${String(dateObj.getHours()).padStart(2, '0')}.${String(dateObj.getMinutes()).padStart(2, '0')}`;
-                          const isIndividu = r.game === 'panjat_pinang' || r.game === 'makan_kerupuk';
+                          const isIndividu =
+                            r.game === 'panjat_pinang' ||
+                            r.game === 'makan_kerupuk' ||
+                            r.game === 'balap_karung';
                           const isRedWin = !isIndividu && r.timMenang === 'merah';
                           const isWhiteWin = !isIndividu && r.timMenang === 'putih';
 
@@ -1019,8 +1085,12 @@ export default function DashboardGuru() {
                                 <small>
                                   {r.game === 'panjat_pinang'
                                     ? `Juara: ${r.timMenang} (${r.posisiAkhir}%)`
+                                    : r.game === 'balap_karung'
+                                    ? `Juara: ${r.timMenang} (${r.posisiAkhir}m)`
                                     : r.game === 'makan_kerupuk'
-                                    ? `Juara: ${r.timMenang}`
+                                    ? r.mode?.toLowerCase() === 'multi'
+                                      ? `Multi • Juara: ${r.timMenang} (${r.skorMerah} pt)`
+                                      : `Solo • Skor ${r.skorMerah} (${r.posisiAkhir}%)`
                                     : `Pemenang: ${isRedWin ? 'TIM MERAH' : isWhiteWin ? 'TIM PUTIH' : 'SERI'}`}
                                   <br />
                                   {dateStr}
@@ -1165,15 +1235,20 @@ export default function DashboardGuru() {
                                 className={`portal-tag ${
                                   tmpl.game === 'panjat_pinang'
                                     ? 'green font-bold'
-                                    : tmpl.game === 'makan_kerupuk'
+                                    : tmpl.game === 'balap_karung'
                                     ? 'yellow font-bold'
+                                    : tmpl.game === 'makan_kerupuk'
+                                    ? 'blue font-bold'
                                     : 'red'
                                 }`}
                               >
                                 {labelJenisGame(tmpl.game)}
                               </span>
                               <span className="portal-tag yellow">
-                                {tmpl.game === 'makan_kerupuk' || tmpl.game === 'panjat_pinang'
+                                {tmpl.game === 'makan_kerupuk'
+                                  ? 'Dual Mode (Multi / Solo)'
+                                  : tmpl.game === 'panjat_pinang' ||
+                                    tmpl.game === 'balap_karung'
                                   ? 'Mode Individu'
                                   : tmpl.mode === 'multi'
                                   ? 'Mode Multiplayer'
@@ -1504,6 +1579,8 @@ export default function DashboardGuru() {
                                           className={`portal-tag font-bold ${
                                             r.game === 'panjat_pinang'
                                               ? 'green'
+                                              : r.game === 'balap_karung'
+                                              ? 'red'
                                               : r.game === 'makan_kerupuk'
                                               ? 'blue'
                                               : 'yellow'
@@ -1532,11 +1609,27 @@ export default function DashboardGuru() {
                                               {r.skorMerah}/{r.skorPutih} pemain
                                             </span>
                                           </>
-                                        ) : r.game === 'makan_kerupuk' ? (
+                                        ) : r.game === 'balap_karung' ? (
                                           <>
-                                            Pemenang: <span className="font-bold">{r.timMenang}</span> • Skor Tertinggi:{' '}
-                                            <span className="font-mono font-bold">{r.skorMerah}</span>
+                                            Juara 1: <span className="font-bold">{r.timMenang}</span> ({r.posisiAkhir}m) • Mencapai Finis:{' '}
+                                            <span className="font-mono font-bold">
+                                              {r.skorMerah}/{r.skorPutih} pelari
+                                            </span>
                                           </>
+                                        ) : r.game === 'makan_kerupuk' ? (
+                                          r.mode?.toLowerCase() === 'multi' ? (
+                                            <>
+                                              Juara 1: <span className="font-bold">{r.timMenang}</span> • Skor Tertinggi:{' '}
+                                              <span className="font-mono font-bold">{r.skorMerah}</span> • Ludes:{' '}
+                                              <span className="font-mono font-bold">{r.skorPutih} siswa</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              Status: <span className="font-bold">{r.timMenang}</span> • Skor Total:{' '}
+                                              <span className="font-mono font-bold">{r.skorMerah}</span> • Progres:{' '}
+                                              <span className="font-mono font-bold">{r.posisiAkhir}%</span>
+                                            </>
+                                          )
                                         ) : (
                                           <>
                                             Pemenang:{' '}
@@ -1895,6 +1988,16 @@ export default function DashboardGuru() {
         totalSoal={modalPanjatTemplate?.totalSoal || 0}
         onMulai={handleKonfirmasiPanjat}
         loading={panjatCreating}
+      />
+
+      {/* Modal Konfigurasi Sesi Balap Karung Challenge */}
+      <ModalKonfigurasiBalapKarung
+        isOpen={Boolean(modalBalapTemplate)}
+        onClose={() => setModalBalapTemplate(null)}
+        templateJudul={modalBalapTemplate?.judul || ''}
+        totalSoal={modalBalapTemplate?.totalSoal || 0}
+        onMulai={handleKonfirmasiBalap}
+        loading={balapCreating}
       />
 
       {/* Modal Konfirmasi Keluar Akun Guru */}

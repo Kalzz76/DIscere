@@ -19,6 +19,15 @@ export interface GameTemplatesPanelProps {
 
 // Ikon Game SVG murni (bukan emoji)
 function GameIcon({ game }: { game: string }) {
+  if (game === 'balap_karung') {
+    return (
+      <svg viewBox="0 0 24 24" style={{ width: 22, height: 22, stroke: '#eab308' }}>
+        <path d="M8 10h8l1 10H7l1-10Z" />
+        <circle cx="12" cy="6" r="2.5" />
+        <path d="M9 10c1-1.5 5-1.5 6 0" />
+      </svg>
+    );
+  }
   if (game === 'panjat_pinang') {
     return (
       <svg viewBox="0 0 24 24" style={{ width: 22, height: 22, stroke: '#10b981' }}>
@@ -137,6 +146,15 @@ export function GameTemplatesPanel({
     try {
       // 1. Flush simpan otomatis kanvas terlebih dahulu
       await onBeforeStartGame();
+
+      // 1b. Bila game adalah Makan Kerupuk Challenge, arahkan ke halaman Pemilihan Mode (Multiplayer vs Solo)
+      if (template.game === 'makan_kerupuk') {
+        onClose();
+        navigate(
+          `/guru/makan-kerupuk?templateId=${encodeURIComponent(template.id)}&kembali=${encodeURIComponent(`/papan/${boardId}`)}`
+        );
+        return;
+      }
 
       // 2. Buat sesi di server
       const res = await apiRequest<{ session: { id: string } }>('/sesi', {
@@ -320,6 +338,8 @@ export function GameTemplatesPanel({
                     ? 'Makan Kerupuk'
                     : item.game === 'panjat_pinang'
                     ? 'Panjat Pinang'
+                    : item.game === 'balap_karung'
+                    ? 'Balap Karung'
                     : 'Tarik Tambang'
                 }
               >
@@ -332,10 +352,14 @@ export function GameTemplatesPanel({
                   <span
                     style={{
                       textTransform: 'capitalize',
-                      color: item.mode === 'multi' ? '#60a5fa' : '#34d399',
+                      color: item.game === 'makan_kerupuk' ? '#f59e0b' : item.mode === 'multi' ? '#60a5fa' : '#34d399',
                     }}
                   >
-                    {item.mode === 'multi' ? 'Multiplayer' : 'Solo'}
+                    {item.game === 'makan_kerupuk'
+                      ? 'Multi / Solo'
+                      : item.mode === 'multi'
+                      ? 'Multiplayer'
+                      : 'Solo'}
                   </span>
                 </small>
               </div>

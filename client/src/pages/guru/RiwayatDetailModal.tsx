@@ -68,6 +68,112 @@ interface LaporanPanjatDetail {
   laporanPemain: PanjatPemainLaporan[];
 }
 
+interface BalapPemainLaporan {
+  peringkat: number;
+  id: string;
+  nama: string;
+  jarakAkhir: number;
+  targetJarak: number;
+  keseimbanganAkhir: number;
+  jumlahJatuh: number;
+  status: 'bermain' | 'selesai';
+  totalBenar: number;
+  totalSalah: number;
+  akurasiPersen: number;
+  streakTertinggi: number;
+  totalBonusStreakKali: number;
+  totalBonusStreakMeter: number;
+  rataRataWaktuJawabMs: number;
+  waktuSelesaiMs: number | null;
+  riwayatRintangan: Array<{
+    id: string;
+    tipe: string;
+    judul: string;
+    deskripsi: string;
+    efekNilai: number;
+    satuan: string;
+  }>;
+}
+
+interface LaporanBalapDetail {
+  konfigurasi?: {
+    targetJarak: number;
+    kesulitan: string;
+    lompatBenar: number;
+    turunSalah: number;
+    keseimbanganAktif: boolean;
+    bonusStreakAktif: boolean;
+    rintanganAktif: boolean;
+  };
+  totalPeserta: number;
+  totalSelesai: number;
+  totalJawabanBenar: number;
+  totalJawabanSalah: number;
+  totalJatuhKelas: number;
+  dihentikanManual: boolean;
+  laporanPemain: BalapPemainLaporan[];
+}
+
+interface LaporanKerupukSoloDetail {
+  sessionId: string;
+  templateJudul: string;
+  statusAkhir: 'FINISHED' | 'STOPPED';
+  dihentikanManual: boolean;
+  konfigurasi?: {
+    targetKerupuk: number;
+    kesulitan: string;
+    probabilitas: Record<string, number>;
+  };
+  targetKerupuk: number;
+  sisaKerupuk: number;
+  progresPersen: number;
+  skorTotal: number;
+  skorPembelajaran: number;
+  skorDasarBenar: number;
+  totalBonusStreak: number;
+  bonusKeberuntungan: number;
+  bonusPenyelesaian: number;
+  totalBenar: number;
+  totalSalah: number;
+  akurasiPersen: number;
+  streakTertinggi: number;
+  rataRataWaktuJawabMs: number;
+  statistikGigitan?: {
+    besar: number;
+    sedang: number;
+    kecil: number;
+    sangat_kecil: number;
+    zonk: number;
+  };
+}
+
+interface LaporanKerupukMultiDetail {
+  sessionId: string;
+  templateJudul: string;
+  dihentikanManual: boolean;
+  konfigurasi?: {
+    targetKerupuk: number;
+    kesulitan: string;
+  };
+  totalPeserta: number;
+  totalKerupukHabis: number;
+  totalJawabanBenar: number;
+  totalJawabanSalah: number;
+  leaderboard: Array<{
+    peringkat?: number;
+    id: string;
+    nama: string;
+    skorTotal: number;
+    skorPembelajaran: number;
+    bonusKeberuntungan: number;
+    bonusPenyelesaian: number;
+    sisaKerupuk: number;
+    totalBenar: number;
+    totalSalah: number;
+    rataRataWaktuJawabMs: number;
+  }>;
+}
+
 interface DetailData {
   sessionId: string;
   templateJudul: string;
@@ -82,6 +188,9 @@ interface DetailData {
   totalSalah: number;
   totalSoalDimainkan: number;
   laporanPanjatPinang?: LaporanPanjatDetail | null;
+  laporanBalapKarung?: LaporanBalapDetail | null;
+  laporanKerupukSolo?: LaporanKerupukSoloDetail | null;
+  laporanKerupukMulti?: LaporanKerupukMultiDetail | null;
   statsPerSoal: SoalStat[];
   soalPalingSeringSalah: {
     questionId: string;
@@ -165,12 +274,18 @@ export function RiwayatDetailModal({
               <span className="text-xs font-bold uppercase tracking-wider text-[#6b7d6c]">
                 {detail.game === 'panjat_pinang'
                   ? 'Materi Kuis Panjat Pinang'
+                  : detail.game === 'balap_karung'
+                  ? 'Materi Kuis Balap Karung Challenge'
                   : detail.game === 'makan_kerupuk'
                   ? 'Materi Kuis Makan Kerupuk'
                   : 'Materi Kuis Tarik Tambang'}
               </span>
               <span className="portal-tag yellow font-bold">
-                {detail.game === 'panjat_pinang' || detail.game === 'makan_kerupuk'
+                {detail.game === 'makan_kerupuk'
+                  ? detail.mode === 'MULTI'
+                    ? 'Mode Multiplayer (HP Siswa)'
+                    : 'Mode Solo (Perangkat Guru)'
+                  : detail.game === 'panjat_pinang' || detail.game === 'balap_karung'
                   ? 'Individu Multiplayer'
                   : `Mode ${detail.mode === 'multi' ? 'Multiplayer' : 'Solo'}`}
               </span>
@@ -190,7 +305,328 @@ export function RiwayatDetailModal({
             </div>
           </div>
 
-          {detail.game === 'panjat_pinang' && detail.laporanPanjatPinang ? (
+          {detail.game === 'makan_kerupuk' && detail.laporanKerupukMulti ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="p-3 bg-[#1d3b2e] text-[#f4ecd8] rounded-xl">
+                  <div className="text-xs font-bold opacity-80">Juara 1</div>
+                  <div className="text-sm font-black mt-1 truncate">
+                    {detail.laporanKerupukMulti.leaderboard[0]?.nama || detail.timMenang}
+                  </div>
+                </div>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <div className="text-xs font-bold text-emerald-700">Kerupuk Ludes</div>
+                  <div className="portal-cv text-2xl text-emerald-800">
+                    {detail.laporanKerupukMulti.totalKerupukHabis}/{detail.laporanKerupukMulti.totalPeserta}
+                  </div>
+                </div>
+                <div className="p-3 bg-[#f4ecd9] border border-[#e0d5b8] rounded-xl">
+                  <div className="text-xs font-bold text-[#6b7d6c]">Target Kerupuk</div>
+                  <div className="portal-cv text-2xl text-[#1d3b2e]">
+                    {detail.laporanKerupukMulti.konfigurasi?.targetKerupuk ?? 100} pt
+                  </div>
+                </div>
+                <div className="p-3 bg-[#f4ecd9] border border-[#e0d5b8] rounded-xl">
+                  <div className="text-xs font-bold text-[#6b7d6c]">Akurasi Kelas</div>
+                  <div className="portal-cv text-2xl text-[#1d3b2e]">
+                    {Math.round(
+                      (detail.laporanKerupukMulti.totalJawabanBenar /
+                        Math.max(
+                          1,
+                          detail.laporanKerupukMulti.totalJawabanBenar +
+                            detail.laporanKerupukMulti.totalJawabanSalah
+                        )) *
+                        100
+                    )}%
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white border border-[#e0d5b8] rounded-2xl p-3 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="text-[10px] uppercase font-black text-[#6b7d6c] border-b border-[#e0d5b8]">
+                    <tr>
+                      <th className="py-1.5 px-2">Rank</th>
+                      <th className="py-1.5 px-2">Siswa</th>
+                      <th className="py-1.5 px-2">Total</th>
+                      <th className="py-1.5 px-2">Pembelajaran</th>
+                      <th className="py-1.5 px-2">Keberuntungan</th>
+                      <th className="py-1.5 px-2">Ludes</th>
+                      <th className="py-1.5 px-2">Sisa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#e0d5b8]">
+                    {detail.laporanKerupukMulti.leaderboard.map((p, idx) => (
+                      <tr key={p.id}>
+                        <td className="py-1.5 px-2 font-mono font-bold">#{idx + 1}</td>
+                        <td className="py-1.5 px-2 font-bold">{p.nama}</td>
+                        <td className="py-1.5 px-2 font-mono font-black text-[#c8362f]">
+                          {p.skorTotal}
+                        </td>
+                        <td className="py-1.5 px-2 font-mono">{p.skorPembelajaran}</td>
+                        <td className="py-1.5 px-2 font-mono">+{p.bonusKeberuntungan}</td>
+                        <td className="py-1.5 px-2 font-mono">+{p.bonusPenyelesaian}</td>
+                        <td className="py-1.5 px-2 font-mono">
+                          {p.sisaKerupuk === 0 ? 'Habis' : `${p.sisaKerupuk} pt`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : detail.game === 'makan_kerupuk' && detail.laporanKerupukSolo ? (
+            <div className="space-y-4">
+              {/* Ringkasan Skor Mode Solo Makan Kerupuk */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="p-3 bg-[#1d3b2e] text-[#f4ecd8] rounded-xl">
+                  <div className="text-xs font-bold opacity-80">Skor Total</div>
+                  <div className="portal-cv text-3xl">{detail.laporanKerupukSolo.skorTotal}</div>
+                </div>
+                <div className="p-3 bg-[#f4ecd9] border border-[#e0d5b8] rounded-xl">
+                  <div className="text-xs font-bold text-[#6b7d6c]">Skor Pembelajaran</div>
+                  <div className="portal-cv text-2xl text-[#1d3b2e]">
+                    {detail.laporanKerupukSolo.skorPembelajaran}
+                  </div>
+                  <div className="text-[11px] text-[#6b7d6c]">
+                    Benar {detail.laporanKerupukSolo.skorDasarBenar} + Streak{' '}
+                    {detail.laporanKerupukSolo.totalBonusStreak}
+                  </div>
+                </div>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <div className="text-xs font-bold text-amber-800">Keberuntungan Gigitan</div>
+                  <div className="portal-cv text-2xl text-amber-800">
+                    +{detail.laporanKerupukSolo.bonusKeberuntungan}
+                  </div>
+                </div>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <div className="text-xs font-bold text-emerald-700">Bonus Penyelesaian</div>
+                  <div className="portal-cv text-2xl text-emerald-800">
+                    +{detail.laporanKerupukSolo.bonusPenyelesaian}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#fbf6e9] border border-[#e0d5b8] p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-[#1d3b2e]">
+                <span>
+                  Status Akhir:{' '}
+                  <span className="uppercase">
+                    {detail.laporanKerupukSolo.statusAkhir === 'FINISHED'
+                      ? 'Selesai (Kerupuk Habis)'
+                      : 'Dihentikan Guru'}
+                  </span>
+                </span>
+                <span>
+                  Target: {detail.laporanKerupukSolo.targetKerupuk} pt • Sisa:{' '}
+                  {detail.laporanKerupukSolo.sisaKerupuk} pt (Progres{' '}
+                  {detail.laporanKerupukSolo.progresPersen}%)
+                </span>
+                <span>
+                  Akurasi: {detail.laporanKerupukSolo.akurasiPersen}% (Streak maks{' '}
+                  {detail.laporanKerupukSolo.streakTertinggi}x)
+                </span>
+              </div>
+
+              {detail.laporanKerupukSolo.statistikGigitan && (
+                <div className="grid grid-cols-5 gap-2 text-center text-xs">
+                  {[
+                    { label: 'Besar', val: detail.laporanKerupukSolo.statistikGigitan.besar },
+                    { label: 'Sedang', val: detail.laporanKerupukSolo.statistikGigitan.sedang },
+                    { label: 'Kecil', val: detail.laporanKerupukSolo.statistikGigitan.kecil },
+                    { label: 'Mini', val: detail.laporanKerupukSolo.statistikGigitan.sangat_kecil },
+                    { label: 'Zonk', val: detail.laporanKerupukSolo.statistikGigitan.zonk },
+                  ].map((g) => (
+                    <div
+                      key={g.label}
+                      className="p-2 bg-white border border-[#e0d5b8] rounded-xl font-bold"
+                    >
+                      <div className="text-[11px] text-[#6b7d6c]">{g.label}</div>
+                      <div className="text-lg font-black text-[#1d3b2e]">{g.val}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : detail.game === 'balap_karung' && detail.laporanBalapKarung ? (
+            <div className="space-y-4">
+              {/* Ringkasan Lomba Balap Karung */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="p-3 bg-[#f4ecd9] border border-[#e0d5b8] rounded-xl">
+                  <div className="text-xs font-bold text-[#6b7d6c]">Juara 1</div>
+                  <div className="text-sm font-black text-[#1d3b2e] mt-1 truncate">
+                    {detail.laporanBalapKarung.laporanPemain[0]?.nama || detail.timMenang}
+                  </div>
+                </div>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <div className="text-xs font-bold text-emerald-700">Mencapai Finis</div>
+                  <div className="portal-cv text-2xl text-emerald-800">
+                    {detail.laporanBalapKarung.totalSelesai}/{detail.laporanBalapKarung.totalPeserta}
+                  </div>
+                </div>
+                <div className="p-3 bg-[#f4ecd9] border border-[#e0d5b8] rounded-xl">
+                  <div className="text-xs font-bold text-[#6b7d6c]">Akurasi Kelas</div>
+                  <div className="portal-cv text-2xl text-[#1d3b2e]">
+                    {Math.round(
+                      (detail.laporanBalapKarung.totalJawabanBenar /
+                        Math.max(
+                          1,
+                          detail.laporanBalapKarung.totalJawabanBenar +
+                            detail.laporanBalapKarung.totalJawabanSalah
+                        )) *
+                        100
+                    )}%
+                  </div>
+                </div>
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl">
+                  <div className="text-xs font-bold text-rose-700">Total Jatuh Kelas</div>
+                  <div className="portal-cv text-2xl text-rose-800">
+                    {detail.laporanBalapKarung.totalJatuhKelas}x
+                  </div>
+                </div>
+              </div>
+
+              {detail.laporanBalapKarung.konfigurasi && (
+                <div className="p-3 rounded-xl bg-[#fbf6e9] border border-[#e0d5b8] text-xs text-[#1d3b2e] flex flex-wrap gap-3">
+                  <span>
+                    Target: <strong>{detail.laporanBalapKarung.konfigurasi.targetJarak}m</strong>
+                  </span>
+                  <span>
+                    Kesulitan:{' '}
+                    <strong className="uppercase">{detail.laporanBalapKarung.konfigurasi.kesulitan}</strong>
+                  </span>
+                  <span>
+                    Benar: <strong>+{detail.laporanBalapKarung.konfigurasi.lompatBenar}m</strong>
+                  </span>
+                  <span>
+                    Salah: <strong>-{detail.laporanBalapKarung.konfigurasi.turunSalah}m</strong>
+                  </span>
+                  <span>
+                    Keseimbangan:{' '}
+                    <strong>{detail.laporanBalapKarung.konfigurasi.keseimbanganAktif ? 'Aktif' : 'Nonaktif'}</strong>
+                  </span>
+                  <span>
+                    Rintangan:{' '}
+                    <strong>{detail.laporanBalapKarung.konfigurasi.rintanganAktif ? 'Aktif' : 'Nonaktif'}</strong>
+                  </span>
+                </div>
+              )}
+
+              {/* Tabel Semua Pelari Balap Karung */}
+              <div className="border border-[#e0d5b8] rounded-2xl overflow-hidden bg-white">
+                <div className="px-4 py-2.5 bg-[#f4ecd9] border-b border-[#e0d5b8] flex items-center gap-2">
+                  <Trophy className="w-4 h-4 text-[#8a6a00]" />
+                  <span className="text-xs font-bold uppercase text-[#1d3b2e]">
+                    Peringkat & Statistik Pelari ({detail.laporanBalapKarung.laporanPemain.length})
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px] text-[#1d3b2e]">
+                    <thead className="bg-[#fbf6e9] border-b border-[#e0d5b8] uppercase font-bold">
+                      <tr>
+                        <th className="px-2.5 py-2">Rank</th>
+                        <th className="px-2.5 py-2">Nama</th>
+                        <th className="px-2.5 py-2 text-right">Jarak</th>
+                        <th className="px-2.5 py-2 text-right">Seimbang</th>
+                        <th className="px-2.5 py-2">Status</th>
+                        <th className="px-2.5 py-2 text-center">B/S</th>
+                        <th className="px-2.5 py-2 text-right">Jatuh</th>
+                        <th className="px-2.5 py-2 text-right">Bonus</th>
+                        <th className="px-2.5 py-2 text-right">Rata2</th>
+                        <th className="px-2.5 py-2 text-right">Finis</th>
+                        <th className="px-2.5 py-2 text-center">Rintangan</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#e0d5b8]/60">
+                      {detail.laporanBalapKarung.laporanPemain.map((pm) => {
+                        const isExpanded = selectedPemainId === pm.id;
+                        return (
+                          <tr key={pm.id} className={isExpanded ? 'bg-[#fbf6e9]' : ''}>
+                            <td className="px-2.5 py-2 font-black">#{pm.peringkat}</td>
+                            <td className="px-2.5 py-2 font-bold">{pm.nama}</td>
+                            <td className="px-2.5 py-2 text-right font-mono font-bold text-emerald-700">
+                              {pm.jarakAkhir}/{pm.targetJarak}m
+                            </td>
+                            <td className="px-2.5 py-2 text-right font-mono">
+                              {pm.keseimbanganAkhir}%
+                            </td>
+                            <td className="px-2.5 py-2">
+                              {pm.status === 'selesai' ? 'Finis' : 'Belum'}
+                            </td>
+                            <td className="px-2.5 py-2 text-center font-mono">
+                              {pm.totalBenar}/{pm.totalSalah}
+                            </td>
+                            <td className="px-2.5 py-2 text-right font-mono text-rose-700">
+                              {pm.jumlahJatuh}x
+                            </td>
+                            <td className="px-2.5 py-2 text-right font-mono">
+                              {pm.totalBonusStreakKali}x
+                            </td>
+                            <td className="px-2.5 py-2 text-right font-mono">
+                              {formatMsDetik(pm.rataRataWaktuJawabMs)}
+                            </td>
+                            <td className="px-2.5 py-2 text-right font-mono">
+                              {formatMsDetik(pm.waktuSelesaiMs)}
+                            </td>
+                            <td className="px-2.5 py-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPemainId(isExpanded ? null : pm.id)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#f4ecd9] hover:bg-[#e8dfc8] font-bold"
+                                title="Lihat riwayat rintangan & jatuh"
+                              >
+                                <Eye className="w-3 h-3" /> {pm.riwayatRintangan?.length || 0}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {selectedPemainId && (() => {
+                const pmSelected = detail.laporanBalapKarung!.laporanPemain.find(
+                  (x) => x.id === selectedPemainId
+                );
+                if (!pmSelected) return null;
+                return (
+                  <div className="p-3.5 rounded-2xl bg-[#f4ecd9] border border-[#e0d5b8] space-y-2 text-xs text-[#1d3b2e]">
+                    <div className="flex items-center justify-between font-bold">
+                      <span>Riwayat Rintangan & Jatuh: {pmSelected.nama}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPemainId(null)}
+                        className="underline text-[#c8362f]"
+                      >
+                        Tutup
+                      </button>
+                    </div>
+                    {pmSelected.riwayatRintangan.length === 0 ? (
+                      <p className="italic text-[#6b7d6c]">Tidak ada rintangan atau kejadian jatuh.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {pmSelected.riwayatRintangan.map((r) => (
+                          <div
+                            key={r.id}
+                            className="p-2 rounded-lg bg-white border border-[#e0d5b8] flex items-center justify-between gap-2"
+                          >
+                            <div>
+                              <strong>{r.judul}: </strong>
+                              <span>{r.deskripsi}</span>
+                            </div>
+                            <span className="font-mono font-bold shrink-0">
+                              {r.efekNilai !== 0 ? `${r.efekNilai > 0 ? '+' : ''}${r.efekNilai} ${r.satuan}` : r.satuan}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : detail.game === 'panjat_pinang' && detail.laporanPanjatPinang ? (
             <div className="space-y-4">
               {/* Ringkasan Lomba Panjat Pinang */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">

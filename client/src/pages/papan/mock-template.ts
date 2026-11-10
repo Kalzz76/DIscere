@@ -41,7 +41,7 @@ export const MOCK_TEMPLATES_SAYA: GameTemplateItem[] = [
     game: 'makan_kerupuk',
     mode: 'multi',
     questionsCount: 10,
-    deskripsi: 'Lomba seru kerupuk virtual seputar rantai makanan dan ekosistem.',
+    deskripsi: 'Lomba seru kerupuk virtual (mendukung Mode Multiplayer HP Siswa maupun Mode Solo Guru).',
   },
 ];
 

@@ -1,4 +1,4 @@
-import { Pt, Bounds, CanvasObj, TextObj } from './types';
+import { Pt, Bounds, CanvasObj, TextObj, ResizeCorner, HandleKey, SelectionHandle } from './types';
 
 const mc = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
 
@@ -104,23 +104,100 @@ export function dseg(p: Pt, a: Pt, b: Pt): number {
   return Math.hypot(p.x - a.x - u * dx, p.y - a.y - u * dy);
 }
 
+export function wb(o: CanvasObj): Bounds {
+  const b = bounds(o);
+  if (!o.rot) return b;
+  const x = b.x + b.w / 2;
+  const y = b.y + b.h / 2;
+  const c = Math.cos(o.rot);
+  const s = Math.sin(o.rot);
+  const X: number[] = [];
+  const Y: number[] = [];
+  const corners = [
+    [-1, -1],
+    [1, -1],
+    [1, 1],
+    [-1, 1],
+  ];
+  for (const [i, j] of corners) {
+    const dx = (i * b.w) / 2;
+    const dy = (j * b.h) / 2;
+    X.push(x + dx * c - dy * s);
+    Y.push(y + dx * s + dy * c);
+  }
+  const minX = Math.min(...X);
+  const minY = Math.min(...Y);
+  return {
+    x: minX,
+    y: minY,
+    w: Math.max(...X) - minX,
+    h: Math.max(...Y) - minY,
+  };
+}
+
+export function ubox(objs: CanvasObj[]): Bounds {
+  if (objs.length === 0) return { x: 0, y: 0, w: 0, h: 0 };
+  let minX = 1e9,
+    minY = 1e9,
+    maxX = -1e9,
+    maxY = -1e9;
+  for (const o of objs) {
+    const r = wb(o);
+    if (r.x < minX) minX = r.x;
+    if (r.y < minY) minY = r.y;
+    if (r.x + r.w > maxX) maxX = r.x + r.w;
+    if (r.y + r.h > maxY) maxY = r.y + r.h;
+  }
+  return {
+    x: minX,
+    y: minY,
+    w: Math.max(0, maxX - minX),
+    h: Math.max(0, maxY - minY),
+  };
+}
+
+export function inUnion(objs: CanvasObj[], p: Pt): boolean {
+  if (objs.length < 2) return false;
+  const b = ubox(objs);
+  return p.x >= b.x - 8 && p.x <= b.x + b.w + 8 && p.y >= b.y - 8 && p.y <= b.y + b.h + 8;
+}
+
 export function hit(o: CanvasObj, p: Pt, t = 6): boolean {
+  let pt = p;
+  if (o.rot) {
+    const b = bounds(o);
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    const c = Math.cos(-o.rot);
+    const s = Math.sin(-o.rot);
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    pt = { x: cx + dx * c - dy * s, y: cy + dx * s + dy * c };
+  }
+
   if (o.type === 'stroke') {
     const r = ew(o) / 2 + t;
     for (let i = 0; i < o.pts.length; i++) {
       const a = o.pts[i];
       const b = o.pts[i + 1] || a;
-      if (dseg(p, a, b) <= r) return true;
+      if (dseg(pt, a, b) <= r) return true;
     }
     return false;
   }
   const b = bounds(o);
-  return p.x >= b.x - t && p.x <= b.x + b.w + t && p.y >= b.y - t && p.y <= b.y + b.h + t;
+  return pt.x >= b.x - t && pt.x <= b.x + b.w + t && pt.y >= b.y - t && pt.y <= b.y + b.h + t;
 }
 
-export function topAt(objs: CanvasObj[], p: Pt, t = 6): CanvasObj | undefined {
+export function topAt(
+  objs: CanvasObj[],
+  p: Pt,
+  t = 6,
+  includeLocked = false
+): CanvasObj | undefined {
   for (let i = objs.length - 1; i >= 0; i--) {
-    if (hit(objs[i], p, t)) return objs[i];
+    const o = objs[i];
+    if (!includeLocked && o.lock) continue;
+    if (hit(o, p, t)) return o;
   }
   return undefined;
 }
@@ -142,132 +219,83 @@ export function move(o: CanvasObj, dx: number, dy: number): void {
   }
 }
 
-export type ResizeCorner = 'nw' | 'ne' | 'se' | 'sw';
+export function hsFor(b: Bounds, r = 0, z = 1): SelectionHandle[] {
+  const x = b.x + b.w / 2;
+  const y = b.y + b.h / 2;
+  const hw = b.w / 2 + 6;
+  const hh = b.h / 2 + 6;
+  const co = Math.cos(r);
+  const si = Math.sin(r);
+  const P = (dx: number, dy: number) => ({
+    x: x + dx * co - dy * si,
+    y: y + dx * si + dy * co,
+  });
 
-export function getResizeHandles(b: Bounds, offset = 6): Record<ResizeCorner, Pt> {
-  return {
-    nw: { x: b.x - offset, y: b.y - offset },
-    ne: { x: b.x + b.w + offset, y: b.y - offset },
-    se: { x: b.x + b.w + offset, y: b.y + b.h + offset },
-    sw: { x: b.x - offset, y: b.y + b.h + offset },
+  return [
+    { k: 'nw', ...P(-hw, -hh) },
+    { k: 'n', ...P(0, -hh) },
+    { k: 'ne', ...P(hw, -hh) },
+    { k: 'e', ...P(hw, 0) },
+    { k: 'se', ...P(hw, hh) },
+    { k: 's', ...P(0, hh) },
+    { k: 'sw', ...P(-hw, hh) },
+    { k: 'w', ...P(-hw, 0) },
+    { k: 'rot', ...P(0, -hh - 32 / z) },
+  ];
+}
+
+export function hitSelectionHandle(b: Bounds, r: number, p: Pt, z = 1): SelectionHandle | null {
+  const handles = hsFor(b, r, z);
+  return handles.find((h) => Math.hypot(h.x - p.x, h.y - p.y) <= (h.k === 'rot' ? 20 : 16) / z) || null;
+}
+
+export function getHandleCursor(handleKey: HandleKey, r = 0): string {
+  if (handleKey === 'rot') return 'grab';
+  const angleMap: Record<ResizeCorner, number> = {
+    e: 0,
+    se: 45,
+    s: 90,
+    sw: 135,
+    w: 180,
+    nw: 225,
+    n: 270,
+    ne: 315,
   };
+  const deg = (((angleMap[handleKey] + (r * 180) / Math.PI) % 360) + 360) % 360;
+  const cursors = ['ew-resize', 'nwse-resize', 'ns-resize', 'nesw-resize'];
+  return cursors[Math.round(deg / 45) % 4];
 }
 
-export function hitResizeCorner(b: Bounds, p: Pt, threshold = 8, offset = 6): ResizeCorner | null {
-  const handles = getResizeHandles(b, offset);
-  const corners: ResizeCorner[] = ['nw', 'ne', 'se', 'sw'];
-  for (const c of corners) {
-    const h = handles[c];
-    if (Math.abs(p.x - h.x) <= threshold && Math.abs(p.y - h.y) <= threshold) {
-      return c;
-    }
-  }
-  return null;
-}
+export function rsz(o: CanvasObj, b0: Bounds, nb: Bounds): void {
+  const sx = nb.w / (b0.w || 1);
+  const sy = nb.h / (b0.h || 1);
+  const X = (x: number) => nb.x + (x - b0.x) * sx;
+  const Y = (y: number) => nb.y + (y - b0.y) * sy;
 
-export function applyResize(
-  o: CanvasObj,
-  corner: ResizeCorner,
-  initial: CanvasObj,
-  startP: Pt,
-  curP: Pt,
-  keepAspect = false
-): void {
-  const initB = bounds(initial);
-  const dx = curP.x - startP.x;
-  const dy = curP.y - startP.y;
-
-  // Kasus Teks: resize mengubah skala ukuran font (fs)
-  if (o.type === 'text') {
-    const textObj = o as TextObj;
-    const initText = initial as TextObj;
-    let factor = 1;
-
-    if (corner === 'se') {
-      factor = Math.max(0.2, (initB.w + dx) / initB.w);
-    } else if (corner === 'sw') {
-      factor = Math.max(0.2, (initB.w - dx) / initB.w);
-    } else if (corner === 'ne') {
-      factor = Math.max(0.2, (initB.w + dx) / initB.w);
-    } else if (corner === 'nw') {
-      factor = Math.max(0.2, (initB.w - dx) / initB.w);
-    }
-
-    const newFs = Math.max(10, Math.min(160, Math.round(initText.fs * factor)));
-    textObj.fs = newFs;
-
-    const newB = bounds(textObj);
-    if (corner === 'nw' || corner === 'sw') {
-      textObj.x = initB.x + initB.w - newB.w;
-    } else {
-      textObj.x = initB.x;
-    }
-    if (corner === 'nw' || corner === 'ne') {
-      textObj.y = initB.y + initB.h - newB.h;
-    } else {
-      textObj.y = initB.y;
-    }
-    return;
-  }
-
-  // Kasus Bentuk, Gambar, dan Tabel
-  let newW = initB.w;
-  let newH = initB.h;
-  let newX = initB.x;
-  let newY = initB.y;
-
-  if (corner === 'se') {
-    newW = initB.w + dx;
-    newH = initB.h + dy;
-    if (keepAspect) {
-      const scale = Math.max(newW / initB.w, newH / initB.h);
-      newW = initB.w * scale;
-      newH = initB.h * scale;
-    }
-  } else if (corner === 'sw') {
-    newW = initB.w - dx;
-    newH = initB.h + dy;
-    if (keepAspect) {
-      const scale = Math.max(newW / initB.w, newH / initB.h);
-      newW = initB.w * scale;
-      newH = initB.h * scale;
-    }
-    newX = initB.x + initB.w - newW;
-  } else if (corner === 'ne') {
-    newW = initB.w + dx;
-    newH = initB.h - dy;
-    if (keepAspect) {
-      const scale = Math.max(newW / initB.w, newH / initB.h);
-      newW = initB.w * scale;
-      newH = initB.h * scale;
-    }
-    newY = initB.y + initB.h - newH;
-  } else if (corner === 'nw') {
-    newW = initB.w - dx;
-    newH = initB.h - dy;
-    if (keepAspect) {
-      const scale = Math.max(newW / initB.w, newH / initB.h);
-      newW = initB.w * scale;
-      newH = initB.h * scale;
-    }
-    newX = initB.x + initB.w - newW;
-    newY = initB.y + initB.h - newH;
-  }
-
-  newW = Math.max(16, newW);
-  newH = Math.max(16, newH);
-
-  if (o.type === 'shape' || o.type === 'image') {
-    o.x = newX;
-    o.y = newY;
-    o.w = newW;
-    o.h = newH;
+  if (o.type === 'stroke') {
+    o.pts.forEach((q) => {
+      q.x = X(q.x);
+      q.y = Y(q.y);
+    });
+    strokeBoundsCache.delete(o);
+  } else if (o.type === 'shape' || o.type === 'image') {
+    const x2 = X(o.x + o.w);
+    const y2 = Y(o.y + o.h);
+    o.x = X(o.x);
+    o.y = Y(o.y);
+    o.w = x2 - o.x;
+    o.h = y2 - o.y;
   } else if (o.type === 'table') {
-    o.x = newX;
-    o.y = newY;
-    o.cw = Math.max(16, Math.round(newW / o.cols));
-    o.ch = Math.max(14, Math.round(newH / o.rows));
+    o.cw *= sx;
+    o.ch *= sy;
+    o.x = X(o.x);
+    o.y = Y(o.y);
+  } else if (o.type === 'text') {
+    o.fs = Math.max(8, Math.round(o.fs * Math.max(0.3, (sx + sy) / 2)));
+    o.x = X(o.x);
+    o.y = Y(o.y);
   }
 }
+
 
 
