@@ -1126,6 +1126,9 @@ export function setupMultiplayerSocket(io: Server) {
           const pesertaBalap = sesiBalap.peserta.get(pesertaId);
           if (!pesertaBalap) return;
           if (pesertaSecret && pesertaBalap.secretToken !== pesertaSecret) return;
+          if (!pesertaSecret && pesertaBalap.socketId && pesertaBalap.socketId !== socket.id) {
+            return;
+          }
           if (
             pesertaBalap.status === 'selesai' ||
             pesertaBalap.jarak >= sesiBalap.config.targetJarak
