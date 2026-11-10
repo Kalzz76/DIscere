@@ -24,6 +24,7 @@ import {
   Copy,
   Trash2,
   Search,
+  X,
   Loader2,
   ChevronRight,
   ChevronLeft,
@@ -163,6 +164,7 @@ export default function DashboardGuru() {
   const [subTabTemplate, setSubTabTemplate] = useState<'saya' | 'pustaka'>('saya');
   const [subTabAside, setSubTabAside] = useState<'hist' | 'tpl'>('hist');
   const [pencarian, setPencarian] = useState('');
+  const [searchPapan, setSearchPapan] = useState('');
 
   // Riwayat filter & pagination states (muat 5 sesi per tabel/kotak)
   const [riwayatHalaman, setRiwayatHalaman] = useState(1);
@@ -729,15 +731,36 @@ export default function DashboardGuru() {
             )}
 
             {tabAktif === 'papan' && (
-              <button
-                type="button"
-                onClick={handleBuatPapanBaru}
-                disabled={actionLoadingId === 'buat_papan'}
-                className="portal-btn red"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Buat Papan Baru</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="portal-srch" style={{ minWidth: '220px', height: '38px' }}>
+                  <Search className="w-4 h-4 text-[#6b7d6c]" />
+                  <input
+                    type="search"
+                    placeholder="Cari judul papan..."
+                    value={searchPapan}
+                    onChange={(e) => setSearchPapan(e.target.value)}
+                  />
+                  {searchPapan && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchPapan('')}
+                      className="text-[#6b7d6c] hover:text-[#1d3b2e]"
+                      aria-label="Hapus pencarian"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBuatPapanBaru}
+                  disabled={actionLoadingId === 'buat_papan'}
+                  className="portal-btn red"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Buat Papan Baru</span>
+                </button>
+              </div>
             )}
           </header>
 
@@ -1756,10 +1779,29 @@ export default function DashboardGuru() {
                         </button>
                       </div>
                     </div>
+                  ) : boards.filter((b) => b.judul.toLowerCase().includes(searchPapan.toLowerCase().trim())).length === 0 ? (
+                    <div className="portal-over text-center py-16 space-y-3">
+                      <Search className="w-10 h-10 text-[#6b7d6c] mx-auto mb-2" />
+                      <h3 className="portal-cv text-2xl text-[#f4ecd8]">
+                        Papan Tulis Tidak Ditemukan
+                      </h3>
+                      <p className="text-sm text-[#cfd9c3]">
+                        Tidak ada papan dengan kata kunci "{searchPapan}".
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setSearchPapan('')}
+                        className="portal-btn ghost sm mt-2"
+                      >
+                        Reset Pencarian
+                      </button>
+                    </div>
                   ) : (
                     /* Saat sudah ada papan, informasi empty hilang dan langsung tampil grid kartu papan */
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {boards.map((b) => (
+                      {boards
+                        .filter((b) => b.judul.toLowerCase().includes(searchPapan.toLowerCase().trim()))
+                        .map((b) => (
                         <div
                           key={b.id}
                           className="portal-card overflow-hidden flex flex-col justify-between"
