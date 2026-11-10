@@ -27,6 +27,7 @@ import {
   formatAiResponseForCanvas,
   PromptBar,
   ChatPanel,
+  ContextMenu,
 } from './components';
 import { wrap, LampiranObrolan } from './lib/obrol';
 import { useObrol } from './lib/useObrol';
@@ -83,11 +84,18 @@ export default function PapanTulis() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
 
   const isGrouped = useMemo(() => {
     if (!boardRef.current || selectedIds.length === 0) return false;
     const objs = boardRef.current.objs.filter((o) => selectedIds.includes(o.id));
     return objs.some((o) => !!o.g);
+  }, [selectedIds, boardState]);
+
+  const isLocked = useMemo(() => {
+    if (!boardRef.current || selectedIds.length === 0) return false;
+    const objs = boardRef.current.objs.filter((o) => selectedIds.includes(o.id));
+    return objs.some((o) => !!o.lock);
   }, [selectedIds, boardState]);
 
   // Popups & Overlays
@@ -331,6 +339,9 @@ export default function PapanTulis() {
       },
       onCloseTextEditor: () => {
         setTextEditor(null);
+      },
+      onContextMenu: (pos) => {
+        setContextMenuPos(pos);
       },
       onLassoChange: (pts) => {
         if (pts && pts.length >= 8) {
@@ -743,6 +754,7 @@ export default function PapanTulis() {
         hasSelection={selectedIds.length > 0}
         selectedCount={selectedIds.length}
         isGrouped={isGrouped}
+        isLocked={isLocked}
         onUpdateState={(patch) => {
           if (board) board.updateState(patch);
           else setBoardState((prev) => ({ ...prev, ...patch }));
@@ -758,6 +770,8 @@ export default function PapanTulis() {
         onCopy={() => board?.copy()}
         onCut={() => board?.cut()}
         onPaste={() => board?.paste()}
+        onZOrder={(act) => board?.zOrder(act)}
+        onToggleLock={() => board?.toggleLockSelected()}
       />
 
       {/* Top Right Panel: Undo, Redo, Game, Avatar, Presentasi, Share */}
@@ -970,6 +984,26 @@ export default function PapanTulis() {
         errorMessage={aiError}
         onAsk={handleAskAi}
         onClose={handleCloseAiPopup}
+      />
+
+      {/* Context Menu (Klik Kanan) */}
+      <ContextMenu
+        pos={contextMenuPos}
+        onClose={() => setContextMenuPos(null)}
+        hasSelection={selectedIds.length > 0}
+        selectedCount={selectedIds.length}
+        isLocked={isLocked}
+        isGrouped={isGrouped}
+        canPaste={board?.canPaste ?? false}
+        onCopy={() => board?.copy()}
+        onCut={() => board?.cut()}
+        onPaste={() => board?.paste()}
+        onDuplicate={() => board?.duplicateSelected()}
+        onDelete={() => board?.deleteSelected()}
+        onZOrder={(act) => board?.zOrder(act)}
+        onToggleLock={() => board?.toggleLockSelected()}
+        onGroup={() => board?.group()}
+        onUngroup={() => board?.ungroup()}
       />
 
       {/* Tombol Keluar Mode Presentasi */}

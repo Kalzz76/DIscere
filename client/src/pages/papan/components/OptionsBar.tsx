@@ -7,6 +7,7 @@ export interface OptionsBarProps {
   hasSelection: boolean;
   selectedCount?: number;
   isGrouped?: boolean;
+  isLocked?: boolean;
   hanyaLihat?: boolean;
   onUpdateState: (patch: Partial<BoardState>) => void;
   onOpenColorPicker: (btnEl: HTMLElement) => void;
@@ -17,6 +18,8 @@ export interface OptionsBarProps {
   onCopy?: () => void;
   onCut?: () => void;
   onPaste?: () => void;
+  onZOrder?: (action: 'front' | 'back' | 'fwd' | 'bwd') => void;
+  onToggleLock?: () => void;
 }
 
 export function OptionsBar({
@@ -24,6 +27,7 @@ export function OptionsBar({
   hasSelection,
   selectedCount = 0,
   isGrouped = false,
+  isLocked = false,
   hanyaLihat = false,
   onUpdateState,
   onOpenColorPicker,
@@ -34,6 +38,8 @@ export function OptionsBar({
   onCopy,
   onCut,
   onPaste,
+  onZOrder,
+  onToggleLock,
 }: OptionsBarProps) {
   const t = state.tool;
 
@@ -270,6 +276,35 @@ export function OptionsBar({
             <button className="chip" onClick={onUngroup} title="Lepas grup (Ctrl+Shift+G)">
               Lepas Grup
             </button>
+          )}
+
+          {hasSelection && onToggleLock && (
+            <button
+              className="chip"
+              onClick={onToggleLock}
+              title={isLocked ? 'Buka Kunci Objek' : 'Kunci Objek'}
+            >
+              {isLocked ? '🔓 Buka Kunci' : '🔒 Kunci'}
+            </button>
+          )}
+
+          {hasSelection && onZOrder && (
+            <>
+              <button
+                className="chip"
+                onClick={() => onZOrder('front')}
+                title="Bawa ke Paling Depan (Ctrl+Shift+])"
+              >
+                Ke Depan
+              </button>
+              <button
+                className="chip"
+                onClick={() => onZOrder('back')}
+                title="Kirim ke Paling Belakang (Ctrl+Shift+[)"
+              >
+                Ke Belakang
+              </button>
+            </>
           )}
 
           <button

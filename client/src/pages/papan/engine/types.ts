@@ -1,6 +1,7 @@
 export interface Pt {
   x: number;
   y: number;
+  pr?: number; // Pen pressure 0..1 (stylus / pena digital)
 }
 
 export interface Bounds {
@@ -127,12 +128,14 @@ export interface LocalOp {
   tambah?: CanvasObj[];
   hapus?: CanvasObj[];
   ubah?: { sebelum: CanvasObj; sesudah: CanvasObj }[];
+  reorder?: { sebelum: string[]; sesudah: string[] };
 }
 
 export interface UbahEventPayload {
   tambah?: CanvasObj[];
   ubah?: CanvasObj[];
   hapus?: string[];
+  reorder?: string[];
 }
 
 export interface LaserPoint extends Pt {
