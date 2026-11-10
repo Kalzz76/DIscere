@@ -17,4 +17,5 @@ export * from './ContextMenu';
 export * from './FormulaDialog';
 export * from './PageBar';
 export * from './ClassToolsView';
+export * from './AiQuizGenerator';
 

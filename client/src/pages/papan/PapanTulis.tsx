@@ -913,6 +913,7 @@ export default function PapanTulis() {
           boardRef.current?.addNote(text);
           showToast('Ditempel ke papan');
         }}
+        getBoardPng={() => (boardRef.current ? pngDataUrl(boardRef.current.objs) : null)}
         onToast={showToast}
         timerSeconds={timerSeconds}
         timerTotal={timerTotal}
