@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/auth';
 import { Board } from './engine/board';
 import { BoardState, BoardView, TextEditorState, ToolType, PenStyle, UbahEventPayload, FormulaObj, Pt } from './engine/types';
 import { COL, LCOL } from './engine/color';
-import { downloadPng, downloadJson, toJson, potongArea, pngDataUrl } from './engine/export';
+import { downloadPng, downloadPdf, downloadJson, toJson, potongArea, pngDataUrl } from './engine/export';
 import {
   TopLeftBar,
   ToolRail,
@@ -943,6 +943,21 @@ export default function PapanTulis() {
         pesertaList={pesertaList}
         onClose={() => setIsShareOpen(false)}
         onToast={showToast}
+        onDownloadPng={() => {
+          if (board) {
+            const ok = downloadPng(board.objs, title);
+            if (!ok) showToast('Kanvas masih kosong.');
+            else showToast('Foto PNG berhasil diunduh!');
+          }
+        }}
+        onDownloadPdf={() => {
+          if (board) {
+            const allPages = board.getPages();
+            const ok = downloadPdf(allPages && allPages.length > 1 ? allPages : board.objs, title);
+            if (!ok) showToast('Kanvas masih kosong.');
+            else showToast('Dokumen PDF berhasil diunduh!');
+          }
+        }}
       />
 
       {/* Zoom Bar: Zoom in/out, 100%, Grid, Center */}
