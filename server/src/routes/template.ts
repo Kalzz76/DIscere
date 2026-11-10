@@ -26,7 +26,9 @@ const questionSchema = z.object({
 
 const templateInputSchema = z.object({
   judul: z.string().min(3, 'Judul template minimal 3 karakter.'),
-  game: z.enum(['tarik_tambang', 'makan_kerupuk', 'panjat_pinang']).default('tarik_tambang'),
+  game: z
+    .enum(['tarik_tambang', 'makan_kerupuk', 'panjat_pinang', 'balap_karung'])
+    .default('tarik_tambang'),
   mode: z.enum(['solo', 'multi']).default('solo'),
   questions: z.array(questionSchema).min(1, 'Minimal sertakan 1 soal dalam template.'),
 });
