@@ -64,15 +64,20 @@ Pembahasan: Operasi perkalian dikerjakan terlebih dahulu: 15 × 2 = 30, lalu 25 
 function parseAiQuizText(rawText: string): QuestionFormItem[] {
   if (!rawText.trim()) return [];
 
-  // Bersihkan karakter markdown pembungkus
+  // 1. Bersihkan formatting markdown & escape backslash dari ChatGPT/Claude
   const textClean = rawText
+    .replace(/\r\n/g, '\n')
+    // Hapus escape backslash markdown (misal: 1\., A\., atau backslash di akhir baris \)
+    .replace(/\\([.\-_*+?^=!:${}()|[\]\/\\])/g, '$1')
+    .replace(/\\$/gm, '')
+    .replace(/\\/g, '')
     .replace(/\*\*/g, '')
     .replace(/\*/g, '')
-    .replace(/`/g, '')
-    .replace(/\r\n/g, '\n');
+    .replace(/`/g, '');
 
-  // Pisahkan berdasarkan pola penomoran soal baru (1. / 1) / Soal 1:)
-  const rawBlocks = textClean.split(/\n(?=(?:(?:Soal|Pertanyaan)\s*)?\d+[\.\)]\s+)/i);
+  // 2. Pisahkan blok soal berdasarkan pola penomoran baru di awal baris:
+  // Contoh: 1. atau 1) atau (1) atau [1] atau Soal 1: atau Pertanyaan 1:
+  const rawBlocks = textClean.split(/(?:^|\n)(?=(?:(?:Soal|Pertanyaan)\s*)?(?:\(?\d+[\.\)\:\-]|\[\d+\]|\b\d+[\.\)]))\s*/i);
 
   const hasil: QuestionFormItem[] = [];
 
@@ -91,18 +96,18 @@ function parseAiQuizText(rawText: string): QuestionFormItem[] {
     let penjelasan = '';
 
     for (const line of lines) {
-      // 1. Baris pertanyaan utama (angka diikuti titik/kurung)
-      const soalMatch = line.match(/^(?:(?:Soal|Pertanyaan)\s*)?\d+[\.\)]\s*(.+)$/i);
+      // 1. Baris pertanyaan utama (angka diikuti titik/kurung/titik-dua)
+      const soalMatch = line.match(/^(?:(?:Soal|Pertanyaan)\s*)?(?:\(?\d+[\.\)\:\-]|\[\d+\])\s*(.+)$/i);
       if (soalMatch && !teksSoal) {
         teksSoal = soalMatch[1].trim();
         continue;
       }
 
-      // 2. Opsi A, B, C, D, E
-      const opsiMatch = line.match(/^([A-Ea-e])[\.\)]\s*(.+)$/i);
+      // 2. Opsi A, B, C, D, E (mendukung A., A), (A), [A], A:, a.)
+      const opsiMatch = line.match(/^(?:\(?([A-Ea-e])[\.\)\:\-]|\[([A-Ea-e])\])\s*(.+)$/i);
       if (opsiMatch) {
-        const huruf = opsiMatch[1].toUpperCase();
-        const isi = opsiMatch[2].trim();
+        const huruf = (opsiMatch[1] || opsiMatch[2]).toUpperCase();
+        const isi = opsiMatch[3].trim();
         if (huruf === 'A') opsiA = isi;
         else if (huruf === 'B') opsiB = isi;
         else if (huruf === 'C') opsiC = isi;
@@ -111,15 +116,15 @@ function parseAiQuizText(rawText: string): QuestionFormItem[] {
         continue;
       }
 
-      // 3. Kunci Jawaban
-      const kunciMatch = line.match(/^(?:Jawaban(?: Benar)?|Kunci(?: Jawaban)?)\s*:\s*([A-Ea-e])/i);
+      // 3. Kunci Jawaban (Jawaban: B, Kunci: B, Kunci Jawaban: B. Kupu-kupu, Jawaban Benar: B)
+      const kunciMatch = line.match(/^(?:Jawaban(?: Benar)?|Kunci(?: Jawaban)?)\s*:?\s*(?:\(?([A-Ea-e])[\.\)]?|[A-Ea-e]\b)/i);
       if (kunciMatch) {
-        kunciDitemukan = kunciMatch[1].toUpperCase();
+        kunciDitemukan = (kunciMatch[1] || kunciMatch[0].slice(-1)).toUpperCase();
         continue;
       }
 
       // 4. Pembahasan / Penjelasan
-      const pembahasanMatch = line.match(/^(?:Pembahasan|Penjelasan)\s*:\s*(.+)$/i);
+      const pembahasanMatch = line.match(/^(?:Pembahasan|Penjelasan)\s*:?\s*(.+)$/i);
       if (pembahasanMatch) {
         penjelasan = pembahasanMatch[1].trim();
         continue;
