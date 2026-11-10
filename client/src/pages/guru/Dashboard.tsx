@@ -207,9 +207,14 @@ export default function DashboardGuru() {
   // Muat data kuota AI saat tab profil dibuka
   useEffect(() => {
     if (tabAktif === 'profil') {
-      apiRequest<{ batasHarian: number; terpakai: number; sisa?: number }>('/ai/kuota')
+      apiRequest<{ batasHarian: number; totalTerpakai?: number; sisaKuota?: number; terpakai?: number; sisa?: number }>('/ai/kuota')
         .then((res) => {
-          setSisaAi(typeof res.sisa === 'number' ? res.sisa : Math.max(0, 30 - (res.terpakai || 0)));
+          const sisa = typeof res.sisaKuota === 'number'
+            ? res.sisaKuota
+            : typeof res.sisa === 'number'
+            ? res.sisa
+            : Math.max(0, 30 - (res.totalTerpakai ?? res.terpakai ?? 0));
+          setSisaAi(sisa);
         })
         .catch(() => {});
     }
@@ -1258,19 +1263,19 @@ export default function DashboardGuru() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                     {(subTabTemplate === 'saya' ? templatesTersaring : pustakaTersaring).map((tmpl) => {
                       const jumlahSoal = tmpl._count?.questions ?? tmpl.jumlahSoal ?? 0;
                       const isAdminOfficial = tmpl.resmi || subTabTemplate === 'pustaka';
                       return (
                         <div
                           key={tmpl.id}
-                          className="portal-card p-5 flex flex-col justify-between gap-4"
+                          className="portal-card p-4 sm:p-5 flex flex-col justify-between gap-4 overflow-hidden"
                         >
                           <div className="space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-1.5 flex-nowrap">
                               <span
-                                className={`portal-tag ${
+                                className={`portal-tag xs whitespace-nowrap shrink-0 ${
                                   tmpl.game === 'panjat_pinang'
                                     ? 'green font-bold'
                                     : tmpl.game === 'balap_karung'
@@ -1282,19 +1287,19 @@ export default function DashboardGuru() {
                               >
                                 {labelJenisGame(tmpl.game)}
                               </span>
-                              <span className="portal-tag yellow">
+                              <span className="portal-tag xs yellow whitespace-nowrap shrink-0">
                                 {tmpl.game === 'makan_kerupuk'
-                                  ? 'Dual Mode (Multi / Solo)'
+                                  ? 'Dual Mode'
                                   : tmpl.game === 'panjat_pinang' ||
                                     tmpl.game === 'balap_karung'
-                                  ? 'Mode Individu'
+                                  ? 'Individu'
                                   : tmpl.mode === 'multi'
-                                  ? 'Mode Multiplayer'
-                                  : 'Mode Solo'}
+                                  ? 'Multiplayer'
+                                  : 'Solo'}
                               </span>
                               {isAdminOfficial && (
-                                <span className="portal-tag blue font-bold">
-                                  Resmi Platform
+                                <span className="portal-tag xs blue font-bold whitespace-nowrap shrink-0">
+                                  Resmi
                                 </span>
                               )}
                             </div>
@@ -1307,23 +1312,23 @@ export default function DashboardGuru() {
                             </p>
                           </div>
 
-                          <div className="pt-3 border-t-2 border-dashed border-[#e0d5b8] flex flex-wrap items-center justify-between gap-2">
+                          <div className="pt-3 border-t-2 border-dashed border-[#e0d5b8] flex items-center justify-between gap-2 flex-nowrap">
                             {subTabTemplate === 'saya' ? (
                               <>
                                 <button
                                   type="button"
                                   onClick={() => handleMulaiGame(tmpl.id, tmpl.mode, tmpl.game)}
-                                  className="portal-btn red sm"
+                                  className="portal-btn red xs whitespace-nowrap shrink-0"
                                 >
                                   <Play className="w-3.5 h-3.5 fill-current" />
                                   <span>{labelTombolMulai(tmpl.game, tmpl.mode)}</span>
                                 </button>
 
-                                <div className="inline-flex items-center gap-1.5">
+                                <div className="inline-flex items-center gap-1 shrink-0">
                                   <button
                                     type="button"
                                     onClick={() => navigate(`/guru/template/${tmpl.id}/ubah`)}
-                                    className="portal-btn ghost sm"
+                                    className="portal-btn ghost xs !p-1.5"
                                     title="Ubah Template"
                                   >
                                     <Edit3 className="w-3.5 h-3.5" />
@@ -1331,7 +1336,7 @@ export default function DashboardGuru() {
                                   <button
                                     type="button"
                                     onClick={() => handleDuplikat(tmpl.id)}
-                                    className="portal-btn ghost sm"
+                                    className="portal-btn ghost xs !p-1.5"
                                     title="Duplikat Template"
                                   >
                                     <Copy className="w-3.5 h-3.5" />
@@ -1339,7 +1344,7 @@ export default function DashboardGuru() {
                                   <button
                                     type="button"
                                     onClick={() => setModalHapusId(tmpl.id)}
-                                    className="portal-btn ghost-red sm"
+                                    className="portal-btn ghost-red xs !p-1.5"
                                     title="Hapus Template"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -1347,24 +1352,24 @@ export default function DashboardGuru() {
                                 </div>
                               </>
                             ) : (
-                              <div className="w-full flex flex-wrap items-center justify-between gap-2">
+                              <div className="w-full flex items-center gap-2">
                                 <button
                                   type="button"
                                   onClick={() => handleMulaiGame(tmpl.id, tmpl.mode, tmpl.game)}
-                                  className="portal-btn red sm"
+                                  className="portal-btn red xs flex-1 min-w-0 justify-center"
                                   title="Gunakan langsung template buatan admin ini"
                                 >
-                                  <Play className="w-3.5 h-3.5 fill-current" />
-                                  <span>{labelTombolMulai(tmpl.game, tmpl.mode)}</span>
+                                  <Play className="w-3.5 h-3.5 fill-current shrink-0" />
+                                  <span className="truncate">{labelTombolMulai(tmpl.game, tmpl.mode)}</span>
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleDuplikat(tmpl.id)}
-                                  className="portal-btn ghost sm"
+                                  className="portal-btn ghost xs flex-1 min-w-0 justify-center"
                                   title="Salin ke Template Saya untuk dimodifikasi"
                                 >
-                                  <Copy className="w-3.5 h-3.5" />
-                                  <span>Salin ke Koleksi</span>
+                                  <Copy className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">Salin ke Koleksi</span>
                                 </button>
                               </div>
                             )}
