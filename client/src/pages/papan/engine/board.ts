@@ -3,15 +3,17 @@ import {
   BoardView,
   BoardState,
   Pt,
+  Bounds,
   LaserPoint,
   TextEditorState,
   ToolType,
   UbahEventPayload,
   TextObj,
   TableObj,
+  HandleKey,
 } from './types';
 import { COL, LCOL } from './color';
-import { move, topAt, bounds, ResizeCorner, hitResizeCorner, applyResize } from './geometry';
+import { move, topAt, bounds, hit, hitSelectionHandle, rsz, getHandleCursor } from './geometry';
 import { eraseSeg } from './eraser';
 import { HistoryManager, cloneObj } from './history';
 import { drawScene, ensureFontLoaded } from './render';
@@ -60,7 +62,7 @@ export class Board {
   private mouse: Pt | null = null;
   private activePointers: Map<number, Pt> = new Map();
   private drag: {
-    k: 'pan' | 'er' | 'ai' | 'mv' | 'ls' | 'resize' | 'pinch';
+    k: 'pan' | 'er' | 'ai' | 'mv' | 'ls' | 'resize' | 'rot' | 'pinch';
     x?: number;
     y?: number;
     vx?: number;
@@ -71,9 +73,10 @@ export class Board {
     initialObjBeforeMove?: CanvasObj;
     erasedRemoved?: CanvasObj[];
     erasedAdded?: CanvasObj[];
-    corner?: ResizeCorner;
-    initialObjBeforeResize?: CanvasObj;
-    resizeStartPt?: Pt;
+    handleKey?: HandleKey;
+    b0?: Bounds;
+    r0?: number;
+    initialObj?: CanvasObj;
     pinchDist?: number;
     pinchCenter?: Pt;
   } | null = null;
@@ -688,20 +691,34 @@ export class Board {
         this.drag.erasedRemoved!.push(...res.removed);
       }
     } else if (t === 'select') {
-      // Cek apakah kursor mengenai handle sudut resize objek aktif
+      // Cek apakah kursor mengenai handle sudut resize atau rotasi objek aktif
       if (this.sel) {
         const selObj = this.objs.find((item) => item.id === this.sel);
         if (selObj && selObj.type !== 'stroke') {
           const b = bounds(selObj);
-          const corner = hitResizeCorner(b, p, 10 / this.view.z, 6);
-          if (corner) {
-            this.drag = {
-              k: 'resize',
-              corner,
-              resizeStartPt: p,
-              initialObjBeforeResize: cloneObj(selObj),
-              ch: false,
-            };
+          const r = selObj.rot || 0;
+          const handle = hitSelectionHandle(b, r, p, this.view.z);
+          if (handle) {
+            if (handle.k === 'rot') {
+              this.drag = {
+                k: 'rot',
+                b0: b,
+                r0: r,
+                initialObj: cloneObj(selObj),
+                ch: false,
+              };
+              this.canvas.style.cursor = 'grabbing';
+            } else {
+              this.drag = {
+                k: 'resize',
+                handleKey: handle.k,
+                b0: b,
+                r0: r,
+                initialObj: cloneObj(selObj),
+                ch: false,
+              };
+              this.canvas.style.cursor = getHandleCursor(handle.k, r);
+            }
             this.rd();
             return;
           }
@@ -863,23 +880,76 @@ export class Board {
           this.drag.p = p;
           this.drag.ch = true;
         }
+      } else if (this.drag.k === 'rot' && this.sel && this.drag.b0 && this.drag.initialObj) {
+        const o = this.objs.find((item) => item.id === this.sel);
+        if (o) {
+          const b = this.drag.b0;
+          const x0 = b.x + b.w / 2;
+          const y0 = b.y + b.h / 2;
+          let a = Math.atan2(p.y - y0, p.x - x0) + Math.PI / 2;
+          if (e.shiftKey) {
+            // Snap tiap 15 derajat (PI / 12) saat Shift ditekan
+            a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12);
+          }
+          o.rot = a;
+          this.drag.ch = true;
+        }
       } else if (
         this.drag.k === 'resize' &&
         this.sel &&
-        this.drag.corner &&
-        this.drag.initialObjBeforeResize &&
-        this.drag.resizeStartPt
+        this.drag.b0 &&
+        this.drag.handleKey &&
+        this.drag.initialObj
       ) {
         const o = this.objs.find((item) => item.id === this.sel);
         if (o) {
-          applyResize(
-            o,
-            this.drag.corner,
-            this.drag.initialObjBeforeResize,
-            this.drag.resizeStartPt,
-            p,
-            e.shiftKey
-          );
+          Object.assign(o, cloneObj(this.drag.initialObj));
+          const b = this.drag.b0;
+          const x0 = b.x + b.w / 2;
+          const y0 = b.y + b.h / 2;
+          const r = this.drag.r0 || 0;
+          const co = Math.cos(r);
+          const si = Math.sin(r);
+          const hw = b.w / 2 + 6;
+          const hh = b.h / 2 + 6;
+          const dx = p.x - x0;
+          const dy = p.y - y0;
+          const lp = { x: dx * co + dy * si, y: -dx * si + dy * co };
+          const sgMap: Record<string, [number, number]> = {
+            nw: [1, 1],
+            ne: [-1, 1],
+            se: [-1, -1],
+            sw: [1, -1],
+            n: [0, 1],
+            s: [0, -1],
+            e: [-1, 0],
+            w: [1, 0],
+          };
+          const sg = sgMap[this.drag.handleKey] || [1, 1];
+          const op = { x: sg[0] * hw, y: sg[1] * hh };
+          let w = b.w;
+          let h = b.h;
+          let mx = 0;
+          let my = 0;
+
+          if (sg[0] !== 0) {
+            w = Math.max(8, Math.abs(lp.x - op.x) - 12);
+            mx = (op.x + lp.x) / 2;
+          }
+          if (sg[1] !== 0) {
+            h = Math.max(8, Math.abs(lp.y - op.y) - 12);
+            my = (op.y + lp.y) / 2;
+          }
+
+          if (e.shiftKey && sg[0] !== 0 && sg[1] !== 0) {
+            const side = Math.max(w, h);
+            w = side;
+            h = side;
+          }
+
+          const nc = { x: x0 + mx * co - my * si, y: y0 + mx * si + my * co };
+          const nb = { x: nc.x - w / 2, y: nc.y - h / 2, w, h };
+          rsz(o, b, nb);
           this.drag.ch = true;
         }
       } else if (this.drag.k === 'ls') {
@@ -903,18 +973,19 @@ export class Board {
         }
       }
     } else if (this.state.tool === 'select' && this.sel) {
-      // Hover kursor saat berada di atas handle resize
+      // Hover kursor saat berada di atas handle resize atau rotasi
       const selObj = this.objs.find((item) => item.id === this.sel);
       if (selObj && selObj.type !== 'stroke') {
         const b = bounds(selObj);
-        const corner = hitResizeCorner(b, p, 10 / this.view.z, 6);
-        if (corner === 'nw' || corner === 'se') {
-          this.canvas.style.cursor = 'nwse-resize';
-        } else if (corner === 'ne' || corner === 'sw') {
-          this.canvas.style.cursor = 'nesw-resize';
+        const r = selObj.rot || 0;
+        const h = hitSelectionHandle(b, r, p, this.view.z);
+        if (h) {
+          this.canvas.style.cursor = getHandleCursor(h.k, r);
         } else {
-          this.canvas.style.cursor = 'default';
+          this.canvas.style.cursor = hit(selObj, p, 6 / this.view.z) ? 'move' : 'default';
         }
+      } else {
+        this.canvas.style.cursor = 'default';
       }
     }
 
@@ -965,11 +1036,16 @@ export class Board {
         }
       }
 
-      if (this.drag.k === 'resize' && this.drag.ch && this.sel && this.drag.initialObjBeforeResize) {
-        const resizedObj = this.objs.find((item) => item.id === this.sel);
-        if (resizedObj) {
+      if (
+        (this.drag.k === 'resize' || this.drag.k === 'rot') &&
+        this.drag.ch &&
+        this.sel &&
+        this.drag.initialObj
+      ) {
+        const changedObj = this.objs.find((item) => item.id === this.sel);
+        if (changedObj) {
           this.history.commit({
-            ubah: [{ sebelum: this.drag.initialObjBeforeResize, sesudah: cloneObj(resizedObj) }],
+            ubah: [{ sebelum: this.drag.initialObj, sesudah: cloneObj(changedObj) }],
           });
         }
       }

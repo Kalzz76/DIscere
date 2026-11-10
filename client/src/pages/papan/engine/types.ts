@@ -17,6 +17,7 @@ export interface BaseObj {
   color: string;
   size: number;
   op?: number; // Opasitas 0..1
+  rot?: number; // Sudut rotasi dalam radian (0 = tegak)
 }
 
 export interface StrokeObj extends BaseObj {
@@ -66,6 +67,13 @@ export interface ImageObj extends BaseObj {
   h: number;
   src: string; // dataURL JPEG/PNG
   _i?: HTMLImageElement; // cache internal HTMLImageElement, jangan disimpan ke JSON
+}
+
+export type ResizeCorner = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+export type HandleKey = ResizeCorner | 'rot';
+
+export interface SelectionHandle extends Pt {
+  k: HandleKey;
 }
 
 export type CanvasObj = StrokeObj | ShapeObj | TextObj | TableObj | ImageObj;
