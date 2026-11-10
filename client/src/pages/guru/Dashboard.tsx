@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
-import { Modal, ModalProfil } from '../../components';
+import { Modal } from '../../components';
+import { ProfilView } from './ProfilView';
 import { RiwayatDetailModal } from './RiwayatDetailModal';
 import ModalKonfigurasiKerupuk, { KonfigurasiKerupukPayload } from './ModalKonfigurasiKerupuk';
 import {
@@ -23,6 +24,7 @@ import {
   ChevronDown,
   Check,
   ArrowRight,
+  User as UserIcon,
 } from 'lucide-react';
 
 interface TemplateItem {
@@ -164,19 +166,18 @@ export default function DashboardGuru() {
   } | null>(null);
   const [kerupukCreating, setKerupukCreating] = useState(false);
   const [modalKeluarOpen, setModalKeluarOpen] = useState(false);
-  const [modalProfilOpen, setModalProfilOpen] = useState(false);
   const [sisaAi, setSisaAi] = useState<number>(30);
 
-  // Muat data kuota AI saat modal profil dibuka
+  // Muat data kuota AI saat tab profil dibuka
   useEffect(() => {
-    if (modalProfilOpen) {
+    if (tabAktif === 'profil') {
       apiRequest<{ batasHarian: number; terpakai: number; sisa?: number }>('/ai/kuota')
         .then((res) => {
           setSisaAi(typeof res.sisa === 'number' ? res.sisa : Math.max(0, 30 - (res.terpakai || 0)));
         })
         .catch(() => {});
     }
-  }, [modalProfilOpen]);
+  }, [tabAktif]);
 
   const fetchRingkasan = useCallback(async () => {
     try {
@@ -551,27 +552,21 @@ export default function DashboardGuru() {
               <PenTool className="w-4 h-4 shrink-0" />
               <span>Papan Tulis</span>
             </button>
+
+            <button
+              type="button"
+              aria-current={tabAktif === 'profil' ? 'page' : undefined}
+              onClick={() => navigate('/guru?tab=profil')}
+              title="Profil Saya"
+            >
+              <UserIcon className="w-4 h-4 shrink-0" />
+              <span>Profil Saya</span>
+            </button>
           </nav>
 
           <div className="portal-who">
-            <div className="flex items-center justify-between">
-              <span className="portal-who-label">Masuk sebagai:</span>
-              <button
-                type="button"
-                onClick={() => setModalProfilOpen(true)}
-                className="text-[11px] font-bold text-[#f2c230] hover:underline cursor-pointer"
-                title="Buka Pengaturan Profil Pengajar"
-              >
-                Profil Saya
-              </button>
-            </div>
-            <b
-              onClick={() => setModalProfilOpen(true)}
-              className="cursor-pointer hover:text-[#f2c230] transition-colors"
-              title="Klik untuk membuka profil"
-            >
-              {user?.nama || 'Guru Demo'}
-            </b>
+            <span className="portal-who-label">Masuk sebagai:</span>
+            <b>{user?.nama || 'Guru Demo'}</b>
             <span>{user?.sekolah || 'SD Negeri Merdeka 01'}</span>
             <button
               type="button"
@@ -595,6 +590,7 @@ export default function DashboardGuru() {
                 {tabAktif === 'template' && 'Template Game'}
                 {tabAktif === 'riwayat' && 'Riwayat Sesi'}
                 {tabAktif === 'papan' && 'Papan Tulis'}
+                {tabAktif === 'profil' && 'Profil Pengajar'}
               </h1>
               <p>Selamat mengajar, Bapak/Ibu {user?.nama || 'Guru Demo'}.</p>
             </div>
@@ -1651,6 +1647,18 @@ export default function DashboardGuru() {
                   )}
                 </div>
               )}
+
+              {/* TAB 5: PROFIL PENGAJAR */}
+              {tabAktif === 'profil' && (
+                <ProfilView
+                  stats={{
+                    totalTemplate: ringkasan?.totalTemplate ?? templates.length,
+                    totalSesi: ringkasan?.totalSesi ?? riwayatList.length,
+                    totalPapan: boards.length,
+                    kuotaAiSisa: sisaAi,
+                  }}
+                />
+              )}
             </>
           )}
         </main>
@@ -1820,18 +1828,6 @@ export default function DashboardGuru() {
           </div>
         </div>
       </Modal>
-
-      {/* Modal Profil Pengajar */}
-      <ModalProfil
-        isOpen={modalProfilOpen}
-        onClose={() => setModalProfilOpen(false)}
-        stats={{
-          totalTemplate: ringkasan?.totalTemplate ?? templates.length,
-          totalSesi: ringkasan?.totalSesi ?? riwayatList.length,
-          totalPapan: boards.length,
-          kuotaAiSisa: sisaAi,
-        }}
-      />
     </div>
   );
 }

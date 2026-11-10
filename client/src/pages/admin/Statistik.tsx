@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
-import { Modal, ModalProfil } from '../../components';
+import { Modal } from '../../components';
+import { ProfilAdminView } from './ProfilAdminView';
 import {
   LogOut,
   BarChart3,
@@ -24,10 +25,11 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
+  User as UserIcon,
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 
-type AdminTab = 'statistik' | 'guru' | 'pustaka' | 'ai' | 'log';
+type AdminTab = 'statistik' | 'guru' | 'pustaka' | 'ai' | 'log' | 'profil';
 
 export default function DashboardAdmin() {
   const { user, keluar } = useAuth();
@@ -91,7 +93,6 @@ export default function DashboardAdmin() {
 
   // Konfirmasi Keluar Modal
   const [modalKeluarOpen, setModalKeluarOpen] = useState(false);
-  const [modalProfilOpen, setModalProfilOpen] = useState(false);
 
   const handleKeluar = async () => {
     await keluar();
@@ -119,6 +120,11 @@ export default function DashboardAdmin() {
         } else if (activeTab === 'log') {
           const res = await apiRequest<{ logs: any[] }>('/admin/log');
           setAdminLogs(res.logs);
+        } else if (activeTab === 'profil') {
+          if (!statistik) {
+            const res = await apiRequest<{ statistik: any }>('/admin/statistik');
+            setStatistik(res.statistik);
+          }
         }
       } catch (err: any) {
         setErrorPesan(err.pesan || 'Gagal memuat data administrator.');
@@ -414,27 +420,21 @@ export default function DashboardAdmin() {
               <History className="w-4 h-4 shrink-0" />
               <span>Log Audit</span>
             </button>
+
+            <button
+              type="button"
+              aria-current={activeTab === 'profil' ? 'page' : undefined}
+              onClick={() => setActiveTab('profil')}
+              title="Profil Admin"
+            >
+              <UserIcon className="w-4 h-4 shrink-0" />
+              <span>Profil Admin</span>
+            </button>
           </nav>
 
           <div className="portal-who">
-            <div className="flex items-center justify-between">
-              <span className="portal-who-label">Masuk sebagai:</span>
-              <button
-                type="button"
-                onClick={() => setModalProfilOpen(true)}
-                className="text-[11px] font-bold text-[#f2c230] hover:underline cursor-pointer"
-                title="Buka Pengaturan Profil Administrator"
-              >
-                Profil Admin
-              </button>
-            </div>
-            <b
-              onClick={() => setModalProfilOpen(true)}
-              className="cursor-pointer hover:text-[#f2c230] transition-colors"
-              title="Klik untuk membuka profil"
-            >
-              {user?.nama || 'Administrator'}
-            </b>
+            <span className="portal-who-label">Masuk sebagai:</span>
+            <b>{user?.nama || 'Administrator'}</b>
             <span>{user?.email}</span>
             <button
               type="button"
@@ -459,6 +459,7 @@ export default function DashboardAdmin() {
                 {activeTab === 'pustaka' && 'Pustaka Template Resmi'}
                 {activeTab === 'ai' && 'Monitoring Pemakaian AI'}
                 {activeTab === 'log' && 'Log Audit Administrator'}
+                {activeTab === 'profil' && 'Profil Administrator'}
               </h1>
               <p>
                 Platform Pembelajaran Cerdas & Menyenangkan • Akses Terisolasi Administrator
@@ -921,6 +922,18 @@ export default function DashboardAdmin() {
                   </div>
                 </div>
               )}
+              {/* ========================================================= */}
+              {/* 6. TAB PROFIL ADMINISTRATOR                               */}
+              {/* ========================================================= */}
+              {activeTab === 'profil' && (
+                <ProfilAdminView
+                  stats={{
+                    totalGuru: statistik?.totalGuru,
+                    totalTemplateResmi: statistik?.totalTemplateResmi ?? daftarPustaka.length,
+                    totalSesi: statistik?.totalSesi,
+                  }}
+                />
+              )}
             </>
           )}
         </main>
@@ -1293,17 +1306,6 @@ export default function DashboardAdmin() {
           </div>
         </div>
       </Modal>
-
-      {/* Modal Profil Admin */}
-      <ModalProfil
-        isOpen={modalProfilOpen}
-        onClose={() => setModalProfilOpen(false)}
-        stats={{
-          totalGuru: statistik?.totalGuru,
-          totalTemplateResmi: statistik?.totalTemplateResmi ?? daftarPustaka.length,
-          totalSesi: statistik?.totalSesi,
-        }}
-      />
     </div>
   );
 }
