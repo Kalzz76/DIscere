@@ -278,27 +278,45 @@ export default function TemplateForm() {
       setAiLoading(true);
       setAiError(null);
       const res = await apiRequest<{
-        sukses: boolean;
-        questions: Array<{
-          urutan: number;
+        sukses?: boolean;
+        soal?: Array<{
+          urutan?: number;
           teks: string;
           opsiA: string;
           opsiB: string;
           opsiC: string;
           jawabanBenar: 'A' | 'B' | 'C';
-          penjelasan: string;
+          penjelasan?: string;
         }>;
-      }>('/ai/generate-soal', {
+        questions?: Array<{
+          urutan?: number;
+          teks: string;
+          opsiA: string;
+          opsiB: string;
+          opsiC: string;
+          jawabanBenar: 'A' | 'B' | 'C';
+          penjelasan?: string;
+        }>;
+        kuota?: {
+          sisaKuota: number;
+          totalTerpakai: number;
+          batasHarian: number;
+        };
+      }>('/ai/soal', {
         method: 'POST',
         body: JSON.stringify({
           materi: aiMateri.trim(),
+          jumlah: aiJumlah,
+          tingkat: aiTingkat,
           jumlahSoal: aiJumlah,
           jenjang: aiTingkat,
         }),
       });
 
-      if (res.sukses && res.questions) {
-        const aiQuestionsFormatted: QuestionFormItem[] = res.questions.map(
+      const daftarSoal = res.soal || res.questions || [];
+
+      if (daftarSoal.length > 0) {
+        const aiQuestionsFormatted: QuestionFormItem[] = daftarSoal.map(
           (q, idx) => ({
             urutan: idx + 1,
             teks: q.teks,
@@ -312,6 +330,10 @@ export default function TemplateForm() {
         );
 
         setQuestions(aiQuestionsFormatted);
+        setModeInput('manual');
+        if (res.kuota) {
+          setAiKuota(res.kuota);
+        }
         setAiSuksesPesan(
           `Berhasil menghasilkan ${aiQuestionsFormatted.length} soal kuis!`
         );
@@ -321,6 +343,8 @@ export default function TemplateForm() {
           setAiSuksesPesan(null);
           setAiMateri('');
         }, 1200);
+      } else {
+        setAiError('Tidak ada soal yang berhasil dihasilkan. Silakan coba lagi.');
       }
     } catch (err: any) {
       setAiError(err.pesan || 'Gagal menghasilkan soal dengan AI.');
