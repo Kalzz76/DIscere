@@ -244,8 +244,8 @@ export default function KolaborasiPublik() {
       onStateChange: (nextState) => {
         setBoardState({ ...nextState });
       },
-      onSelectionChange: (selId) => {
-        setSelectedId(selId);
+      onSelectionChange: (_selIds, firstId) => {
+        setSelectedId(firstId);
       },
       onViewChange: (nextView) => {
         setView({ ...nextView });

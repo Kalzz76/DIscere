@@ -135,6 +135,33 @@ export function wb(o: CanvasObj): Bounds {
   };
 }
 
+export function ubox(objs: CanvasObj[]): Bounds {
+  if (objs.length === 0) return { x: 0, y: 0, w: 0, h: 0 };
+  let minX = 1e9,
+    minY = 1e9,
+    maxX = -1e9,
+    maxY = -1e9;
+  for (const o of objs) {
+    const r = wb(o);
+    if (r.x < minX) minX = r.x;
+    if (r.y < minY) minY = r.y;
+    if (r.x + r.w > maxX) maxX = r.x + r.w;
+    if (r.y + r.h > maxY) maxY = r.y + r.h;
+  }
+  return {
+    x: minX,
+    y: minY,
+    w: Math.max(0, maxX - minX),
+    h: Math.max(0, maxY - minY),
+  };
+}
+
+export function inUnion(objs: CanvasObj[], p: Pt): boolean {
+  if (objs.length < 2) return false;
+  const b = ubox(objs);
+  return p.x >= b.x - 8 && p.x <= b.x + b.w + 8 && p.y >= b.y - 8 && p.y <= b.y + b.h + 8;
+}
+
 export function hit(o: CanvasObj, p: Pt, t = 6): boolean {
   let pt = p;
   if (o.rot) {

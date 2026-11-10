@@ -18,6 +18,8 @@ export interface BaseObj {
   size: number;
   op?: number; // Opasitas 0..1
   rot?: number; // Sudut rotasi dalam radian (0 = tegak)
+  g?: string; // ID grup objek (untuk group / ungroup)
+  lock?: boolean; // Status kunci objek (tidak bisa diubah jika true)
 }
 
 export interface StrokeObj extends BaseObj {

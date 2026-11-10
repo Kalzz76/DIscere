@@ -1,5 +1,5 @@
-import { CanvasObj, BoardView, BoardState, Pt, LaserPoint } from './types';
-import { bounds, ew, lines, intersects, wb, hsFor } from './geometry';
+import { CanvasObj, BoardView, BoardState, Pt, Bounds, LaserPoint } from './types';
+import { bounds, ew, lines, intersects, wb, hsFor, ubox } from './geometry';
 import { up } from './shapes';
 
 let fontLoaded = false;
@@ -215,7 +215,8 @@ export interface DrawSceneParams {
   objs: CanvasObj[];
   cur: CanvasObj | null;
   lasso: Pt[] | null;
-  sel: string | null;
+  sel: string[] | string | null;
+  marq?: Bounds | null;
   laser: LaserPoint[];
   mouse: Pt | null;
   onImageLoad?: () => void;
@@ -230,6 +231,7 @@ export function drawScene({
   cur,
   lasso,
   sel,
+  marq,
   laser,
   mouse,
   onImageLoad,
@@ -294,81 +296,106 @@ export function drawScene({
     ctx.restore();
   }
 
-  // Kotak seleksi objek aktif & Pegangan Resize + Rotasi
-  if (sel) {
-    const s = objs.find((o) => o.id === sel);
-    if (s) {
+  // Kotak seleksi objek aktif & Pegangan Resize + Rotasi (Tunggal & Multi-Select)
+  const selIds = Array.isArray(sel) ? sel : sel ? [sel] : [];
+  const selectedObjs = objs.filter((o) => selIds.includes(o.id));
+
+  if (selectedObjs.length > 0) {
+    const z = view.z;
+    ctx.save();
+    ctx.lineWidth = 1.5 / z;
+    ctx.strokeStyle = '#9b17f5';
+    ctx.setLineDash([6 / z, 4 / z]);
+
+    // Gambar outline dashed per objek
+    for (const s of selectedObjs) {
       const b = bounds(s);
       const r = s.rot || 0;
-      const z = view.z;
-
-      ctx.save();
-      ctx.lineWidth = 1.5 / z;
-      ctx.strokeStyle = '#9b17f5';
-      ctx.setLineDash([6 / z, 4 / z]);
-
-      // Gambar outline yang diputar sesuai rotasi objek
       ctx.save();
       ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
       ctx.rotate(r);
       ctx.strokeRect(-b.w / 2 - 6, -b.h / 2 - 6, b.w + 12, b.h + 12);
       ctx.restore();
-
-      ctx.setLineDash([]);
-
-      // Handles untuk semua objek yang terpilih
-      const hs = hsFor(b, r, z);
-      const rotHandle = hs.find((h) => h.k === 'rot');
-      const topHandle = hs.find((h) => h.k === 'n');
-
-        // Garis penghubung ke pegangan rotasi
-        if (rotHandle && topHandle) {
-          ctx.beginPath();
-          ctx.moveTo(topHandle.x, topHandle.y);
-          ctx.lineTo(rotHandle.x, rotHandle.y);
-          ctx.stroke();
-        }
-
-        // Gambar handle resize (persegi untuk sudut, lingkaran untuk tepi tengah)
-        for (const h of hs) {
-          if (h.k === 'rot') continue;
-          ctx.fillStyle = '#ffffff';
-          ctx.strokeStyle = '#9b17f5';
-          ctx.lineWidth = 2 / z;
-          const sz = (h.k.length === 2 ? 6.5 : 5) / z;
-          ctx.beginPath();
-          if (h.k.length === 2) {
-            ctx.rect(h.x - sz, h.y - sz, sz * 2, sz * 2);
-          } else {
-            ctx.arc(h.x, h.y, sz, 0, Math.PI * 2);
-          }
-          ctx.fill();
-          ctx.stroke();
-        }
-
-        // Gambar pegangan rotasi
-        if (rotHandle) {
-          ctx.fillStyle = '#9b17f5';
-          ctx.beginPath();
-          ctx.arc(rotHandle.x, rotHandle.y, 11 / z, 0, Math.PI * 2);
-          ctx.fill();
-
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2 / z;
-          ctx.beginPath();
-          ctx.arc(rotHandle.x, rotHandle.y, 5.5 / z, -0.6, 4.4);
-          ctx.stroke();
-
-          const ex = rotHandle.x + (5.5 / z) * Math.cos(4.4);
-          const ey = rotHandle.y + (5.5 / z) * Math.sin(4.4);
-          ctx.beginPath();
-          ctx.moveTo(ex - 3 / z, ey - 3 / z);
-          ctx.lineTo(ex, ey);
-          ctx.lineTo(ex + 3 / z, ey - 3 / z);
-          ctx.stroke();
-        }
-      ctx.restore();
     }
+    ctx.setLineDash([]);
+
+    // Kotak transform (objek tunggal atau union multi-objek)
+    const xformBox =
+      selectedObjs.length === 1
+        ? { b: bounds(selectedObjs[0]), r: selectedObjs[0].rot || 0 }
+        : { b: ubox(selectedObjs), r: 0 };
+
+    if (selectedObjs.length > 1) {
+      ctx.lineWidth = 1.5 / z;
+      ctx.strokeStyle = '#9b17f5';
+      ctx.strokeRect(xformBox.b.x - 6, xformBox.b.y - 6, xformBox.b.w + 12, xformBox.b.h + 12);
+    }
+
+    // Handles untuk kotak aktif
+    const hs = hsFor(xformBox.b, xformBox.r, z);
+    const rotHandle = hs.find((h) => h.k === 'rot');
+    const topHandle = hs.find((h) => h.k === 'n');
+
+    // Garis penghubung ke pegangan rotasi
+    if (rotHandle && topHandle) {
+      ctx.beginPath();
+      ctx.moveTo(topHandle.x, topHandle.y);
+      ctx.lineTo(rotHandle.x, rotHandle.y);
+      ctx.stroke();
+    }
+
+    // Gambar handle resize (persegi untuk sudut, lingkaran untuk tepi tengah)
+    for (const h of hs) {
+      if (h.k === 'rot') continue;
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#9b17f5';
+      ctx.lineWidth = 2 / z;
+      const sz = (h.k.length === 2 ? 6.5 : 5) / z;
+      ctx.beginPath();
+      if (h.k.length === 2) {
+        ctx.rect(h.x - sz, h.y - sz, sz * 2, sz * 2);
+      } else {
+        ctx.arc(h.x, h.y, sz, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // Gambar pegangan rotasi
+    if (rotHandle) {
+      ctx.fillStyle = '#9b17f5';
+      ctx.beginPath();
+      ctx.arc(rotHandle.x, rotHandle.y, 11 / z, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2 / z;
+      ctx.beginPath();
+      ctx.arc(rotHandle.x, rotHandle.y, 5.5 / z, -0.6, 4.4);
+      ctx.stroke();
+
+      const ex = rotHandle.x + (5.5 / z) * Math.cos(4.4);
+      const ey = rotHandle.y + (5.5 / z) * Math.sin(4.4);
+      ctx.beginPath();
+      ctx.moveTo(ex - 3 / z, ey - 3 / z);
+      ctx.lineTo(ex, ey);
+      ctx.lineTo(ex + 3 / z, ey - 3 / z);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  // Marquee seleksi seret kotak (area ungu transparan)
+  if (marq && marq.w > 0 && marq.h > 0) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(155, 23, 245, 0.08)';
+    ctx.strokeStyle = '#9b17f5';
+    ctx.lineWidth = 1.5 / view.z;
+    ctx.setLineDash([6 / view.z, 4 / view.z]);
+    ctx.fillRect(marq.x, marq.y, marq.w, marq.h);
+    ctx.strokeRect(marq.x, marq.y, marq.w, marq.h);
+    ctx.restore();
   }
 
   // Jejak Laser pointer (memudar 900 ms)
