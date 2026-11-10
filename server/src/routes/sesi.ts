@@ -10,6 +10,16 @@ import { soloManager } from '../games/soloManager.js';
 import { multiManager } from '../games/multiManager.js';
 import { kerupukManager } from '../games/kerupukManager.js';
 import { validasiProbabilitas, PRESET_PROBABILITAS } from '../games/makanKerupuk.js';
+import { panjatPinangManager } from '../games/panjatPinangManager.js';
+import {
+  bangunKonfigurasiPanjatPinang,
+  konfigurasiPanjatPinangSchema,
+} from '../games/panjatPinang.js';
+import { balapKarungManager } from '../games/balapKarungManager.js';
+import {
+  bangunKonfigurasiBalapKarung,
+  konfigurasiBalapKarungSchema,
+} from '../games/balapKarung.js';
 
 export const sesiRouter = Router();
 
@@ -31,6 +41,42 @@ sesiRouter.get('/token/:token', async (req: Request, res: Response) => {
     const token = req.params.token as string;
     if (!token || token.length !== 6) {
       return res.status(400).json({ valid: false, pesan: 'Kode token harus terdiri dari 6 angka.' });
+    }
+
+    // 0b. Cek di in-memory balapKarungManager (Game Balap Karung Challenge)
+    const activeBalap = balapKarungManager.dapatkanSesiDariToken(token);
+    if (activeBalap) {
+      if (activeBalap.status === 'selesai') {
+        return res.status(400).json({ valid: false, pesan: 'Sesi Balap Karung ini sudah selesai.' });
+      }
+      return res.json({
+        valid: true,
+        sessionId: activeBalap.sessionId,
+        templateJudul: activeBalap.templateJudul,
+        game: 'balap_karung',
+        status: activeBalap.status,
+        totalPeserta: activeBalap.peserta.size,
+        maxPeserta: activeBalap.config.maxPeserta,
+        allowLateJoin: activeBalap.config.allowLateJoin,
+      });
+    }
+
+    // 0. Cek di in-memory panjatPinangManager (Game Panjat Pinang)
+    const activePanjat = panjatPinangManager.dapatkanSesiDariToken(token);
+    if (activePanjat) {
+      if (activePanjat.status === 'selesai') {
+        return res.status(400).json({ valid: false, pesan: 'Sesi Panjat Pinang ini sudah selesai.' });
+      }
+      return res.json({
+        valid: true,
+        sessionId: activePanjat.sessionId,
+        templateJudul: activePanjat.templateJudul,
+        game: 'panjat_pinang',
+        status: activePanjat.status,
+        totalPeserta: activePanjat.peserta.size,
+        maxPeserta: activePanjat.config.maxPeserta,
+        allowLateJoin: activePanjat.config.allowLateJoin,
+      });
     }
 
     // 1. Cek di in-memory kerupukManager (Game Makan Kerupuk Challenge)
@@ -216,10 +262,21 @@ sesiRouter.get('/riwayat/:id', async (req: AuthRequest, res: Response) => {
       soalPalingSeringSalah = null;
     }
 
+    const laporanPanjatPinang =
+      session.template.game === 'panjat_pinang'
+        ? await panjatPinangManager.muatLaporanDariDatabase(session.id)
+        : null;
+
+    const laporanBalapKarung =
+      session.template.game === 'balap_karung'
+        ? await balapKarungManager.muatLaporanDariDatabase(session.id)
+        : null;
+
     return res.json({
       detail: {
         sessionId: session.id,
         templateJudul: session.template.judul,
+        game: session.template.game,
         mode: session.mode.toUpperCase(),
         tanggal: session.selesaiPada || session.createdAt,
         timMenang: session.result?.timMenang || 'seri',
@@ -231,6 +288,8 @@ sesiRouter.get('/riwayat/:id', async (req: AuthRequest, res: Response) => {
         totalSoalDimainkan: session.questionStats.length,
         statsPerSoal,
         soalPalingSeringSalah,
+        laporanPanjatPinang,
+        laporanBalapKarung,
       },
     });
   } catch (err: any) {
@@ -238,11 +297,11 @@ sesiRouter.get('/riwayat/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// 3. POST /api/sesi - Buat sesi (Solo, Multiplayer Tarik Tambang, atau Makan Kerupuk Challenge)
+// 3. POST /api/sesi - Buat sesi (Solo, Tarik Tambang Multi, Makan Kerupuk, atau Panjat Pinang)
 const buatSesiSchema = z.object({
   templateId: z.string().min(1, 'ID template wajib disertakan.'),
   mode: z.enum(['solo', 'multi']).optional(),
-  game: z.enum(['tarik_tambang', 'makan_kerupuk']).optional(),
+  game: z.enum(['tarik_tambang', 'makan_kerupuk', 'panjat_pinang', 'balap_karung']).optional(),
   probabilitas: z
     .object({
       besar: z.number(),
@@ -252,7 +311,9 @@ const buatSesiSchema = z.object({
       zonk: z.number(),
     })
     .optional(),
-  maxPeserta: z.number().int().min(1).max(100).optional(),
+  panjatPinangConfig: konfigurasiPanjatPinangSchema.optional(),
+  balapKarungConfig: konfigurasiBalapKarungSchema.optional(),
+  maxPeserta: z.number().int().min(1).max(200).optional(),
   durasiSoalDetik: z.number().int().min(5).max(120).optional(),
   allowLateJoin: z.boolean().optional(),
 });
@@ -281,6 +342,132 @@ sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
     }
 
     const targetGame = parsed.game || template.game || 'tarik_tambang';
+
+    // -------------------------------------------------------------
+    // CABANG 0B: Game Balap Karung Challenge (Individual Multiplayer)
+    // -------------------------------------------------------------
+    if (targetGame === 'balap_karung') {
+      const configSnapshot = bangunKonfigurasiBalapKarung({
+        ...(parsed.balapKarungConfig || {}),
+        ...(parsed.maxPeserta ? { maxPeserta: parsed.maxPeserta } : {}),
+        ...(parsed.allowLateJoin !== undefined ? { allowLateJoin: parsed.allowLateJoin } : {}),
+      });
+
+      const token = balapKarungManager.generateUniqueToken();
+      const baseUrl = getNetworkBaseUrl(req);
+      const joinUrl = `${baseUrl}/main?token=${token}`;
+      const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
+
+      const session = await prisma.session.create({
+        data: {
+          templateId: template.id,
+          hostId: req.user!.id,
+          mode: 'multi',
+          token,
+          status: 'lobi',
+          konfigurasi: JSON.stringify(configSnapshot),
+        },
+      });
+
+      const activeSession = balapKarungManager.inisialisasiSesi(
+        session.id,
+        token,
+        req.user!.id,
+        { id: template.id, judul: template.judul },
+        template.questions.map((q) => ({
+          id: q.id,
+          urutan: q.urutan,
+          teks: q.teks,
+          opsiA: q.opsiA,
+          opsiB: q.opsiB,
+          opsiC: q.opsiC,
+          jawabanBenar: q.jawabanBenar,
+          penjelasan: q.penjelasan,
+        })),
+        configSnapshot
+      );
+
+      return res.status(201).json({
+        pesan: 'Sesi Balap Karung Challenge berhasil dibuat.',
+        session: {
+          id: session.id,
+          game: 'balap_karung',
+          mode: 'multi',
+          token,
+          qrDataUrl,
+          joinUrl,
+          networkUrl: baseUrl,
+          templateId: template.id,
+          templateJudul: template.judul,
+          status: 'lobi',
+          totalSoal: activeSession.totalSoal,
+          config: activeSession.config,
+        },
+      });
+    }
+
+    // -------------------------------------------------------------
+    // CABANG 0: Game Panjat Pinang (Individual Multiplayer)
+    // -------------------------------------------------------------
+    if (targetGame === 'panjat_pinang') {
+      const configSnapshot = bangunKonfigurasiPanjatPinang({
+        ...(parsed.panjatPinangConfig || {}),
+        ...(parsed.maxPeserta ? { maxPeserta: parsed.maxPeserta } : {}),
+        ...(parsed.allowLateJoin !== undefined ? { allowLateJoin: parsed.allowLateJoin } : {}),
+      });
+
+      const token = panjatPinangManager.generateUniqueToken();
+      const baseUrl = getNetworkBaseUrl(req);
+      const joinUrl = `${baseUrl}/main?token=${token}`;
+      const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
+
+      const session = await prisma.session.create({
+        data: {
+          templateId: template.id,
+          hostId: req.user!.id,
+          mode: 'multi',
+          token,
+          status: 'lobi',
+          konfigurasi: JSON.stringify(configSnapshot),
+        },
+      });
+
+      const activeSession = panjatPinangManager.inisialisasiSesi(
+        session.id,
+        token,
+        req.user!.id,
+        { id: template.id, judul: template.judul },
+        template.questions.map((q) => ({
+          id: q.id,
+          urutan: q.urutan,
+          teks: q.teks,
+          opsiA: q.opsiA,
+          opsiB: q.opsiB,
+          opsiC: q.opsiC,
+          jawabanBenar: q.jawabanBenar,
+          penjelasan: q.penjelasan,
+        })),
+        configSnapshot
+      );
+
+      return res.status(201).json({
+        pesan: 'Sesi Panjat Pinang berhasil dibuat.',
+        session: {
+          id: session.id,
+          game: 'panjat_pinang',
+          mode: 'multi',
+          token,
+          qrDataUrl,
+          joinUrl,
+          networkUrl: baseUrl,
+          templateId: template.id,
+          templateJudul: template.judul,
+          status: 'lobi',
+          totalSoal: activeSession.totalSoal,
+          config: activeSession.config,
+        },
+      });
+    }
 
     // -------------------------------------------------------------
     // CABANG A: Game Makan Kerupuk Challenge
@@ -454,10 +641,84 @@ sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// 4. GET /api/sesi/:id - Ambil detail sesi Solo, Multiplayer, atau Makan Kerupuk aktif
+// 4. GET /api/sesi/:id - Ambil detail sesi Solo, Tarik Tambang, Makan Kerupuk, atau Panjat Pinang aktif
 sesiRouter.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
+
+    // 0b. Cek di in-memory balapKarungManager atau pulihkan dari DB jika Balap Karung
+    let activeBalap = balapKarungManager.dapatkanSesi(id);
+    if (!activeBalap) {
+      activeBalap = (await balapKarungManager.pulihkanSesiDariDb(id)) || undefined;
+    }
+    if (activeBalap) {
+      if (activeBalap.hostId !== req.user!.id) {
+        return res.status(403).json({ pesan: 'Anda tidak memiliki hak akses ke sesi ini.' });
+      }
+      const baseUrl = getNetworkBaseUrl(req);
+      const joinUrl = `${baseUrl}/main?token=${activeBalap.token}`;
+      const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
+      const leaderboard = balapKarungManager.dapatkanLeaderboard(activeBalap.sessionId);
+
+      return res.json({
+        session: {
+          sessionId: activeBalap.sessionId,
+          game: 'balap_karung',
+          mode: 'multi',
+          token: activeBalap.token,
+          qrDataUrl,
+          joinUrl,
+          networkUrl: baseUrl,
+          templateId: activeBalap.templateId,
+          templateJudul: activeBalap.templateJudul,
+          status: activeBalap.status,
+          totalSoal: activeBalap.totalSoal,
+          totalPeserta: activeBalap.peserta.size,
+          config: activeBalap.config,
+          leaderboard,
+          daftarPeserta: leaderboard,
+          isFinished: activeBalap.status === 'selesai',
+          hasil: activeBalap.hasil || null,
+        },
+      });
+    }
+
+    // 0. Cek di in-memory panjatPinangManager atau pulihkan dari DB jika Panjat Pinang
+    let activePanjat = panjatPinangManager.dapatkanSesi(id);
+    if (!activePanjat) {
+      activePanjat = (await panjatPinangManager.pulihkanSesiDariDb(id)) || undefined;
+    }
+    if (activePanjat) {
+      if (activePanjat.hostId !== req.user!.id) {
+        return res.status(403).json({ pesan: 'Anda tidak memiliki hak akses ke sesi ini.' });
+      }
+      const baseUrl = getNetworkBaseUrl(req);
+      const joinUrl = `${baseUrl}/main?token=${activePanjat.token}`;
+      const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
+      const leaderboard = panjatPinangManager.dapatkanLeaderboard(activePanjat.sessionId);
+
+      return res.json({
+        session: {
+          sessionId: activePanjat.sessionId,
+          game: 'panjat_pinang',
+          mode: 'multi',
+          token: activePanjat.token,
+          qrDataUrl,
+          joinUrl,
+          networkUrl: baseUrl,
+          templateId: activePanjat.templateId,
+          templateJudul: activePanjat.templateJudul,
+          status: activePanjat.status,
+          totalSoal: activePanjat.totalSoal,
+          totalPeserta: activePanjat.peserta.size,
+          config: activePanjat.config,
+          leaderboard,
+          daftarPeserta: leaderboard,
+          isFinished: activePanjat.status === 'selesai',
+          hasil: activePanjat.hasil || null,
+        },
+      });
+    }
 
     // A. Cek di in-memory kerupukManager (Game Makan Kerupuk)
     const activeKerupuk = kerupukManager.dapatkanSesi(id);
@@ -923,10 +1184,46 @@ sesiRouter.post('/:id/selesai', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// 9. GET /api/sesi/:id/hasil - Ambil hasil permainan Solo atau Makan Kerupuk yang telah selesai
+// 9. GET /api/sesi/:id/hasil - Ambil hasil permainan Solo, Makan Kerupuk, atau Panjat Pinang
 sesiRouter.get('/:id/hasil', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
+
+    // 0b. Cek Balap Karung Challenge (memori atau database)
+    const activeBalap = balapKarungManager.dapatkanSesi(id);
+    if (activeBalap) {
+      if (activeBalap.hostId !== req.user!.id) {
+        return res.status(403).json({ pesan: 'Anda tidak memiliki hak akses ke sesi ini.' });
+      }
+      const laporan =
+        activeBalap.hasil || balapKarungManager.dapatkanLaporanSementara(activeBalap.sessionId);
+      if (laporan) {
+        return res.json({
+          hasil: {
+            ...laporan,
+            game: 'balap_karung',
+          },
+        });
+      }
+    }
+
+    // 0. Cek Panjat Pinang (memori atau database)
+    const activePanjat = panjatPinangManager.dapatkanSesi(id);
+    if (activePanjat) {
+      if (activePanjat.hostId !== req.user!.id) {
+        return res.status(403).json({ pesan: 'Anda tidak memiliki hak akses ke sesi ini.' });
+      }
+      const laporan =
+        activePanjat.hasil || panjatPinangManager.dapatkanLaporanSementara(activePanjat.sessionId);
+      if (laporan) {
+        return res.json({
+          hasil: {
+            ...laporan,
+            game: 'panjat_pinang',
+          },
+        });
+      }
+    }
 
     // A. Cek di memori kerupukManager
     const activeKerupuk = kerupukManager.dapatkanSesi(id);
@@ -994,6 +1291,44 @@ sesiRouter.get('/:id/hasil', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ pesan: 'Sesi ini belum memiliki hasil akhir.' });
     }
 
+    if (sessionDb.template.game === 'balap_karung') {
+      const laporanDb = await balapKarungManager.muatLaporanDariDatabase(sessionDb.id);
+      if (laporanDb) {
+        return res.json({
+          hasil: {
+            ...laporanDb,
+            game: 'balap_karung',
+            questionStats: sessionDb.questionStats.map((qs) => ({
+              questionId: qs.questionId,
+              nomorSoal: qs.question.urutan,
+              teksSoal: qs.question.teks,
+              jumlahBenar: qs.jumlahBenar,
+              jumlahSalah: qs.jumlahSalah,
+            })),
+          },
+        });
+      }
+    }
+
+    if (sessionDb.template.game === 'panjat_pinang') {
+      const laporanDb = await panjatPinangManager.muatLaporanDariDatabase(sessionDb.id);
+      if (laporanDb) {
+        return res.json({
+          hasil: {
+            ...laporanDb,
+            game: 'panjat_pinang',
+            questionStats: sessionDb.questionStats.map((qs) => ({
+              questionId: qs.questionId,
+              nomorSoal: qs.question.urutan,
+              teksSoal: qs.question.teks,
+              jumlahBenar: qs.jumlahBenar,
+              jumlahSalah: qs.jumlahSalah,
+            })),
+          },
+        });
+      }
+    }
+
     const totalBenar = sessionDb.questionStats.reduce((acc, q) => acc + q.jumlahBenar, 0);
     const totalSalah = sessionDb.questionStats.reduce((acc, q) => acc + q.jumlahSalah, 0);
 
@@ -1042,7 +1377,117 @@ sesiRouter.post('/:id/main-lagi', async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ pesan: 'Anda tidak berwenang atas sesi ini.' });
     }
 
-    // Buat sesi baru sesuai mode sesi sebelumnya
+    // Buat sesi baru sesuai game & mode sesi sebelumnya
+    if (sessionLama.template.game === 'balap_karung') {
+      let configSebelumnya: any;
+      if (sessionLama.konfigurasi) {
+        try {
+          configSebelumnya = JSON.parse(sessionLama.konfigurasi);
+        } catch {
+          configSebelumnya = undefined;
+        }
+      }
+      const configSnapshot = bangunKonfigurasiBalapKarung(configSebelumnya);
+      const token = balapKarungManager.generateUniqueToken();
+      const baseUrl = getNetworkBaseUrl(req);
+      const joinUrl = `${baseUrl}/main?token=${token}`;
+      const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
+
+      const sessionBaru = await prisma.session.create({
+        data: {
+          templateId: sessionLama.templateId,
+          hostId: req.user!.id,
+          mode: 'multi',
+          token,
+          status: 'lobi',
+          konfigurasi: JSON.stringify(configSnapshot),
+        },
+      });
+
+      balapKarungManager.inisialisasiSesi(
+        sessionBaru.id,
+        token,
+        req.user!.id,
+        { id: sessionLama.template.id, judul: sessionLama.template.judul },
+        sessionLama.template.questions.map((q) => ({
+          id: q.id,
+          urutan: q.urutan,
+          teks: q.teks,
+          opsiA: q.opsiA,
+          opsiB: q.opsiB,
+          opsiC: q.opsiC,
+          jawabanBenar: q.jawabanBenar,
+          penjelasan: q.penjelasan,
+        })),
+        configSnapshot
+      );
+
+      return res.status(201).json({
+        pesan: 'Sesi Balap Karung baru berhasil dibuat.',
+        sessionId: sessionBaru.id,
+        session: { id: sessionBaru.id },
+        game: 'balap_karung',
+        token,
+        qrDataUrl,
+        joinUrl,
+      });
+    }
+
+    if (sessionLama.template.game === 'panjat_pinang') {
+      let configSebelumnya: any;
+      if (sessionLama.konfigurasi) {
+        try {
+          configSebelumnya = JSON.parse(sessionLama.konfigurasi);
+        } catch {
+          configSebelumnya = undefined;
+        }
+      }
+      const configSnapshot = bangunKonfigurasiPanjatPinang(configSebelumnya);
+      const token = panjatPinangManager.generateUniqueToken();
+      const baseUrl = getNetworkBaseUrl(req);
+      const joinUrl = `${baseUrl}/main?token=${token}`;
+      const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
+
+      const sessionBaru = await prisma.session.create({
+        data: {
+          templateId: sessionLama.templateId,
+          hostId: req.user!.id,
+          mode: 'multi',
+          token,
+          status: 'lobi',
+          konfigurasi: JSON.stringify(configSnapshot),
+        },
+      });
+
+      panjatPinangManager.inisialisasiSesi(
+        sessionBaru.id,
+        token,
+        req.user!.id,
+        { id: sessionLama.template.id, judul: sessionLama.template.judul },
+        sessionLama.template.questions.map((q) => ({
+          id: q.id,
+          urutan: q.urutan,
+          teks: q.teks,
+          opsiA: q.opsiA,
+          opsiB: q.opsiB,
+          opsiC: q.opsiC,
+          jawabanBenar: q.jawabanBenar,
+          penjelasan: q.penjelasan,
+        })),
+        configSnapshot
+      );
+
+      return res.status(201).json({
+        pesan: 'Sesi Panjat Pinang baru berhasil dibuat.',
+        sessionId: sessionBaru.id,
+        session: { id: sessionBaru.id },
+        game: 'panjat_pinang',
+        token,
+        qrDataUrl,
+        joinUrl,
+      });
+    }
+
     if (sessionLama.mode === 'multi') {
       const token = multiManager.generateUniqueToken();
       const baseUrl = getNetworkBaseUrl(req);

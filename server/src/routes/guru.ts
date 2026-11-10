@@ -53,6 +53,7 @@ guruRouter.get('/ringkasan', async (req: AuthRequest, res: Response) => {
           ? {
               id: sesiTerakhir.id,
               templateJudul: sesiTerakhir.template.judul,
+              game: sesiTerakhir.template.game,
               tanggal: sesiTerakhir.selesaiPada || sesiTerakhir.createdAt,
               timMenang: sesiTerakhir.result?.timMenang || 'seri',
               posisiAkhir: sesiTerakhir.result?.posisiAkhir ?? 0,

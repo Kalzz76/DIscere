@@ -4,6 +4,7 @@ import { apiRequest } from '../../lib/api';
 import LayarHostSolo from './LayarHostSolo';
 import LayarHostMulti from './LayarHostMulti';
 import LayarHostKerupuk from './LayarHostKerupuk';
+import LayarHostPanjatPinang from './LayarHostPanjatPinang';
 import { Loader2 } from 'lucide-react';
 import { Card, Button } from '../../components';
 
@@ -11,7 +12,7 @@ export default function LayarHost() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [mode, setMode] = useState<'solo' | 'multi' | null>(null);
-  const [game, setGame] = useState<'tarik_tambang' | 'makan_kerupuk'>('tarik_tambang');
+  const [game, setGame] = useState<'tarik_tambang' | 'makan_kerupuk' | 'panjat_pinang'>('tarik_tambang');
   const [loading, setLoading] = useState(true);
   const [errorPesan, setErrorPesan] = useState<string | null>(null);
 
@@ -19,10 +20,17 @@ export default function LayarHost() {
     async function checkSessionMode() {
       if (!id) return;
       try {
-        const res = await apiRequest<{ session: { mode: 'solo' | 'multi'; game?: 'tarik_tambang' | 'makan_kerupuk' } }>(`/sesi/${id}`);
+        const res = await apiRequest<{
+          session: {
+            mode: 'solo' | 'multi';
+            game?: 'tarik_tambang' | 'makan_kerupuk' | 'panjat_pinang';
+          };
+        }>(`/sesi/${id}`);
         setMode(res.session.mode || 'solo');
         if (res.session.game === 'makan_kerupuk') {
           setGame('makan_kerupuk');
+        } else if (res.session.game === 'panjat_pinang') {
+          setGame('panjat_pinang');
         }
       } catch (err: any) {
         setErrorPesan(err.pesan || 'Gagal memeriksa sesi permainan.');
@@ -57,6 +65,10 @@ export default function LayarHost() {
 
   if (game === 'makan_kerupuk') {
     return <LayarHostKerupuk />;
+  }
+
+  if (game === 'panjat_pinang') {
+    return <LayarHostPanjatPinang />;
   }
 
   if (mode === 'multi') {

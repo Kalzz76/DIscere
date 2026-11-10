@@ -19,6 +19,16 @@ export interface GameTemplatesPanelProps {
 
 // Ikon Game SVG murni (bukan emoji)
 function GameIcon({ game }: { game: string }) {
+  if (game === 'panjat_pinang') {
+    return (
+      <svg viewBox="0 0 24 24" style={{ width: 22, height: 22, stroke: '#10b981' }}>
+        <path d="M12 21V3" />
+        <path d="M12 3l6 3-6 3" />
+        <circle cx="9" cy="14" r="2" />
+        <path d="M7 19l5-3 5 3" />
+      </svg>
+    );
+  }
   if (game === 'makan_kerupuk') {
     return (
       <svg viewBox="0 0 24 24" style={{ width: 22, height: 22, stroke: '#f59e0b' }}>
@@ -304,7 +314,15 @@ export function GameTemplatesPanel({
         {!loading &&
           filteredList.map((item) => (
             <div key={item.id} className="qc" role="article" aria-label={item.judul}>
-              <i title={item.game === 'makan_kerupuk' ? 'Makan Kerupuk' : 'Tarik Tambang'}>
+              <i
+                title={
+                  item.game === 'makan_kerupuk'
+                    ? 'Makan Kerupuk'
+                    : item.game === 'panjat_pinang'
+                    ? 'Panjat Pinang'
+                    : 'Tarik Tambang'
+                }
+              >
                 <GameIcon game={item.game} />
               </i>
               <div className="qc-info">

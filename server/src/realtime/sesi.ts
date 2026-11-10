@@ -1,21 +1,225 @@
 import { Server, Socket } from 'socket.io';
+import { z } from 'zod';
 import { multiManager, SesiMultiplayerActive } from '../games/multiManager.js';
 import { kerupukManager, SesiKerupukActive } from '../games/kerupukManager.js';
+import { panjatPinangManager } from '../games/panjatPinangManager.js';
+import { PesertaPanjatState } from '../games/panjatPinang.js';
+import { balapKarungManager } from '../games/balapKarungManager.js';
+import { PesertaBalapKarungState } from '../games/balapKarung.js';
 import { prisma } from '../db.js';
+
+const pendingNextSoalPanjatTimers = new Map<string, NodeJS.Timeout>();
+const pendingNextSoalBalapTimers = new Map<string, NodeJS.Timeout>();
+
+const gabungSchema = z.object({
+  token: z.string().min(4, 'Token sesi wajib diisi.'),
+  nama: z.string().min(1, 'Nama panggilan wajib diisi.'),
+  pesertaId: z.string().optional(),
+  pesertaSecret: z.string().optional(),
+});
+
+const jawabPanjatSchema = z.object({
+  sessionId: z.string().min(1),
+  pesertaId: z.string().min(1),
+  pesertaSecret: z.string().optional(),
+  presentationId: z.string().optional(),
+  questionId: z.string().optional(),
+  id: z.string().optional(),
+  choiceId: z.string().optional(),
+  jawaban: z.string().optional(),
+});
+
+function sanitizePesertaBalap(p: PesertaBalapKarungState, targetJarak: number) {
+  const totalJawab = p.totalBenar + p.totalSalah;
+  return {
+    id: p.id,
+    nama: p.nama,
+    connected: p.connected,
+    jarak: p.jarak,
+    targetJarak,
+    keseimbangan: p.keseimbangan,
+    jumlahJatuh: p.jumlahJatuh,
+    totalBenar: p.totalBenar,
+    totalSalah: p.totalSalah,
+    akurasiPersen: totalJawab > 0 ? Math.round((p.totalBenar / totalJawab) * 100) : 0,
+    streakSaatIni: p.streakSaatIni,
+    streakTertinggi: p.streakTertinggi,
+    totalBonusStreakKali: p.totalBonusStreakKali,
+    totalBonusStreakMeter: p.totalBonusStreakMeter,
+    status: p.status,
+    waktuSelesaiMs: p.waktuSelesaiMs,
+    rataRataWaktuJawabMs: p.rataRataWaktuJawabMs,
+    jumlahJawab: p.jumlahJawab,
+    efekAktif: { ...p.efekAktif },
+    riwayatRintangan: p.riwayatRintangan.slice(-15),
+  };
+}
+
+function sanitizePesertaPanjat(p: PesertaPanjatState) {
+  const totalJawab = p.totalBenar + p.totalSalah;
+  return {
+    id: p.id,
+    nama: p.nama,
+    connected: p.connected,
+    posisi: p.posisi,
+    poinBonus: p.poinBonus,
+    totalBenar: p.totalBenar,
+    totalSalah: p.totalSalah,
+    akurasiPersen: totalJawab > 0 ? Math.round((p.totalBenar / totalJawab) * 100) : 0,
+    streakSaatIni: p.streakSaatIni,
+    streakTertinggi: p.streakTertinggi,
+    status: p.status,
+    waktuSelesaiMs: p.waktuSelesaiMs,
+    rataRataWaktuJawabMs: p.rataRataWaktuJawabMs,
+    jumlahJawab: p.jumlahJawab,
+    efekAktif: { ...p.efekAktif },
+    riwayatRintangan: p.riwayatRintangan.slice(-15),
+  };
+}
 
 export function setupMultiplayerSocket(io: Server) {
   io.on('connection', (socket: Socket) => {
-    // 1. Siswa atau Peserta bergabung ke room sesi (Tarik Tambang atau Makan Kerupuk)
+    // 1. Siswa atau Peserta bergabung ke room sesi (Tarik Tambang, Makan Kerupuk, atau Panjat Pinang)
     socket.on(
       'sesi:gabung',
       async (
-        data: { token: string; nama: string; pesertaId?: string },
+        data: { token: string; nama: string; pesertaId?: string; pesertaSecret?: string },
         callback?: (res: any) => void
       ) => {
         try {
-          const { token, nama, pesertaId } = data || {};
-          if (!token || !nama) {
-            callback?.({ success: false, pesan: 'Token dan nama panggilan wajib diisi.' });
+          const parsedGabung = gabungSchema.safeParse(data || {});
+          if (!parsedGabung.success) {
+            callback?.({
+              success: false,
+              pesan: parsedGabung.error.issues[0]?.message || 'Token dan nama panggilan wajib diisi.',
+            });
+            return;
+          }
+          const { token, nama, pesertaId, pesertaSecret } = parsedGabung.data;
+
+          // 0b. CABANG BALAP KARUNG CHALLENGE
+          let sesiBalapCek = balapKarungManager.dapatkanSesiDariToken(token);
+          if (!sesiBalapCek) {
+            const dbSesi = await prisma.session.findFirst({
+              where: { token, status: { in: ['lobi', 'jalan'] } },
+              include: { template: { select: { game: true } } },
+            });
+            if (dbSesi?.template.game === 'balap_karung') {
+              sesiBalapCek = (await balapKarungManager.pulihkanSesiDariDb(dbSesi.id)) || undefined;
+            }
+          }
+
+          if (sesiBalapCek) {
+            const { sesi, peserta, isReconnect } = balapKarungManager.gabungPeserta(
+              token,
+              nama,
+              socket.id,
+              pesertaId,
+              pesertaSecret
+            );
+
+            const roomName = `session:${sesi.sessionId}`;
+            socket.join(roomName);
+
+            const soalAktifData =
+              sesi.status === 'jalan' && peserta.status === 'bermain'
+                ? balapKarungManager.dapatkanSoalAktifPeserta(sesi.sessionId, peserta.id)
+                : null;
+
+            const leaderboard = balapKarungManager.dapatkanLeaderboard(sesi.sessionId);
+
+            callback?.({
+              success: true,
+              game: 'balap_karung',
+              isReconnect,
+              pesertaId: peserta.id,
+              pesertaSecret: peserta.secretToken,
+              sessionId: sesi.sessionId,
+              templateJudul: sesi.templateJudul,
+              status: sesi.status,
+              config: sesi.config,
+              peserta: sanitizePesertaBalap(peserta, sesi.config.targetJarak),
+              leaderboard,
+              totalSoal: sesi.totalSoal,
+              soalAktif: soalAktifData,
+            });
+
+            io.to(roomName).emit('lobi:update', {
+              game: 'balap_karung',
+              totalPeserta: sesi.peserta.size,
+              leaderboard,
+              daftarPeserta: leaderboard,
+            });
+
+            if (sesi.status === 'jalan' && soalAktifData) {
+              socket.emit('soal:tampil', {
+                game: 'balap_karung',
+                ...soalAktifData,
+              });
+            }
+            return;
+          }
+
+          // 0. CABANG PANJAT PINANG CHALLENGE
+          let sesiPanjatCek = panjatPinangManager.dapatkanSesiDariToken(token);
+          if (!sesiPanjatCek) {
+            const dbSesi = await prisma.session.findFirst({
+              where: { token, status: { in: ['lobi', 'jalan'] } },
+              include: { template: { select: { game: true } } },
+            });
+            if (dbSesi?.template.game === 'panjat_pinang') {
+              sesiPanjatCek = (await panjatPinangManager.pulihkanSesiDariDb(dbSesi.id)) || undefined;
+            }
+          }
+
+          if (sesiPanjatCek) {
+            const { sesi, peserta, isReconnect } = panjatPinangManager.gabungPeserta(
+              token,
+              nama,
+              socket.id,
+              pesertaId,
+              pesertaSecret
+            );
+
+            const roomName = `session:${sesi.sessionId}`;
+            socket.join(roomName);
+
+            const soalAktifData =
+              sesi.status === 'jalan' && peserta.status === 'bermain'
+                ? panjatPinangManager.dapatkanSoalAktifPeserta(sesi.sessionId, peserta.id)
+                : null;
+
+            const leaderboard = panjatPinangManager.dapatkanLeaderboard(sesi.sessionId);
+
+            callback?.({
+              success: true,
+              game: 'panjat_pinang',
+              isReconnect,
+              pesertaId: peserta.id,
+              pesertaSecret: peserta.secretToken,
+              sessionId: sesi.sessionId,
+              templateJudul: sesi.templateJudul,
+              status: sesi.status,
+              config: sesi.config,
+              peserta: sanitizePesertaPanjat(peserta),
+              leaderboard,
+              totalSoal: sesi.totalSoal,
+              soalAktif: soalAktifData,
+            });
+
+            io.to(roomName).emit('lobi:update', {
+              game: 'panjat_pinang',
+              totalPeserta: sesi.peserta.size,
+              leaderboard,
+              daftarPeserta: leaderboard,
+            });
+
+            if (sesi.status === 'jalan' && soalAktifData) {
+              socket.emit('soal:tampil', {
+                game: 'panjat_pinang',
+                ...soalAktifData,
+              });
+            }
             return;
           }
 
@@ -172,8 +376,57 @@ export function setupMultiplayerSocket(io: Server) {
     );
 
     // 2. Host (Guru) bergabung dan mengikat socket ke room sesi
-    socket.on('sesi:host_join', (data: { sessionId: string }) => {
+    socket.on('sesi:host_join', async (data: { sessionId: string }) => {
       const { sessionId } = data || {};
+      if (!sessionId) return;
+
+      // 0b. Cek sesi Balap Karung Challenge
+      let sesiBalap = balapKarungManager.dapatkanSesi(sessionId);
+      if (!sesiBalap) {
+        sesiBalap = (await balapKarungManager.pulihkanSesiDariDb(sessionId)) || undefined;
+      }
+      if (sesiBalap) {
+        sesiBalap.hostSocketId = socket.id;
+        const roomName = `session:${sesiBalap.sessionId}`;
+        socket.join(roomName);
+
+        const leaderboard = balapKarungManager.dapatkanLeaderboard(sesiBalap.sessionId);
+        socket.emit('lobi:update', {
+          game: 'balap_karung',
+          totalPeserta: sesiBalap.peserta.size,
+          leaderboard,
+          daftarPeserta: leaderboard,
+        });
+        socket.emit('balap:update', {
+          leaderboard,
+          totalPeserta: sesiBalap.peserta.size,
+        });
+        return;
+      }
+
+      // 0. Cek sesi Panjat Pinang
+      let sesiPanjat = panjatPinangManager.dapatkanSesi(sessionId);
+      if (!sesiPanjat) {
+        sesiPanjat = (await panjatPinangManager.pulihkanSesiDariDb(sessionId)) || undefined;
+      }
+      if (sesiPanjat) {
+        sesiPanjat.hostSocketId = socket.id;
+        const roomName = `session:${sesiPanjat.sessionId}`;
+        socket.join(roomName);
+
+        const leaderboard = panjatPinangManager.dapatkanLeaderboard(sesiPanjat.sessionId);
+        socket.emit('lobi:update', {
+          game: 'panjat_pinang',
+          totalPeserta: sesiPanjat.peserta.size,
+          leaderboard,
+          daftarPeserta: leaderboard,
+        });
+        socket.emit('panjat:update', {
+          leaderboard,
+          totalPeserta: sesiPanjat.peserta.size,
+        });
+        return;
+      }
 
       // A. Cek sesi Makan Kerupuk
       const sesiKerupuk = kerupukManager.dapatkanSesi(sessionId);
@@ -240,6 +493,114 @@ export function setupMultiplayerSocket(io: Server) {
       ) => {
         try {
           const { sessionId } = data || {};
+
+          // 0b. Sesi Balap Karung Challenge
+          const sesiBalapTarget = balapKarungManager.dapatkanSesi(sessionId);
+          if (sesiBalapTarget) {
+            const isStudentSocket = Array.from(sesiBalapTarget.peserta.values()).some(
+              (p) => p.socketId === socket.id
+            );
+            if (isStudentSocket) {
+              callback?.({ success: false, pesan: 'Hanya guru yang dapat memulai permainan.' });
+              return;
+            }
+            if (data?.hostId && data.hostId !== sesiBalapTarget.hostId) {
+              callback?.({ success: false, pesan: 'Anda bukan pemilik sesi ini.' });
+              return;
+            }
+
+            const sesi = balapKarungManager.mulaiPermainan(sessionId, sesiBalapTarget.hostId);
+            const roomName = `session:${sesi.sessionId}`;
+
+            await prisma.session.update({
+              where: { id: sessionId },
+              data: {
+                status: 'jalan',
+                mulaiPada: new Date(sesi.gameMulaiPadaMs || Date.now()),
+                konfigurasi: JSON.stringify(sesi.config),
+              },
+            });
+
+            const leaderboardAwal = balapKarungManager.dapatkanLeaderboard(sesi.sessionId);
+            io.to(roomName).emit('game:mulai', {
+              game: 'balap_karung',
+              totalSoal: sesi.totalSoal,
+              config: sesi.config,
+              leaderboard: leaderboardAwal,
+            });
+
+            for (const p of sesi.peserta.values()) {
+              if (p.connected && p.socketId) {
+                const soalData = balapKarungManager.ambilSoalBerikutnyaUntukPeserta(
+                  sesi.sessionId,
+                  p.id
+                );
+                if (soalData) {
+                  io.to(p.socketId).emit('soal:tampil', {
+                    game: 'balap_karung',
+                    ...soalData,
+                  });
+                }
+              }
+            }
+
+            callback?.({ success: true, pesan: 'Balap Karung Challenge dimulai!' });
+            return;
+          }
+
+          // 0. Sesi Panjat Pinang
+          const sesiPanjatTarget = panjatPinangManager.dapatkanSesi(sessionId);
+          if (sesiPanjatTarget) {
+            const isStudentSocket = Array.from(sesiPanjatTarget.peserta.values()).some(
+              (p) => p.socketId === socket.id
+            );
+            if (isStudentSocket) {
+              callback?.({ success: false, pesan: 'Hanya guru yang dapat memulai permainan.' });
+              return;
+            }
+            if (data?.hostId && data.hostId !== sesiPanjatTarget.hostId) {
+              callback?.({ success: false, pesan: 'Anda bukan pemilik sesi ini.' });
+              return;
+            }
+
+            const sesi = panjatPinangManager.mulaiPermainan(sessionId, sesiPanjatTarget.hostId);
+            const roomName = `session:${sesi.sessionId}`;
+
+            await prisma.session.update({
+              where: { id: sessionId },
+              data: {
+                status: 'jalan',
+                mulaiPada: new Date(sesi.gameMulaiPadaMs || Date.now()),
+                konfigurasi: JSON.stringify(sesi.config),
+              },
+            });
+
+            const leaderboardAwal = panjatPinangManager.dapatkanLeaderboard(sesi.sessionId);
+            io.to(roomName).emit('game:mulai', {
+              game: 'panjat_pinang',
+              totalSoal: sesi.totalSoal,
+              config: sesi.config,
+              leaderboard: leaderboardAwal,
+            });
+
+            for (const p of sesi.peserta.values()) {
+              if (p.connected && p.socketId) {
+                const soalData = panjatPinangManager.ambilSoalBerikutnyaUntukPeserta(
+                  sesi.sessionId,
+                  p.id
+                );
+                if (soalData) {
+                  io.to(p.socketId).emit('soal:tampil', {
+                    game: 'panjat_pinang',
+                    ...soalData,
+                  });
+                }
+              }
+            }
+
+            callback?.({ success: true, pesan: 'Lomba Panjat Pinang dimulai!' });
+            return;
+          }
 
           // A. Sesi Makan Kerupuk
           const sesiKerupukTarget = kerupukManager.dapatkanSesi(sessionId);
@@ -335,6 +696,263 @@ export function setupMultiplayerSocket(io: Server) {
         try {
           const { sessionId, pesertaId, jawaban } = data || {};
           const rawQId = data?.questionId || data?.id;
+
+          // 0b. Sesi Balap Karung Challenge
+          const sesiBalap = balapKarungManager.dapatkanSesi(sessionId);
+          if (sesiBalap) {
+            const parsedJawab = jawabPanjatSchema.safeParse(data || {});
+            if (!parsedJawab.success) {
+              callback?.({
+                success: false,
+                pesan: parsedJawab.error.issues[0]?.message || 'Format jawaban tidak valid.',
+              });
+              return;
+            }
+
+            const bk = parsedJawab.data;
+            const hasil = balapKarungManager.prosesJawabanSiswa({
+              sessionId: bk.sessionId,
+              pesertaId: bk.pesertaId,
+              pesertaSecret: bk.pesertaSecret,
+              socketId: socket.id,
+              presentationId: bk.presentationId,
+              questionId: bk.questionId || bk.id,
+              choiceId: bk.choiceId,
+              jawaban: bk.jawaban,
+            });
+
+            const roomName = `session:${sesiBalap.sessionId}`;
+            const pUpdated = hasil.hasilJawaban.pesertaUpdated;
+            const sanitizedPemain = sanitizePesertaBalap(pUpdated, sesiBalap.config.targetJarak);
+
+            const feedbackPayload = {
+              success: true,
+              game: 'balap_karung',
+              benar: hasil.hasilJawaban.benar,
+              kunciKey: hasil.kunciKey,
+              jawabanBenar: hasil.kunciKey,
+              penjelasan: hasil.penjelasan,
+              jarakSebelum: hasil.hasilJawaban.jarakSebelum,
+              jarakBaru: hasil.hasilJawaban.jarakBaru,
+              perubahanJarak: hasil.hasilJawaban.perubahanJarak,
+              targetJarak: sesiBalap.config.targetJarak,
+              keseimbanganSebelum: hasil.hasilJawaban.keseimbanganSebelum,
+              keseimbanganBaru: hasil.hasilJawaban.keseimbanganBaru,
+              perubahanKeseimbangan: hasil.hasilJawaban.perubahanKeseimbangan,
+              bonusStreakJarakDidapat: hasil.hasilJawaban.bonusStreakJarakDidapat,
+              bonusStreakKeseimbanganDidapat: hasil.hasilJawaban.bonusStreakKeseimbanganDidapat,
+              bonusLompatanKuatDidapat: hasil.hasilJawaban.bonusLompatanKuatDidapat,
+              penaltiJalanBerlumpurDipakai: hasil.hasilJawaban.penaltiJalanBerlumpurDipakai,
+              terjatuh: hasil.hasilJawaban.terjatuh,
+              penaltiJatuhJarak: hasil.hasilJawaban.penaltiJatuhJarak,
+              perisaiDigunakan: hasil.hasilJawaban.perisaiDigunakan,
+              rintanganBaru: hasil.hasilJawaban.rintanganBaru,
+              selesaiBaru: hasil.hasilJawaban.selesaiBaru,
+              waktuJawabMs: hasil.hasilJawaban.waktuJawabMs,
+              pesertaUpdated: sanitizedPemain,
+            };
+
+            callback?.(feedbackPayload);
+            socket.emit('jawab:hasil', feedbackPayload);
+
+            // Kirim event jatuh eksplisit ke siswa ketika keseimbangan menyentuh 0%
+            if (hasil.hasilJawaban.terjatuh) {
+              socket.emit('pemain:jatuh', {
+                game: 'balap_karung',
+                pesertaId: pUpdated.id,
+                penaltiJarakJatuh: hasil.hasilJawaban.penaltiJatuhJarak,
+                perisaiDigunakan: hasil.hasilJawaban.perisaiDigunakan,
+                jarakBaru: hasil.hasilJawaban.jarakBaru,
+                keseimbanganBaru: hasil.hasilJawaban.keseimbanganBaru,
+                jumlahJatuh: pUpdated.jumlahJatuh,
+                pesan: hasil.hasilJawaban.perisaiDigunakan
+                  ? 'Perisai melindungimu saat keseimbangan habis!'
+                  : `Keseimbangan habis! Kamu terjatuh dan mundur ${hasil.hasilJawaban.penaltiJatuhJarak} m.`,
+              });
+            }
+
+            io.to(roomName).emit('balap:update', {
+              leaderboard: hasil.leaderboard,
+              totalPeserta: sesiBalap.peserta.size,
+              terakhirAksi: {
+                pesertaId: pUpdated.id,
+                nama: pUpdated.nama,
+                benar: hasil.hasilJawaban.benar,
+                jarakSebelum: hasil.hasilJawaban.jarakSebelum,
+                jarakBaru: hasil.hasilJawaban.jarakBaru,
+                perubahanJarak: hasil.hasilJawaban.perubahanJarak,
+                keseimbanganBaru: hasil.hasilJawaban.keseimbanganBaru,
+                streakSaatIni: pUpdated.streakSaatIni,
+                terjatuh: hasil.hasilJawaban.terjatuh,
+                penaltiJatuhJarak: hasil.hasilJawaban.penaltiJatuhJarak,
+                perisaiDigunakan: hasil.hasilJawaban.perisaiDigunakan,
+                rintanganBaru: hasil.hasilJawaban.rintanganBaru,
+                selesaiBaru: hasil.hasilJawaban.selesaiBaru,
+              },
+            });
+
+            const existingTimer = pendingNextSoalBalapTimers.get(bk.pesertaId);
+            if (existingTimer) {
+              clearTimeout(existingTimer);
+              pendingNextSoalBalapTimers.delete(bk.pesertaId);
+            }
+
+            if (hasil.semuaPemainSelesai) {
+              const laporanAkhir = balapKarungManager.akhiriPermainan(sesiBalap.sessionId, false);
+              await balapKarungManager.simpanHasilAkhirKeDatabase(sesiBalap.sessionId);
+              io.to(roomName).emit('sesi:selesai', {
+                game: 'balap_karung',
+                hasil: laporanAkhir,
+              });
+              return;
+            }
+
+            if (hasil.pemainSelesai) {
+              socket.emit('pemain:selesai', {
+                game: 'balap_karung',
+                peserta: sanitizedPemain,
+                pesan: `Selamat! Kamu berhasil melintasi garis finis ${sesiBalap.config.targetJarak} meter!`,
+              });
+              return;
+            }
+
+            const timer = setTimeout(() => {
+              pendingNextSoalBalapTimers.delete(bk.pesertaId);
+              const sesiCheck = balapKarungManager.dapatkanSesi(bk.sessionId);
+              if (!sesiCheck || sesiCheck.status !== 'jalan') return;
+              const nextSoal = balapKarungManager.dapatkanSoalAktifPeserta(
+                bk.sessionId,
+                bk.pesertaId
+              );
+              if (nextSoal) {
+                socket.emit('soal:tampil', {
+                  game: 'balap_karung',
+                  ...nextSoal,
+                });
+              }
+            }, 1400);
+            pendingNextSoalBalapTimers.set(bk.pesertaId, timer);
+
+            return;
+          }
+
+          // 0. Sesi Panjat Pinang
+          const sesiPanjat = panjatPinangManager.dapatkanSesi(sessionId);
+          if (sesiPanjat) {
+            const parsedJawab = jawabPanjatSchema.safeParse(data || {});
+            if (!parsedJawab.success) {
+              callback?.({
+                success: false,
+                pesan: parsedJawab.error.issues[0]?.message || 'Format jawaban tidak valid.',
+              });
+              return;
+            }
+
+            const pj = parsedJawab.data;
+            const hasil = panjatPinangManager.prosesJawabanSiswa({
+              sessionId: pj.sessionId,
+              pesertaId: pj.pesertaId,
+              pesertaSecret: pj.pesertaSecret,
+              socketId: socket.id,
+              presentationId: pj.presentationId,
+              questionId: pj.questionId || pj.id,
+              choiceId: pj.choiceId,
+              jawaban: pj.jawaban,
+            });
+
+            const roomName = `session:${sesiPanjat.sessionId}`;
+            const pUpdated = hasil.hasilJawaban.pesertaUpdated;
+            const sanitizedPemain = sanitizePesertaPanjat(pUpdated);
+
+            const feedbackPayload = {
+              success: true,
+              game: 'panjat_pinang',
+              benar: hasil.hasilJawaban.benar,
+              kunciKey: hasil.kunciKey,
+              jawabanBenar: hasil.kunciKey,
+              penjelasan: hasil.penjelasan,
+              isBonusKulitPisang: hasil.hasilJawaban.isBonusKulitPisang,
+              posisiSebelum: hasil.hasilJawaban.posisiSebelum,
+              posisiBaru: hasil.hasilJawaban.posisiBaru,
+              perubahanPosisi: hasil.hasilJawaban.perubahanPosisi,
+              bonusStreakDidapat: hasil.hasilJawaban.bonusStreakDidapat,
+              bonusPeganganKuatDidapat: hasil.hasilJawaban.bonusPeganganKuatDidapat,
+              penaltiTiangLicin: hasil.hasilJawaban.penaltiTiangLicin,
+              perisaiDigunakan: hasil.hasilJawaban.perisaiDigunakan,
+              perisaiDiperoleh: hasil.hasilJawaban.perisaiDiperoleh,
+              rintanganBaru: hasil.hasilJawaban.rintanganBaru,
+              selesaiBaru: hasil.hasilJawaban.selesaiBaru,
+              waktuJawabMs: hasil.hasilJawaban.waktuJawabMs,
+              pesertaUpdated: sanitizedPemain,
+            };
+
+            callback?.(feedbackPayload);
+            socket.emit('jawab:hasil', feedbackPayload);
+
+            io.to(roomName).emit('panjat:update', {
+              leaderboard: hasil.leaderboard,
+              totalPeserta: sesiPanjat.peserta.size,
+              terakhirAksi: {
+                pesertaId: pUpdated.id,
+                nama: pUpdated.nama,
+                benar: hasil.hasilJawaban.benar,
+                isBonusKulitPisang: hasil.hasilJawaban.isBonusKulitPisang,
+                posisiSebelum: hasil.hasilJawaban.posisiSebelum,
+                posisiBaru: hasil.hasilJawaban.posisiBaru,
+                perubahanPosisi: hasil.hasilJawaban.perubahanPosisi,
+                streakSaatIni: pUpdated.streakSaatIni,
+                rintanganBaru: hasil.hasilJawaban.rintanganBaru,
+                perisaiDigunakan: hasil.hasilJawaban.perisaiDigunakan,
+                perisaiDiperoleh: hasil.hasilJawaban.perisaiDiperoleh,
+                selesaiBaru: hasil.hasilJawaban.selesaiBaru,
+              },
+            });
+
+            // Bersihkan timer pending lama untuk pemain ini jika masih ada
+            const existingTimer = pendingNextSoalPanjatTimers.get(pj.pesertaId);
+            if (existingTimer) {
+              clearTimeout(existingTimer);
+              pendingNextSoalPanjatTimers.delete(pj.pesertaId);
+            }
+
+            if (hasil.semuaPemainSelesai) {
+              const laporanAkhir = panjatPinangManager.akhiriPermainan(sesiPanjat.sessionId, false);
+              await panjatPinangManager.simpanHasilAkhirKeDatabase(sesiPanjat.sessionId);
+              io.to(roomName).emit('sesi:selesai', {
+                game: 'panjat_pinang',
+                hasil: laporanAkhir,
+              });
+              return;
+            }
+
+            if (hasil.pemainSelesai) {
+              socket.emit('pemain:selesai', {
+                game: 'panjat_pinang',
+                peserta: sanitizedPemain,
+                pesan: 'Selamat! Kamu berhasil mencapai puncak 100%!',
+              });
+              return;
+            }
+
+            const timer = setTimeout(() => {
+              pendingNextSoalPanjatTimers.delete(pj.pesertaId);
+              const sesiCheck = panjatPinangManager.dapatkanSesi(pj.sessionId);
+              if (!sesiCheck || sesiCheck.status !== 'jalan') return;
+              const nextSoal = panjatPinangManager.dapatkanSoalAktifPeserta(
+                pj.sessionId,
+                pj.pesertaId
+              );
+              if (nextSoal) {
+                socket.emit('soal:tampil', {
+                  game: 'panjat_pinang',
+                  ...nextSoal,
+                });
+              }
+            }, 1400);
+            pendingNextSoalPanjatTimers.set(pj.pesertaId, timer);
+
+            return;
+          }
 
           // A. Sesi Makan Kerupuk
           const sesiKerupuk = kerupukManager.dapatkanSesi(sessionId);
@@ -494,10 +1112,69 @@ export function setupMultiplayerSocket(io: Server) {
       }
     );
 
-    // 4b. Siswa meminta soal berikutnya secara langsung (misalnya menekan tombol "Lanjut" tanpa menunggu timer 1.5s)
-    socket.on('soal:lanjut', (data: { sessionId: string; pesertaId: string }) => {
-      const { sessionId, pesertaId } = data || {};
-      const sesi = kerupukManager.dapatkanSesi(sessionId);
+    // 4b. Siswa meminta soal berikutnya secara langsung (misalnya menekan tombol "Lanjut" tanpa menunggu jeda)
+    socket.on(
+      'soal:lanjut',
+      (data: { sessionId: string; pesertaId: string; pesertaSecret?: string }) => {
+        const { sessionId, pesertaId, pesertaSecret } = data || {};
+        if (!sessionId || !pesertaId) return;
+
+        // 0b. Balap Karung Challenge
+        const sesiBalap = balapKarungManager.dapatkanSesi(sessionId);
+        if (sesiBalap) {
+          if (sesiBalap.status !== 'jalan') return;
+          const pesertaBalap = sesiBalap.peserta.get(pesertaId);
+          if (!pesertaBalap) return;
+          if (pesertaSecret && pesertaBalap.secretToken !== pesertaSecret) return;
+          if (
+            pesertaBalap.status === 'selesai' ||
+            pesertaBalap.jarak >= sesiBalap.config.targetJarak
+          ) {
+            return;
+          }
+
+          const existingTimer = pendingNextSoalBalapTimers.get(pesertaId);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+            pendingNextSoalBalapTimers.delete(pesertaId);
+          }
+
+          const nextSoal = balapKarungManager.dapatkanSoalAktifPeserta(sessionId, pesertaId);
+          if (nextSoal) {
+            socket.emit('soal:tampil', {
+              game: 'balap_karung',
+              ...nextSoal,
+            });
+          }
+          return;
+        }
+
+        // 0. Panjat Pinang
+        const sesiPanjat = panjatPinangManager.dapatkanSesi(sessionId);
+        if (sesiPanjat) {
+          if (sesiPanjat.status !== 'jalan') return;
+          const pesertaPanjat = sesiPanjat.peserta.get(pesertaId);
+          if (!pesertaPanjat) return;
+          if (pesertaSecret && pesertaPanjat.secretToken !== pesertaSecret) return;
+          if (pesertaPanjat.status === 'selesai' || pesertaPanjat.posisi >= 100) return;
+
+          const existingTimer = pendingNextSoalPanjatTimers.get(pesertaId);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+            pendingNextSoalPanjatTimers.delete(pesertaId);
+          }
+
+          const nextSoal = panjatPinangManager.dapatkanSoalAktifPeserta(sessionId, pesertaId);
+          if (nextSoal) {
+            socket.emit('soal:tampil', {
+              game: 'panjat_pinang',
+              ...nextSoal,
+            });
+          }
+          return;
+        }
+
+        const sesi = kerupukManager.dapatkanSesi(sessionId);
       if (!sesi || sesi.status !== 'jalan') return;
 
       const peserta = sesi.peserta.get(pesertaId);
@@ -526,9 +1203,81 @@ export function setupMultiplayerSocket(io: Server) {
     // 5. Guru mengakhiri permainan secara manual
     socket.on(
       'sesi:akhiri_manual',
-      async (data: { sessionId: string }, callback?: (res: any) => void) => {
+      async (data: { sessionId: string; hostId?: string }, callback?: (res: any) => void) => {
         try {
           const { sessionId } = data || {};
+
+          // 0b. Sesi Balap Karung Challenge
+          const sesiBalap = balapKarungManager.dapatkanSesi(sessionId);
+          if (sesiBalap) {
+            const isStudentSocket = Array.from(sesiBalap.peserta.values()).some(
+              (p) => p.socketId === socket.id
+            );
+            if (isStudentSocket) {
+              callback?.({ success: false, pesan: 'Hanya guru yang dapat mengakhiri permainan.' });
+              return;
+            }
+            if (data?.hostId && data.hostId !== sesiBalap.hostId) {
+              callback?.({ success: false, pesan: 'Anda bukan pemilik sesi ini.' });
+              return;
+            }
+
+            for (const pId of sesiBalap.peserta.keys()) {
+              const t = pendingNextSoalBalapTimers.get(pId);
+              if (t) {
+                clearTimeout(t);
+                pendingNextSoalBalapTimers.delete(pId);
+              }
+            }
+
+            const hasil = balapKarungManager.akhiriPermainan(sessionId, true);
+            await balapKarungManager.simpanHasilAkhirKeDatabase(sessionId);
+
+            const roomName = `session:${sesiBalap.sessionId}`;
+            io.to(roomName).emit('sesi:selesai', {
+              game: 'balap_karung',
+              hasil,
+            });
+
+            callback?.({ success: true, hasil });
+            return;
+          }
+
+          // 0. Sesi Panjat Pinang
+          const sesiPanjat = panjatPinangManager.dapatkanSesi(sessionId);
+          if (sesiPanjat) {
+            const isStudentSocket = Array.from(sesiPanjat.peserta.values()).some(
+              (p) => p.socketId === socket.id
+            );
+            if (isStudentSocket) {
+              callback?.({ success: false, pesan: 'Hanya guru yang dapat mengakhiri permainan.' });
+              return;
+            }
+            if (data?.hostId && data.hostId !== sesiPanjat.hostId) {
+              callback?.({ success: false, pesan: 'Anda bukan pemilik sesi ini.' });
+              return;
+            }
+
+            for (const pId of sesiPanjat.peserta.keys()) {
+              const t = pendingNextSoalPanjatTimers.get(pId);
+              if (t) {
+                clearTimeout(t);
+                pendingNextSoalPanjatTimers.delete(pId);
+              }
+            }
+
+            const hasil = panjatPinangManager.akhiriPermainan(sessionId, true);
+            await panjatPinangManager.simpanHasilAkhirKeDatabase(sessionId);
+
+            const roomName = `session:${sesiPanjat.sessionId}`;
+            io.to(roomName).emit('sesi:selesai', {
+              game: 'panjat_pinang',
+              hasil,
+            });
+
+            callback?.({ success: true, hasil });
+            return;
+          }
 
           // A. Sesi Makan Kerupuk
           const sesiKerupuk = kerupukManager.dapatkanSesi(sessionId);
@@ -565,6 +1314,68 @@ export function setupMultiplayerSocket(io: Server) {
 
     // 6. Penanganan siswa atau host disconnect
     socket.on('disconnect', () => {
+      // 0b. Cek apakah socket berasal dari peserta Balap Karung Challenge
+      const { sessionId: balapSessionId, pesertaId: balapPesertaId } =
+        balapKarungManager.putusKoneksiPeserta(socket.id);
+      if (balapSessionId) {
+        if (balapPesertaId) {
+          const t = pendingNextSoalBalapTimers.get(balapPesertaId);
+          if (t) {
+            clearTimeout(t);
+            pendingNextSoalBalapTimers.delete(balapPesertaId);
+          }
+        }
+        const sesi = balapKarungManager.dapatkanSesi(balapSessionId);
+        if (sesi) {
+          const roomName = `session:${sesi.sessionId}`;
+          const leaderboard = balapKarungManager.dapatkanLeaderboard(sesi.sessionId);
+          io.to(roomName).emit('lobi:update', {
+            game: 'balap_karung',
+            totalPeserta: sesi.peserta.size,
+            leaderboard,
+            daftarPeserta: leaderboard,
+          });
+          if (sesi.status === 'jalan') {
+            io.to(roomName).emit('balap:update', {
+              leaderboard,
+              totalPeserta: sesi.peserta.size,
+            });
+          }
+        }
+        return;
+      }
+
+      // 0. Cek apakah socket berasal dari peserta Panjat Pinang
+      const { sessionId: panjatSessionId, pesertaId: panjatPesertaId } =
+        panjatPinangManager.putusKoneksiPeserta(socket.id);
+      if (panjatSessionId) {
+        if (panjatPesertaId) {
+          const t = pendingNextSoalPanjatTimers.get(panjatPesertaId);
+          if (t) {
+            clearTimeout(t);
+            pendingNextSoalPanjatTimers.delete(panjatPesertaId);
+          }
+        }
+        const sesi = panjatPinangManager.dapatkanSesi(panjatSessionId);
+        if (sesi) {
+          const roomName = `session:${sesi.sessionId}`;
+          const leaderboard = panjatPinangManager.dapatkanLeaderboard(sesi.sessionId);
+          io.to(roomName).emit('lobi:update', {
+            game: 'panjat_pinang',
+            totalPeserta: sesi.peserta.size,
+            leaderboard,
+            daftarPeserta: leaderboard,
+          });
+          if (sesi.status === 'jalan') {
+            io.to(roomName).emit('panjat:update', {
+              leaderboard,
+              totalPeserta: sesi.peserta.size,
+            });
+          }
+        }
+        return;
+      }
+
       // Cek apakah socket berasal dari peserta Makan Kerupuk
       const { sessionId: kerupukSessionId } = kerupukManager.putusKoneksiPeserta(socket.id);
       if (kerupukSessionId) {

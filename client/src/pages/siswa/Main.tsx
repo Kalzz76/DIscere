@@ -4,6 +4,7 @@ import { getSocket } from '../../lib/socket';
 import { Button, Card } from '../../components';
 import { soundEffects } from '../../lib/soundEffects';
 import MainKerupuk from './MainKerupuk';
+import MainPanjatPinang from './MainPanjatPinang';
 import {
   Users,
   Trophy,
@@ -52,12 +53,17 @@ export default function MainSiswa() {
   // Session states
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [pesertaId, setPesertaId] = useState<string | null>(null);
+  const [panjatSecret, setPanjatSecret] = useState<string>('');
   const [namaPeserta, setNamaPeserta] = useState<string>('');
   const [templateJudul, setTemplateJudul] = useState<string>('');
   const [tim, setTim] = useState<'merah' | 'putih' | null>(null);
-  const [gameType, setGameType] = useState<'tarik_tambang' | 'makan_kerupuk'>('tarik_tambang');
+  const [gameType, setGameType] = useState<'tarik_tambang' | 'makan_kerupuk' | 'panjat_pinang'>('tarik_tambang');
   const [kerupukState, setKerupukState] = useState<any>(null);
   const [kerupukLeaderboard, setKerupukLeaderboard] = useState<any[]>([]);
+  const [panjatConfig, setPanjatConfig] = useState<any>(undefined);
+  const [panjatState, setPanjatState] = useState<any>(undefined);
+  const [panjatLeaderboard, setPanjatLeaderboard] = useState<any[]>([]);
+  const [panjatSoalAktif, setPanjatSoalAktif] = useState<any>(null);
   const [stage, setStage] = useState<'GABUNG' | 'LOBBY' | 'PLAYING' | 'SELESAI'>('GABUNG');
 
   // Lobby states
@@ -130,12 +136,13 @@ export default function MainSiswa() {
     const savedToken = sessionStorage.getItem('discere_multi_token');
     const savedPesertaId = sessionStorage.getItem('discere_multi_peserta_id');
     const savedNama = sessionStorage.getItem('discere_multi_nama');
+    const savedSecret = sessionStorage.getItem('discere_multi_peserta_secret') || undefined;
 
     if (savedToken && savedPesertaId && savedNama) {
       const socket = getSocket();
       socket.emit(
         'sesi:gabung',
-        { token: savedToken, nama: savedNama, pesertaId: savedPesertaId },
+        { token: savedToken, nama: savedNama, pesertaId: savedPesertaId, pesertaSecret: savedSecret },
         (res: any) => {
           if (res?.success) {
             setSessionId(res.sessionId);
@@ -143,10 +150,22 @@ export default function MainSiswa() {
             setNamaPeserta(savedNama);
             setTokenInput(savedToken);
             setTemplateJudul(res.templateJudul || '');
+            if (res.pesertaSecret) {
+              sessionStorage.setItem('discere_multi_peserta_secret', res.pesertaSecret);
+              setPanjatSecret(res.pesertaSecret);
+            } else if (savedSecret) {
+              setPanjatSecret(savedSecret);
+            }
             if (res.game === 'makan_kerupuk') {
               setGameType('makan_kerupuk');
               setKerupukState(res.peserta);
               setKerupukLeaderboard(res.leaderboard || []);
+            } else if (res.game === 'panjat_pinang') {
+              setGameType('panjat_pinang');
+              setPanjatConfig(res.config);
+              setPanjatState(res.peserta);
+              setPanjatLeaderboard(res.leaderboard || []);
+              setPanjatSoalAktif(res.soalAktif || null);
             } else {
               setGameType('tarik_tambang');
             }
@@ -157,7 +176,7 @@ export default function MainSiswa() {
 
             if (res.status === 'jalan') {
               setStage('PLAYING');
-              if (res.soalAktif) {
+              if (res.game !== 'panjat_pinang' && res.soalAktif) {
                 const resolvedId = res.soalAktif.id || (res.soalAktif as any).questionId || '';
                 setSoalAktif({
                   ...res.soalAktif,
@@ -180,8 +199,9 @@ export default function MainSiswa() {
     }
   }, [startCountdown]);
 
-  // Setup Socket listeners
+  // Setup Socket listeners (khusus Tarik Tambang; game lain ditangani komponennya masing-masing)
   useEffect(() => {
+    if (gameType !== 'tarik_tambang') return;
     const socket = getSocket();
 
     // 1. Pembaruan Peserta di Lobi
@@ -287,6 +307,7 @@ export default function MainSiswa() {
       sessionStorage.removeItem('discere_multi_token');
       sessionStorage.removeItem('discere_multi_peserta_id');
       sessionStorage.removeItem('discere_multi_nama');
+      sessionStorage.removeItem('discere_multi_peserta_secret');
     };
 
     socket.on('lobi:update', handleLobiUpdate);
@@ -306,7 +327,7 @@ export default function MainSiswa() {
       socket.off('jawab:hasil', handleJawabHasil);
       socket.off('sesi:selesai', handleSesiSelesai);
     };
-  }, [pesertaId, startCountdown]);
+  }, [pesertaId, startCountdown, gameType]);
 
   // Handler: Siswa Submit PIN (Langkah 1)
   const handleNextToName = (e: React.FormEvent) => {
@@ -369,6 +390,10 @@ export default function MainSiswa() {
         sessionStorage.setItem('discere_multi_token', cleanToken);
         sessionStorage.setItem('discere_multi_peserta_id', res.pesertaId!);
         sessionStorage.setItem('discere_multi_nama', cleanNama);
+        if ((res as any).pesertaSecret) {
+          sessionStorage.setItem('discere_multi_peserta_secret', (res as any).pesertaSecret);
+          setPanjatSecret((res as any).pesertaSecret);
+        }
 
         setSessionId(res.sessionId!);
         setPesertaId(res.pesertaId!);
@@ -379,6 +404,12 @@ export default function MainSiswa() {
           setGameType('makan_kerupuk');
           setKerupukState((res as any).peserta);
           setKerupukLeaderboard((res as any).leaderboard || []);
+        } else if ((res as any).game === 'panjat_pinang') {
+          setGameType('panjat_pinang');
+          setPanjatConfig((res as any).config);
+          setPanjatState((res as any).peserta);
+          setPanjatLeaderboard((res as any).leaderboard || []);
+          setPanjatSoalAktif((res as any).soalAktif || null);
         } else {
           setGameType('tarik_tambang');
         }
@@ -390,7 +421,7 @@ export default function MainSiswa() {
 
         if (res.status === 'jalan') {
           setStage('PLAYING');
-          if (res.soalAktif) {
+          if ((res as any).game !== 'panjat_pinang' && res.soalAktif) {
             const resolvedId = res.soalAktif.id || (res.soalAktif as any).questionId || '';
             setSoalAktif({
               ...res.soalAktif,
@@ -450,9 +481,15 @@ export default function MainSiswa() {
     sessionStorage.removeItem('discere_multi_token');
     sessionStorage.removeItem('discere_multi_peserta_id');
     sessionStorage.removeItem('discere_multi_nama');
+    sessionStorage.removeItem('discere_multi_peserta_secret');
     setStage('GABUNG');
     setSessionId(null);
     setPesertaId(null);
+    setPanjatSecret('');
+    setPanjatConfig(undefined);
+    setPanjatState(undefined);
+    setPanjatLeaderboard([]);
+    setPanjatSoalAktif(null);
     setTim(null);
     setSoalAktif(null);
     setFeedback(null);
@@ -1077,6 +1114,28 @@ export default function MainSiswa() {
         initialPesertaState={kerupukState}
         initialLeaderboard={kerupukLeaderboard}
         initialSoalAktif={soalAktif}
+        onKeluar={handleKeluar}
+      />
+    );
+  }
+
+  // ==========================================
+  // RENDER PANJAT PINANG (JIKA SESI ADALAH PANJAT PINANG)
+  // ==========================================
+  if (gameType === 'panjat_pinang' && sessionId && pesertaId) {
+    return (
+      <MainPanjatPinang
+        token={tokenInput}
+        nama={namaPeserta}
+        sessionId={sessionId}
+        pesertaId={pesertaId}
+        pesertaSecret={panjatSecret}
+        templateJudul={templateJudul}
+        config={panjatConfig}
+        initialStatus={stage === 'PLAYING' ? 'jalan' : stage === 'SELESAI' ? 'selesai' : 'lobi'}
+        initialPesertaState={panjatState}
+        initialLeaderboard={panjatLeaderboard}
+        initialSoalAktif={panjatSoalAktif}
         onKeluar={handleKeluar}
       />
     );

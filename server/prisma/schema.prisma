@@ -75,6 +75,7 @@ model Session {
   token       String?
   mode        String         @default("solo") // "solo" | "multi"
   status      String         @default("lobi") // "lobi" | "jalan" | "selesai"
+  konfigurasi String?        // Snapshot JSON konfigurasi permainan saat sesi dibuat/dimulai
   mulaiPada   DateTime?
   selesaiPada DateTime?
   createdAt   DateTime       @default(now())
@@ -82,10 +83,40 @@ model Session {
 
   result        SessionResult?
   questionStats QuestionStat[]
+  players       SessionPlayer[]
 
   @@index([hostId])
   @@index([token])
   @@map("sessions")
+}
+
+model SessionPlayer {
+  id                  String    @id
+  sessionId           String
+  session             Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  nama                String
+  posisi              Int       @default(0) // Panjat Pinang: 0..100%; Balap Karung: jarakTempuh (meter)
+  keseimbangan        Int       @default(100) // Balap Karung: 0..100%
+  jumlahJatuh         Int       @default(0) // Balap Karung: total kejadian jatuh saat keseimbangan 0%
+  efekAktif           String    @default("{}") // JSON efek power-up/rintangan & metrik streak per game
+  poinBonus           Int       @default(0)
+  totalBenar          Int       @default(0)
+  totalSalah          Int       @default(0)
+  streakSaatIni       Int       @default(0)
+  streakTertinggi     Int       @default(0)
+  totalWaktuJawabMs   Int       @default(0)
+  jumlahJawab         Int       @default(0)
+  status              String    @default("bermain") // "bermain" | "selesai"
+  waktuSelesaiMs      Int?
+  selesaiPada         DateTime?
+  riwayatPosisi       String    @default("[]") // JSON array riwayat perubahan posisi
+  riwayatRintangan    String    @default("[]") // JSON array riwayat rintangan
+  riwayatJawaban      String    @default("[]") // JSON array riwayat jawaban
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([sessionId])
+  @@map("session_players")
 }
 
 model SessionResult {
