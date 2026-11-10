@@ -466,6 +466,58 @@ async function main() {
         },
       ],
     },
+    {
+      judul: 'Makan Kerupuk 17-an: Pengetahuan Umum Indonesia',
+      game: 'makan_kerupuk',
+      mode: 'solo',
+      questions: [
+        {
+          urutan: 1,
+          teks: 'Lomba memakan kerupuk tanpa menggunakan tangan merupakan ciri khas perayaan...',
+          opsiA: 'Hari Kemerdekaan 17 Agustus',
+          opsiB: 'Hari Sumpah Pemuda 28 Oktober',
+          opsiC: 'Hari Pahlawan 10 November',
+          jawabanBenar: 'A',
+          penjelasan: 'Lomba makan kerupuk sangat populer digelar setiap peringatan HUT RI tanggal 17 Agustus.',
+        },
+        {
+          urutan: 2,
+          teks: 'Teks Proklamasi Kemerdekaan Indonesia pertama kali dibacakan di Jalan...',
+          opsiA: 'Pegangsaan Timur No. 56',
+          opsiB: 'Thamrin No. 10',
+          opsiC: 'Sudirman No. 45',
+          jawabanBenar: 'A',
+          penjelasan: 'Proklamasi dibacakan oleh Ir. Soekarno di Jalan Pegangsaan Timur No. 56, Jakarta.',
+        },
+        {
+          urutan: 3,
+          teks: 'Lambang negara Republik Indonesia adalah...',
+          opsiA: 'Garuda Pancasila',
+          opsiB: 'Harimau Sumatera',
+          opsiC: 'Komodo',
+          jawabanBenar: 'A',
+          penjelasan: 'Lambang negara kita adalah Garuda Pancasila dengan semboyan Bhinneka Tunggal Ika.',
+        },
+        {
+          urutan: 4,
+          teks: 'Ibu kota Provinsi Jawa Tengah adalah kota...',
+          opsiA: 'Surabaya',
+          opsiB: 'Semarang',
+          opsiC: 'Bandung',
+          jawabanBenar: 'B',
+          penjelasan: 'Semarang merupakan ibu kota dari Provinsi Jawa Tengah.',
+        },
+        {
+          urutan: 5,
+          teks: 'Bila panjang sebuah persegi adalah 9 cm, maka kelilingnya adalah...',
+          opsiA: '18 cm',
+          opsiB: '36 cm',
+          opsiC: '81 cm',
+          jawabanBenar: 'B',
+          penjelasan: 'Keliling persegi = 4 x sisi = 4 x 9 cm = 36 cm.',
+        },
+      ],
+    },
   ];
 
   for (const t of templateResmiList) {

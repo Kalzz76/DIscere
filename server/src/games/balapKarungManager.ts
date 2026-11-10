@@ -16,7 +16,6 @@ import {
   urutkanLeaderboardBalapKarung,
 } from './balapKarung.js';
 import { multiManager } from './multiManager.js';
-import { kerupukManager } from './kerupukManager.js';
 import { panjatPinangManager } from './panjatPinangManager.js';
 import { prisma } from '../db.js';
 
@@ -327,7 +326,6 @@ export const balapKarungManager = {
       exists =
         tokenToSessionIdMap.has(token) ||
         Boolean(multiManager.dapatkanSesiDariToken(token)) ||
-        Boolean(kerupukManager.dapatkanSesiDariToken(token)) ||
         Boolean(panjatPinangManager.dapatkanSesiDariToken(token));
     }
 

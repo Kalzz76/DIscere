@@ -1,7 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { z } from 'zod';
 import { multiManager, SesiMultiplayerActive } from '../games/multiManager.js';
-import { kerupukManager, SesiKerupukActive } from '../games/kerupukManager.js';
 import { panjatPinangManager } from '../games/panjatPinangManager.js';
 import { PesertaPanjatState } from '../games/panjatPinang.js';
 import { balapKarungManager } from '../games/balapKarungManager.js';
@@ -223,91 +222,6 @@ export function setupMultiplayerSocket(io: Server) {
             return;
           }
 
-          // A. CABANG MAKAN KERUPUK CHALLENGE
-          const sesiKerupukCek = kerupukManager.dapatkanSesiDariToken(token);
-          if (sesiKerupukCek) {
-            const { sesi, peserta, isReconnect } = kerupukManager.gabungPeserta(
-              token,
-              nama,
-              socket.id,
-              pesertaId
-            );
-
-            const roomName = `session:${sesi.sessionId}`;
-            socket.join(roomName);
-
-            const daftarPeserta = Array.from(sesi.peserta.values()).map((p) => ({
-              id: p.id,
-              nama: p.nama,
-              connected: p.connected,
-              sisaKerupuk: p.sisaKerupuk,
-              skorTotal: p.skorTotal,
-              streakBenar: p.streakBenar,
-              selesaiKerupuk: p.selesaiKerupuk,
-              rataRataWaktuJawabMs: p.rataRataWaktuJawabMs,
-              jumlahJawab: p.jumlahJawab,
-            }));
-
-            // Ambil data soal aktif personal siswa jika permainan sedang berlangsung dan kerupuk belum 0%
-            let soalAktifData: any = null;
-            if (sesi.status === 'jalan' && !peserta.selesaiKerupuk && peserta.sisaKerupuk > 0) {
-              const item = kerupukManager.dapatkanSoalAktifPeserta(sesi.sessionId, peserta.id);
-              if (item) {
-                soalAktifData = {
-                  id: item.soal.id,
-                  questionId: item.soal.id,
-                  nomorSoal: item.nomorSoalPemain,
-                  totalSoal: item.totalSoalTemplate,
-                  teks: item.soal.teks,
-                  opsiA: item.soal.opsiA,
-                  opsiB: item.soal.opsiB,
-                  opsiC: item.soal.opsiC,
-                };
-              }
-            }
-
-            callback?.({
-              success: true,
-              game: 'makan_kerupuk',
-              isReconnect,
-              pesertaId: peserta.id,
-              sessionId: sesi.sessionId,
-              templateJudul: sesi.templateJudul,
-              status: sesi.status,
-              peserta: {
-                id: peserta.id,
-                nama: peserta.nama,
-                sisaKerupuk: peserta.sisaKerupuk,
-                skorTotal: peserta.skorTotal,
-                skorPengetahuan: peserta.skorPengetahuan,
-                skorKeberuntungan: peserta.skorKeberuntungan,
-                streakBenar: peserta.streakBenar,
-                selesaiKerupuk: peserta.selesaiKerupuk,
-                terakhirGigitan: peserta.terakhirGigitan,
-                rataRataWaktuJawabMs: peserta.rataRataWaktuJawabMs,
-                jumlahJawab: peserta.jumlahJawab,
-              },
-              leaderboard: kerupukManager.dapatkanLeaderboard(sesi.sessionId),
-              currentQuestionIndex: peserta.nomorSoalPemain || 0,
-              totalSoal: sesi.totalSoal,
-              soalAktif: soalAktifData,
-              sudahJawabSoalAktif: false,
-            });
-
-            // Siarkan pembaruan lobi ke semua orang di room
-            io.to(roomName).emit('lobi:update', {
-              game: 'makan_kerupuk',
-              totalPeserta: sesi.peserta.size,
-              daftarPeserta,
-            });
-
-            // Jika late-join atau reconnect saat game sedang jalan dan ada soal aktif, kirimkan juga lewat socket event
-            if (sesi.status === 'jalan' && soalAktifData) {
-              socket.emit('soal:tampil', soalAktifData);
-            }
-            return;
-          }
-
           // B. CABANG TARIK TAMBANG MULTIPLAYER
           const { sesi, peserta, isReconnect } = multiManager.gabungPeserta(
             token,
@@ -424,40 +338,6 @@ export function setupMultiplayerSocket(io: Server) {
         socket.emit('panjat:update', {
           leaderboard,
           totalPeserta: sesiPanjat.peserta.size,
-        });
-        return;
-      }
-
-      // A. Cek sesi Makan Kerupuk
-      const sesiKerupuk = kerupukManager.dapatkanSesi(sessionId);
-      if (sesiKerupuk) {
-        sesiKerupuk.hostSocketId = socket.id;
-        const roomName = `session:${sesiKerupuk.sessionId}`;
-        socket.join(roomName);
-
-        const daftarPeserta = Array.from(sesiKerupuk.peserta.values()).map((p) => ({
-          id: p.id,
-          nama: p.nama,
-          connected: p.connected,
-          sisaKerupuk: p.sisaKerupuk,
-          skorTotal: p.skorTotal,
-          streakBenar: p.streakBenar,
-          selesaiKerupuk: p.selesaiKerupuk,
-          rataRataWaktuJawabMs: p.rataRataWaktuJawabMs,
-          jumlahJawab: p.jumlahJawab,
-        }));
-
-        socket.emit('lobi:update', {
-          game: 'makan_kerupuk',
-          totalPeserta: sesiKerupuk.peserta.size,
-          daftarPeserta,
-        });
-
-        // Kirimkan juga leaderboard terkini
-        socket.emit('kerupuk:update', {
-          leaderboard: kerupukManager.dapatkanLeaderboard(sesiKerupuk.sessionId),
-          answeredCount: 0,
-          totalCount: sesiKerupuk.peserta.size,
         });
         return;
       }
@@ -599,46 +479,6 @@ export function setupMultiplayerSocket(io: Server) {
             }
 
             callback?.({ success: true, pesan: 'Lomba Panjat Pinang dimulai!' });
-            return;
-          }
-
-          // A. Sesi Makan Kerupuk
-          const sesiKerupukTarget = kerupukManager.dapatkanSesi(sessionId);
-          if (sesiKerupukTarget) {
-            const sesi = kerupukManager.mulaiPermainan(sessionId, sesiKerupukTarget.hostId);
-            const roomName = `session:${sesi.sessionId}`;
-
-            await prisma.session.update({
-              where: { id: sessionId },
-              data: { status: 'jalan', mulaiPada: new Date() },
-            });
-
-            io.to(roomName).emit('game:mulai', {
-              game: 'makan_kerupuk',
-              totalSoal: sesi.totalSoal,
-            });
-
-            // Bagikan soal pertama secara independen ke setiap siswa yang terhubung
-            for (const p of sesi.peserta.values()) {
-              if (p.connected && p.socketId) {
-                const item = kerupukManager.ambilSoalBerikutnyaUntukPeserta(sesi.sessionId, p.id);
-                if (item) {
-                  io.to(p.socketId).emit('soal:tampil', {
-                    game: 'makan_kerupuk',
-                    nomorSoal: item.nomorSoalPemain,
-                    totalSoal: item.totalSoalTemplate,
-                    id: item.soal.id,
-                    questionId: item.soal.id,
-                    teks: item.soal.teks,
-                    opsiA: item.soal.opsiA,
-                    opsiB: item.soal.opsiB,
-                    opsiC: item.soal.opsiC,
-                  });
-                }
-              }
-            }
-
-            callback?.({ success: true, pesan: 'Makan Kerupuk Challenge dimulai!' });
             return;
           }
 
@@ -954,105 +794,6 @@ export function setupMultiplayerSocket(io: Server) {
             return;
           }
 
-          // A. Sesi Makan Kerupuk
-          const sesiKerupuk = kerupukManager.dapatkanSesi(sessionId);
-          if (sesiKerupuk) {
-            const targetQuestionId =
-              rawQId && rawQId !== 'undefined' && rawQId !== 'null'
-                ? rawQId
-                : '';
-
-            const hasil = kerupukManager.prosesJawabanSiswa(
-              sessionId,
-              pesertaId,
-              targetQuestionId,
-              jawaban
-            );
-
-            const roomName = `session:${sesiKerupuk.sessionId}`;
-            const soalDijawab = sesiKerupuk.questions.find((q) => q.id === targetQuestionId);
-
-            const feedbackPayload = {
-              success: true,
-              game: 'makan_kerupuk',
-              benar: hasil.hasilJawaban.benar,
-              jawabanBenar: soalDijawab?.jawabanBenar || '',
-              penjelasan: soalDijawab?.penjelasan || null,
-              poinDidapat: hasil.hasilJawaban.poinDidapat,
-              poinDasar: hasil.hasilJawaban.poinDasar,
-              bonusStreak: hasil.hasilJawaban.bonusStreak,
-              bonusPenyelesaian: hasil.hasilJawaban.bonusPenyelesaian,
-              gacha: hasil.hasilJawaban.gacha,
-              sisaKerupukBaru: hasil.hasilJawaban.sisaKerupukBaru,
-              selesaiBaru: hasil.hasilJawaban.selesaiBaru,
-              pesertaUpdated: hasil.hasilJawaban.pesertaUpdated,
-            };
-
-            // Callback acknowledgment ke socket pengirim
-            callback?.(feedbackPayload);
-            // Siarkan event langsung personal ke socket siswa (kompatibilitas penuh)
-            socket.emit('jawab:hasil', feedbackPayload);
-
-            const activeCount = Array.from(sesiKerupuk.peserta.values()).filter((p) => p.connected).length;
-
-            // Siarkan pembaruan leaderboard & aktivitas ke seluruh room
-            io.to(roomName).emit('kerupuk:update', {
-              leaderboard: hasil.leaderboard,
-              answeredCount: sesiKerupuk.peserta.size,
-              totalCount: Math.max(activeCount, sesiKerupuk.peserta.size),
-              terakhirJawab: {
-                pesertaId,
-                nama: hasil.hasilJawaban.pesertaUpdated.nama,
-                benar: hasil.hasilJawaban.benar,
-                gacha: hasil.hasilJawaban.gacha,
-                sisaKerupuk: hasil.hasilJawaban.sisaKerupukBaru,
-              },
-            });
-
-            // 1. KONDISI SELESAI OTOMATIS: Semua peserta aktif telah menghabiskan kerupuk (0%)
-            if (hasil.gameSelesaiSemuaHabis) {
-              const hasilAkhir = kerupukManager.akhiriPermainan(sesiKerupuk.sessionId);
-              await simpanHasilKerupukKeDatabase(sesiKerupuk);
-              io.to(roomName).emit('sesi:selesai', {
-                game: 'makan_kerupuk',
-                hasil: hasilAkhir,
-              });
-              return;
-            }
-
-            // 2. Jika pemain ini selesai (kerupuk 0%), beri notifikasi personal bahwa dia selesai
-            if (hasil.pemainSelesai) {
-              socket.emit('pemain:selesai', {
-                peserta: hasil.hasilJawaban.pesertaUpdated,
-                pesan: 'Selamat! Kerupukmu telah ludes 100%!',
-              });
-              return;
-            }
-
-            // 3. Jika pemain masih belum selesai (> 0%), kirimkan soal berikutnya setelah jeda 1.5 detik
-            setTimeout(() => {
-              const sesiCheck = kerupukManager.dapatkanSesi(sessionId);
-              if (!sesiCheck || sesiCheck.status !== 'jalan') return;
-
-              const nextItem = kerupukManager.ambilSoalBerikutnyaUntukPeserta(sessionId, pesertaId);
-              if (nextItem) {
-                socket.emit('soal:tampil', {
-                  game: 'makan_kerupuk',
-                  nomorSoal: nextItem.nomorSoalPemain,
-                  totalSoal: nextItem.totalSoalTemplate,
-                  id: nextItem.soal.id,
-                  questionId: nextItem.soal.id,
-                  teks: nextItem.soal.teks,
-                  opsiA: nextItem.soal.opsiA,
-                  opsiB: nextItem.soal.opsiB,
-                  opsiC: nextItem.soal.opsiC,
-                });
-              }
-            }, 1500);
-
-            return;
-          }
-
           // B. Sesi Tarik Tambang
           const sesi = multiManager.dapatkanSesi(sessionId);
           if (!sesi) return;
@@ -1176,32 +917,7 @@ export function setupMultiplayerSocket(io: Server) {
           }
           return;
         }
-
-        const sesi = kerupukManager.dapatkanSesi(sessionId);
-      if (!sesi || sesi.status !== 'jalan') return;
-
-      const peserta = sesi.peserta.get(pesertaId);
-      if (!peserta || peserta.selesaiKerupuk || peserta.sisaKerupuk === 0) return;
-
-      // Ambil soal aktif yang sudah disiapkan atau ambil soal berikutnya dari antrean
-      const item =
-        kerupukManager.dapatkanSoalAktifPeserta(sessionId, pesertaId) ||
-        kerupukManager.ambilSoalBerikutnyaUntukPeserta(sessionId, pesertaId);
-
-      if (item) {
-        socket.emit('soal:tampil', {
-          game: 'makan_kerupuk',
-          nomorSoal: item.nomorSoalPemain,
-          totalSoal: item.totalSoalTemplate,
-          id: item.soal.id,
-          questionId: item.soal.id,
-          teks: item.soal.teks,
-          opsiA: item.soal.opsiA,
-          opsiB: item.soal.opsiB,
-          opsiC: item.soal.opsiC,
-        });
-      }
-    });
+      });
 
     // 5. Guru mengakhiri permainan secara manual
     socket.on(
@@ -1275,22 +991,6 @@ export function setupMultiplayerSocket(io: Server) {
             const roomName = `session:${sesiPanjat.sessionId}`;
             io.to(roomName).emit('sesi:selesai', {
               game: 'panjat_pinang',
-              hasil,
-            });
-
-            callback?.({ success: true, hasil });
-            return;
-          }
-
-          // A. Sesi Makan Kerupuk
-          const sesiKerupuk = kerupukManager.dapatkanSesi(sessionId);
-          if (sesiKerupuk) {
-            const hasil = kerupukManager.akhiriPermainan(sessionId);
-            await simpanHasilKerupukKeDatabase(sesiKerupuk);
-
-            const roomName = `session:${sesiKerupuk.sessionId}`;
-            io.to(roomName).emit('sesi:selesai', {
-              game: 'makan_kerupuk',
               hasil,
             });
 
@@ -1379,31 +1079,6 @@ export function setupMultiplayerSocket(io: Server) {
         return;
       }
 
-      // Cek apakah socket berasal dari peserta Makan Kerupuk
-      const { sessionId: kerupukSessionId } = kerupukManager.putusKoneksiPeserta(socket.id);
-      if (kerupukSessionId) {
-        const sesi = kerupukManager.dapatkanSesi(kerupukSessionId);
-        if (sesi) {
-          const roomName = `session:${sesi.sessionId}`;
-          const daftarPeserta = Array.from(sesi.peserta.values()).map((p) => ({
-            id: p.id,
-            nama: p.nama,
-            connected: p.connected,
-            sisaKerupuk: p.sisaKerupuk,
-            skorTotal: p.skorTotal,
-            streakBenar: p.streakBenar,
-            selesaiKerupuk: p.selesaiKerupuk,
-          }));
-
-          io.to(roomName).emit('lobi:update', {
-            game: 'makan_kerupuk',
-            totalPeserta: sesi.peserta.size,
-            daftarPeserta,
-          });
-        }
-        return;
-      }
-
       // Cek apakah socket berasal dari peserta Tarik Tambang
       const { sessionId } = multiManager.putusKoneksiPeserta(socket.id);
       if (sessionId) {
@@ -1425,168 +1100,6 @@ export function setupMultiplayerSocket(io: Server) {
         }
       }
     });
-  });
-}
-
-// ---------------------------------------------------------------------------
-// HELPER MAKAN KERUPUK CHALLENGE
-// ---------------------------------------------------------------------------
-
-/**
- * Menyiapkan dan menyiarkan soal aktif Makan Kerupuk beserta timer server
- */
-function mulaiSoalKerupukIndex(io: Server, sesi: SesiKerupukActive, index: number) {
-  sesi.currentQuestionIndex = index;
-  const soalAktif = sesi.questions[index];
-  if (!soalAktif) return;
-
-  const durasiDetik = sesi.config.durasiSoalDetik || 15;
-  const { soalBerakhirPada } = kerupukManager.mulaiTimerSoal(sesi.sessionId, durasiDetik);
-
-  const roomName = `session:${sesi.sessionId}`;
-  const totalPesertaAktif = Array.from(sesi.peserta.values()).filter((p) => p.connected).length;
-
-  io.to(roomName).emit('soal:tampil', {
-    game: 'makan_kerupuk',
-    questionIndex: index,
-    nomorSoal: index + 1,
-    totalSoal: sesi.totalSoal,
-    id: soalAktif.id,
-    questionId: soalAktif.id,
-    teks: soalAktif.teks,
-    opsiA: soalAktif.opsiA,
-    opsiB: soalAktif.opsiB,
-    opsiC: soalAktif.opsiC,
-    endsAt: soalBerakhirPada,
-    duration: durasiDetik,
-    answeredCount: 0,
-    totalCount: Math.max(totalPesertaAktif, sesi.peserta.size),
-  });
-
-  // Timer timeout di server
-  sesi.timerHandle = setTimeout(() => {
-    tutupSoalKerupukAktif(io, sesi);
-  }, durasiDetik * 1000);
-}
-
-/**
- * Menutup soal aktif Makan Kerupuk, rekap skor, dan lanjut ke soal berikutnya atau podium
- */
-async function tutupSoalKerupukAktif(io: Server, sesi: SesiKerupukActive) {
-  if (sesi.timerHandle) {
-    clearTimeout(sesi.timerHandle);
-    sesi.timerHandle = undefined;
-  }
-
-  const { questionIndex, isLastQuestion, rekapSoal } = kerupukManager.selesaikanSoalAktif(sesi.sessionId);
-  const roomName = `session:${sesi.sessionId}`;
-
-  const soal = sesi.questions[questionIndex];
-  const leaderboard = kerupukManager.dapatkanLeaderboard(sesi.sessionId);
-
-  // Siarkan rekap soal ke semua peserta
-  io.to(roomName).emit('soal:selesai', {
-    game: 'makan_kerupuk',
-    questionIndex,
-    jawabanBenar: soal?.jawabanBenar || '',
-    penjelasan: soal?.penjelasan || null,
-    leaderboard,
-    stats: {
-      benar: rekapSoal.totalBenar,
-      salah: rekapSoal.totalSalah,
-      tidakJawab: Math.max(0, sesi.peserta.size - rekapSoal.totalJawaban),
-    },
-    isGameFinished: isLastQuestion,
-  });
-
-  if (isLastQuestion) {
-    const hasil = kerupukManager.akhiriPermainan(sesi.sessionId);
-    await simpanHasilKerupukKeDatabase(sesi);
-    io.to(roomName).emit('sesi:selesai', {
-      game: 'makan_kerupuk',
-      hasil,
-    });
-  } else {
-    // Intermission 3 detik agar siswa membaca kunci jawaban & pembahasan
-    sesi.intermissionHandle = setTimeout(() => {
-      try {
-        const next = kerupukManager.lanjutSoalBerikutnya(sesi.sessionId);
-        mulaiSoalKerupukIndex(io, sesi, next.currentQuestionIndex);
-      } catch {
-        // Jika gagal melangkah, akhiri permainan
-        const hasil = kerupukManager.akhiriPermainan(sesi.sessionId);
-        simpanHasilKerupukKeDatabase(sesi);
-        io.to(roomName).emit('sesi:selesai', { game: 'makan_kerupuk', hasil });
-      }
-    }, 3000);
-  }
-}
-
-/**
- * Menyimpan hasil akhir Makan Kerupuk ke database
- */
-export async function simpanHasilKerupukKeDatabase(sesi: SesiKerupukActive) {
-  const hasil = sesi.hasil;
-  if (!hasil) return;
-
-  await prisma.$transaction(async (tx) => {
-    // 1. Update status sesi
-    await tx.session.update({
-      where: { id: sesi.sessionId },
-      data: {
-        status: 'selesai',
-        selesaiPada: new Date(),
-      },
-    });
-
-    // 2. Simpan SessionResult
-    const namaJuara1 = hasil.podium.juara1?.nama || 'Selesai';
-    const skorJuara1 = hasil.podium.juara1?.skorTotal || 0;
-    const skorJuara2 = hasil.podium.juara2?.skorTotal || 0;
-
-    await tx.sessionResult.upsert({
-      where: { sessionId: sesi.sessionId },
-      update: {
-        timMenang: namaJuara1,
-        posisiAkhir: hasil.totalKerupukHabis,
-        skorMerah: skorJuara1,
-        skorPutih: skorJuara2,
-      },
-      create: {
-        sessionId: sesi.sessionId,
-        timMenang: namaJuara1,
-        posisiAkhir: hasil.totalKerupukHabis,
-        skorMerah: skorJuara1,
-        skorPutih: skorJuara2,
-      },
-    });
-
-    // 3. Simpan question_stats per soal
-    await tx.questionStat.deleteMany({
-      where: { sessionId: sesi.sessionId },
-    });
-
-    for (const soal of sesi.questions) {
-      const mapJawaban = sesi.jawabanPerSoal.get(soal.id);
-      let jBenar = 0;
-      let jSalah = 0;
-
-      if (mapJawaban) {
-        for (const j of mapJawaban.values()) {
-          if (j.benar) jBenar++;
-          else jSalah++;
-        }
-      }
-
-      await tx.questionStat.create({
-        data: {
-          sessionId: sesi.sessionId,
-          questionId: soal.id,
-          jumlahBenar: jBenar,
-          jumlahSalah: jSalah,
-        },
-      });
-    }
   });
 }
 

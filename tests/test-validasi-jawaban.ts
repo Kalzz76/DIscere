@@ -2,7 +2,6 @@ import assert from 'assert';
 import { multiManager } from '../server/src/games/multiManager.js';
 import { kerupukManager } from '../server/src/games/kerupukManager.js';
 import { soloManager } from '../server/src/games/soloManager.js';
-import { prosesJawabanKerupuk, PRESET_PROBABILITAS } from '../server/src/games/makanKerupuk.js';
 
 async function runValidasiJawabanTests() {
   console.log('\n=============================================================');
@@ -181,48 +180,42 @@ async function runValidasiJawabanTests() {
   console.log('   ✓ Data dan state setiap perangkat terisolasi sempurna');
 
   // -------------------------------------------------------------------------
-  // UJI 9: Validasi Jawaban Game Makan Kerupuk Challenge
+  // UJI 9: Validasi Jawaban Game Makan Kerupuk Challenge (Mode Solo)
   // -------------------------------------------------------------------------
-  console.log('7. Menguji validasi jawaban dan gacha pada Makan Kerupuk Challenge...');
+  console.log('7. Menguji validasi jawaban berbasis choiceId & gacha pada Makan Kerupuk Mode Solo...');
   const sessionKerupukId = 'test-kerupuk-validasi-' + Date.now();
-  const tokenKerupuk = '882244';
 
   const sesiKerupuk = kerupukManager.inisialisasiSesi(
     sessionKerupukId,
-    tokenKerupuk,
     'host-guru-kerupuk',
     { id: 'tmpl-k', judul: 'Kuis Kerupuk' },
     mockQuestions
   );
 
-  const kSiswa1 = kerupukManager.gabungPeserta(tokenKerupuk, 'Eko Kerupuk', 'socket-k1');
-  const kSiswa2 = kerupukManager.gabungPeserta(tokenKerupuk, 'Fani Kerupuk', 'socket-k2');
-
   kerupukManager.mulaiPermainan(sessionKerupukId, 'host-guru-kerupuk');
-  kerupukManager.mulaiTimerSoal(sessionKerupukId, 15);
+  const presK1 = sesiKerupuk.activePresentation!;
+  const pilBenarK1 = presK1.pilihanList.find((p) => p.choiceId === presK1.correctChoiceId)!;
 
-  // Eko menjawab BENAR dengan huruf kecil 'a'
-  const hasilEko = kerupukManager.prosesJawabanSiswa(
-    sessionKerupukId,
-    kSiswa1.peserta.id,
-    'soal-1-merah',
-    ' a '
-  );
-  assert.strictEqual(hasilEko.hasilJawaban.benar, true, 'Eko harus diakui benar');
-  assert.ok(hasilEko.hasilJawaban.poinDidapat >= 100, 'Jawaban benar harus mendapat minimal 100 poin');
-  assert.ok(hasilEko.hasilJawaban.gacha !== null, 'Jawaban benar harus mendapatkan random draw gacha gigitan');
+  const hasilBenarK = kerupukManager.prosesJawaban(sessionKerupukId, 'host-guru-kerupuk', {
+    presentationId: presK1.presentationId,
+    choiceId: pilBenarK1.choiceId,
+  });
+  assert.strictEqual(hasilBenarK.benar, true, 'Pilihan benar harus diakui benar');
+  assert.ok(hasilBenarK.poinDidapat >= 100, 'Jawaban benar harus mendapat minimal 100 poin');
+  assert.ok(hasilBenarK.gacha !== null, 'Jawaban benar harus mendapatkan random draw gacha gigitan');
 
-  // Fani menjawab SALAH
-  const hasilFani = kerupukManager.prosesJawabanSiswa(
-    sessionKerupukId,
-    kSiswa2.peserta.id,
-    'soal-1-merah',
-    'C'
-  );
-  assert.strictEqual(hasilFani.hasilJawaban.benar, false, 'Fani harus diakui salah');
-  assert.strictEqual(hasilFani.hasilJawaban.poinDidapat, 0, 'Jawaban salah tidak mendapat poin');
-  assert.strictEqual(hasilFani.hasilJawaban.gacha, null, 'Jawaban salah tidak mendapat gacha gigitan');
-  console.log('   ✓ Makan Kerupuk memvalidasi jawaban benar (+gacha) dan salah (poin 0, no gacha) secara presisi');
+  const presK2 = sesiKerupuk.activePresentation!;
+  const pilSalahK2 = presK2.pilihanList.find((p) => p.choiceId !== presK2.correctChoiceId)!;
+
+  const hasilSalahK = kerupukManager.prosesJawaban(sessionKerupukId, 'host-guru-kerupuk', {
+    presentationId: presK2.presentationId,
+    choiceId: pilSalahK2.choiceId,
+  });
+  assert.strictEqual(hasilSalahK.benar, false, 'Pilihan salah harus diakui salah');
+  assert.strictEqual(hasilSalahK.poinDidapat, 0, 'Jawaban salah tidak mendapat poin');
+  assert.strictEqual(hasilSalahK.gacha, null, 'Jawaban salah tidak mendapat gacha gigitan');
+  kerupukManager.hapusSesi(sessionKerupukId);
+  console.log('   ✓ Makan Kerupuk Mode Solo memvalidasi choiceId benar (+gacha) dan salah (poin 0, no gacha) secara presisi');
 
   // -------------------------------------------------------------------------
   // UJI 10: Validasi Jawaban Game Solo

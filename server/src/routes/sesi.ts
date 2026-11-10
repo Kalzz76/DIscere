@@ -10,7 +10,11 @@ import { roleMiddleware } from '../middleware/role.js';
 import { soloManager } from '../games/soloManager.js';
 import { multiManager } from '../games/multiManager.js';
 import { kerupukManager } from '../games/kerupukManager.js';
-import { validasiProbabilitas, PRESET_PROBABILITAS } from '../games/makanKerupuk.js';
+import {
+  bangunKonfigurasiKerupukSolo,
+  konfigurasiKerupukSoloSchema,
+  validasiProbabilitas,
+} from '../games/makanKerupuk.js';
 import { panjatPinangManager } from '../games/panjatPinangManager.js';
 import {
   bangunKonfigurasiPanjatPinang,
@@ -28,7 +32,6 @@ function isTokenDipakaiDiMemori(token: string): boolean {
   return (
     Boolean(balapKarungManager.dapatkanSesiDariToken(token)) ||
     Boolean(panjatPinangManager.dapatkanSesiDariToken(token)) ||
-    Boolean(kerupukManager.dapatkanSesiDariToken(token)) ||
     Boolean(multiManager.dapatkanSesiDariToken(token))
   );
 }
@@ -102,24 +105,6 @@ sesiRouter.get('/token/:token', async (req: Request, res: Response) => {
       });
     }
 
-    // 1. Cek di in-memory kerupukManager (Game Makan Kerupuk Challenge)
-    const activeKerupuk = kerupukManager.dapatkanSesiDariToken(token);
-    if (activeKerupuk) {
-      if (activeKerupuk.status === 'selesai') {
-        return res.status(400).json({ valid: false, pesan: 'Sesi permainan Makan Kerupuk ini sudah selesai.' });
-      }
-      return res.json({
-        valid: true,
-        sessionId: activeKerupuk.sessionId,
-        templateJudul: activeKerupuk.templateJudul,
-        game: 'makan_kerupuk',
-        status: activeKerupuk.status,
-        totalPeserta: activeKerupuk.peserta.size,
-        maxPeserta: activeKerupuk.config.maxPeserta,
-        allowLateJoin: activeKerupuk.config.allowLateJoin,
-      });
-    }
-
     // 2. Cek di in-memory multiManager (Game Tarik Tambang Multiplayer)
     const active = multiManager.dapatkanSesiDariToken(token);
     if (active) {
@@ -148,6 +133,13 @@ sesiRouter.get('/token/:token', async (req: Request, res: Response) => {
 
     if (!sessionDb) {
       return res.status(404).json({ valid: false, pesan: 'Kode token tidak ditemukan atau sudah tidak aktif.' });
+    }
+
+    if (sessionDb.template.game === 'makan_kerupuk') {
+      return res.status(400).json({
+        valid: false,
+        pesan: 'Game Makan Kerupuk Challenge dijalankan dalam Mode Solo di perangkat guru dan tidak memakai kode PIN.',
+      });
     }
 
     return res.json({
@@ -295,6 +287,11 @@ sesiRouter.get('/riwayat/:id', async (req: AuthRequest, res: Response) => {
         ? await balapKarungManager.muatLaporanDariDatabase(session.id)
         : null;
 
+    const laporanKerupukSolo =
+      session.template.game === 'makan_kerupuk'
+        ? await kerupukManager.muatLaporanDariDatabase(session.id)
+        : null;
+
     return res.json({
       detail: {
         sessionId: session.id,
@@ -313,6 +310,7 @@ sesiRouter.get('/riwayat/:id', async (req: AuthRequest, res: Response) => {
         soalPalingSeringSalah,
         laporanPanjatPinang,
         laporanBalapKarung,
+        laporanKerupukSolo,
       },
     });
   } catch (err: any) {
@@ -325,6 +323,7 @@ const buatSesiSchema = z.object({
   templateId: z.string().min(1, 'ID template wajib disertakan.'),
   mode: z.enum(['solo', 'multi']).optional(),
   game: z.enum(['tarik_tambang', 'makan_kerupuk', 'panjat_pinang', 'balap_karung']).optional(),
+  kerupukConfig: konfigurasiKerupukSoloSchema.optional(),
   probabilitas: z
     .object({
       besar: z.number(),
@@ -493,36 +492,38 @@ sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
     }
 
     // -------------------------------------------------------------
-    // CABANG A: Game Makan Kerupuk Challenge
+    // CABANG A: Game Makan Kerupuk Challenge (Mode Solo — Perangkat Guru)
     // -------------------------------------------------------------
     if (targetGame === 'makan_kerupuk') {
-      // Validasi probabilitas jika disertakan kustom oleh guru
-      let probabilitasConfig = parsed.probabilitas || PRESET_PROBABILITAS.normal;
-      const validasi = validasiProbabilitas(probabilitasConfig);
-      if (!validasi.valid) {
-        return res.status(400).json({
-          pesan: validasi.pesanError || 'Total probabilitas harus tepat 100%.',
-        });
+      const mergedKerupukInput = {
+        ...(parsed.kerupukConfig || {}),
+        ...(parsed.probabilitas ? { probabilitas: parsed.probabilitas } : {}),
+      };
+
+      if (mergedKerupukInput.probabilitas) {
+        const validasi = validasiProbabilitas(mergedKerupukInput.probabilitas);
+        if (!validasi.valid) {
+          return res.status(400).json({
+            pesan: validasi.pesanError || 'Total probabilitas gigitan harus tepat 100%.',
+          });
+        }
       }
 
-      const token = await generateTokenUnikSemuaGame();
-      const baseUrl = getNetworkBaseUrl(req);
-      const joinUrl = `${baseUrl}/main?token=${token}`;
-      const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
+      const configSnapshot = bangunKonfigurasiKerupukSolo(mergedKerupukInput);
 
       const session = await prisma.session.create({
         data: {
           templateId: template.id,
           hostId: req.user!.id,
-          mode: 'multi',
-          token,
+          mode: 'solo',
+          token: null,
           status: 'lobi',
+          konfigurasi: JSON.stringify(configSnapshot),
         },
       });
 
       const activeSession = kerupukManager.inisialisasiSesi(
         session.id,
-        token,
         req.user!.id,
         { id: template.id, judul: template.judul },
         template.questions.map((q) => ({
@@ -535,29 +536,14 @@ sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
           jawabanBenar: q.jawabanBenar,
           penjelasan: q.penjelasan,
         })),
-        {
-          probabilitas: probabilitasConfig,
-          maxPeserta: parsed.maxPeserta,
-          durasiSoalDetik: parsed.durasiSoalDetik,
-          allowLateJoin: parsed.allowLateJoin,
-        }
+        configSnapshot
       );
 
       return res.status(201).json({
-        pesan: 'Sesi Makan Kerupuk Challenge berhasil dibuat.',
+        pesan: 'Sesi Mode Solo Makan Kerupuk Challenge siap dimulai.',
         session: {
           id: session.id,
-          game: 'makan_kerupuk',
-          mode: 'multi',
-          token,
-          qrDataUrl,
-          joinUrl,
-          networkUrl: baseUrl,
-          templateId: template.id,
-          templateJudul: template.judul,
-          status: 'lobi',
-          totalSoal: activeSession.totalSoal,
-          config: activeSession.config,
+          ...kerupukManager.serialisasiSesiUntukClient(activeSession),
         },
       });
     }
@@ -743,65 +729,17 @@ sesiRouter.get('/:id', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // A. Cek di in-memory kerupukManager (Game Makan Kerupuk)
-    const activeKerupuk = kerupukManager.dapatkanSesi(id);
+    // A. Cek di in-memory kerupukManager atau pulihkan dari DB (Makan Kerupuk Solo)
+    let activeKerupuk = kerupukManager.dapatkanSesi(id);
+    if (!activeKerupuk) {
+      activeKerupuk = (await kerupukManager.pulihkanSesiDariDb(id)) || undefined;
+    }
     if (activeKerupuk) {
       if (activeKerupuk.hostId !== req.user!.id) {
         return res.status(403).json({ pesan: 'Anda tidak memiliki hak akses ke sesi ini.' });
       }
-      const baseUrl = getNetworkBaseUrl(req);
-      const joinUrl = `${baseUrl}/main?token=${activeKerupuk.token}`;
-      const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
-      const soalAktif = activeKerupuk.questions[activeKerupuk.currentQuestionIndex] || null;
-
       return res.json({
-        session: {
-          sessionId: activeKerupuk.sessionId,
-          game: 'makan_kerupuk',
-          mode: 'multi',
-          token: activeKerupuk.token,
-          qrDataUrl,
-          joinUrl,
-          networkUrl: baseUrl,
-          templateId: activeKerupuk.templateId,
-          templateJudul: activeKerupuk.templateJudul,
-          status: activeKerupuk.status,
-          currentQuestionIndex: activeKerupuk.currentQuestionIndex,
-          totalSoal: activeKerupuk.totalSoal,
-          totalPeserta: activeKerupuk.peserta.size,
-          config: activeKerupuk.config,
-          leaderboard: kerupukManager.dapatkanLeaderboard(activeKerupuk.sessionId),
-          daftarPeserta: Array.from(activeKerupuk.peserta.values()).map((p) => ({
-            id: p.id,
-            nama: p.nama,
-            connected: p.connected,
-            sisaKerupuk: p.sisaKerupuk,
-            skorTotal: p.skorTotal,
-            skorPengetahuan: p.skorPengetahuan,
-            skorKeberuntungan: p.skorKeberuntungan,
-            totalBenar: p.totalBenar,
-            totalSalah: p.totalSalah,
-            streakBenar: p.streakBenar,
-            selesaiKerupuk: p.selesaiKerupuk,
-            terakhirGigitan: p.terakhirGigitan,
-            rataRataWaktuJawabMs: p.rataRataWaktuJawabMs,
-            jumlahJawab: p.jumlahJawab,
-          })),
-          soalSaatIni: soalAktif
-            ? {
-                id: soalAktif.id,
-                urutan: soalAktif.urutan,
-                nomorSoal: activeKerupuk.currentQuestionIndex + 1,
-                teks: soalAktif.teks,
-                opsiA: soalAktif.opsiA,
-                opsiB: soalAktif.opsiB,
-                opsiC: soalAktif.opsiC,
-                endsAt: activeKerupuk.soalBerakhirPada,
-              }
-            : null,
-          isFinished: activeKerupuk.status === 'selesai',
-          hasil: activeKerupuk.hasil,
-        },
+        session: kerupukManager.serialisasiSesiUntukClient(activeKerupuk),
       });
     }
 
@@ -1037,10 +975,29 @@ sesiRouter.get('/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// 5. POST /api/sesi/:id/mulai - Mulai permainan Solo
+// 5. POST /api/sesi/:id/mulai - Mulai permainan Solo (Tarik Tambang atau Makan Kerupuk)
 sesiRouter.post('/:id/mulai', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
+
+    // A. Cek apakah sesi ini adalah Makan Kerupuk Challenge Solo
+    let activeKerupuk = kerupukManager.dapatkanSesi(id);
+    if (!activeKerupuk) {
+      activeKerupuk = (await kerupukManager.pulihkanSesiDariDb(id)) || undefined;
+    }
+    if (activeKerupuk) {
+      const sesiKerupuk = kerupukManager.mulaiPermainan(id, req.user!.id);
+      await prisma.session.update({
+        where: { id },
+        data: { status: 'jalan', mulaiPada: new Date() },
+      });
+      return res.json({
+        pesan: 'Permainan Makan Kerupuk Challenge dimulai.',
+        session: kerupukManager.serialisasiSesiUntukClient(sesiKerupuk),
+      });
+    }
+
+    // B. Tarik Tambang Solo
     let activeSession = soloManager.dapatkanSesi(id, req.user!.id);
 
     if (!activeSession) {
@@ -1121,6 +1078,17 @@ sesiRouter.post('/:id/state', async (req: AuthRequest, res: Response) => {
     const id = req.params.id as string;
     const { state } = stateSchema.parse(req.body);
 
+    const activeKerupuk =
+      kerupukManager.dapatkanSesi(id) || (await kerupukManager.pulihkanSesiDariDb(id));
+    if (activeKerupuk) {
+      const sesiKerupuk = kerupukManager.ubahStatePermainan(id, req.user!.id, state);
+      return res.json({
+        pesan: `Permainan berhasil di-${state === 'PAUSED' ? 'jeda' : 'lanjutkan'}.`,
+        state: sesiKerupuk.state,
+        session: kerupukManager.serialisasiSesiUntukClient(sesiKerupuk),
+      });
+    }
+
     const sesi = soloManager.ubahStateSesi(id, req.user!.id, state);
 
     return res.json({
@@ -1132,7 +1100,13 @@ sesiRouter.post('/:id/state', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// 7. POST /api/sesi/:id/jawab - Kirim jawaban dari tim yang sedang giliran
+// 7. POST /api/sesi/:id/jawab - Kirim jawaban Solo (Makan Kerupuk atau Tarik Tambang)
+const jawabKerupukSchema = z.object({
+  presentationId: z.string().min(1, 'ID presentasi soal wajib disertakan.'),
+  choiceId: z.string().min(1, 'ID pilihan jawaban wajib disertakan.'),
+  questionId: z.string().optional(),
+});
+
 const jawabSchema = z.object({
   questionId: z.string().min(1),
   tim: z.enum(['merah', 'putih']),
@@ -1142,6 +1116,49 @@ const jawabSchema = z.object({
 sesiRouter.post('/:id/jawab', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
+
+    const activeKerupuk =
+      kerupukManager.dapatkanSesi(id) || (await kerupukManager.pulihkanSesiDariDb(id));
+    if (activeKerupuk) {
+      const inputKerupuk = jawabKerupukSchema.parse(req.body);
+      const hasilKerupuk = kerupukManager.prosesJawaban(id, req.user!.id, {
+        presentationId: inputKerupuk.presentationId,
+        choiceId: inputKerupuk.choiceId,
+        questionId: inputKerupuk.questionId,
+      });
+
+      if (hasilKerupuk.isFinished) {
+        await kerupukManager.simpanHasilKeDatabase(id);
+      }
+
+      return res.json({
+        game: 'makan_kerupuk',
+        benar: hasilKerupuk.benar,
+        jawabanBenar: hasilKerupuk.jawabanBenarKode,
+        jawabanBenarKode: hasilKerupuk.jawabanBenarKode,
+        jawabanBenarTeks: hasilKerupuk.jawabanBenarTeks,
+        penjelasan: hasilKerupuk.penjelasan,
+        poinDidapat: hasilKerupuk.poinDidapat,
+        poinDasar: hasilKerupuk.poinDasar,
+        bonusStreak: hasilKerupuk.bonusStreak,
+        bonusPenyelesaian: hasilKerupuk.bonusPenyelesaian,
+        gacha: hasilKerupuk.gacha,
+        sisaKerupuk: hasilKerupuk.sisaKerupuk,
+        targetKerupuk: hasilKerupuk.targetKerupuk,
+        progresPersen: hasilKerupuk.progresPersen,
+        sisaPersen: hasilKerupuk.sisaPersen,
+        skorTotal: hasilKerupuk.skorTotal,
+        skorPembelajaran: hasilKerupuk.skorPembelajaran,
+        bonusKeberuntungan: hasilKerupuk.bonusKeberuntungan,
+        bonusPenyelesaianTotal: hasilKerupuk.bonusPenyelesaianTotal,
+        streakBenar: hasilKerupuk.streakBenar,
+        isFinished: hasilKerupuk.isFinished,
+        soalBerikutnya: hasilKerupuk.soalBerikutnya,
+        gigitanLogItem: hasilKerupuk.gigitanLogItem,
+        session: kerupukManager.serialisasiSesiUntukClient(hasilKerupuk.sesi),
+      });
+    }
+
     const input = jawabSchema.parse(req.body);
 
     const hasilProses = soloManager.prosesJawaban(id, req.user!.id, {
@@ -1194,6 +1211,19 @@ sesiRouter.post('/:id/jawab', async (req: AuthRequest, res: Response) => {
 sesiRouter.post('/:id/selesai', async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
+
+    const activeKerupuk =
+      kerupukManager.dapatkanSesi(id) || (await kerupukManager.pulihkanSesiDariDb(id));
+    if (activeKerupuk) {
+      const sesiKerupuk = kerupukManager.hentikanPermainan(id, req.user!.id);
+      await kerupukManager.simpanHasilKeDatabase(id);
+      return res.json({
+        pesan: 'Permainan Makan Kerupuk berhasil dihentikan.',
+        hasil: sesiKerupuk.hasil,
+        session: kerupukManager.serialisasiSesiUntukClient(sesiKerupuk),
+      });
+    }
+
     const sesi = soloManager.selesaikanSesi(id, req.user!.id);
 
     await simpanHasilSesiKeDatabase(sesi);
@@ -1204,6 +1234,44 @@ sesiRouter.post('/:id/selesai', async (req: AuthRequest, res: Response) => {
     });
   } catch (err: any) {
     return res.status(400).json({ pesan: err.message || 'Gagal mengakhiri permainan.' });
+  }
+});
+
+// 8b. POST /api/sesi/:id/ulang - Mulai ulang sesi Makan Kerupuk aktif ke status READY bersih
+sesiRouter.post('/:id/ulang', async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const activeKerupuk =
+      kerupukManager.dapatkanSesi(id) || (await kerupukManager.pulihkanSesiDariDb(id));
+
+    if (!activeKerupuk) {
+      return res.status(404).json({ pesan: 'Sesi Makan Kerupuk tidak ditemukan.' });
+    }
+
+    if (activeKerupuk.state === 'FINISHED' || activeKerupuk.state === 'STOPPED') {
+      return res.status(400).json({
+        pesan:
+          'Sesi yang sudah selesai tidak dapat direset in-place agar riwayat tetap terjaga. Gunakan Main Lagi untuk membuat sesi baru.',
+      });
+    }
+
+    const sesiReset = kerupukManager.ulangPermainan(id, req.user!.id);
+    await prisma.session.update({
+      where: { id },
+      data: {
+        status: 'lobi',
+        mulaiPada: null,
+        selesaiPada: null,
+        konfigurasi: JSON.stringify(sesiReset.config),
+      },
+    });
+
+    return res.json({
+      pesan: 'Permainan Makan Kerupuk dikembalikan ke posisi awal (READY).',
+      session: kerupukManager.serialisasiSesiUntukClient(sesiReset),
+    });
+  } catch (err: any) {
+    return res.status(400).json({ pesan: err.message || 'Gagal mengulang permainan.' });
   }
 });
 
@@ -1248,24 +1316,20 @@ sesiRouter.get('/:id/hasil', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // A. Cek di memori kerupukManager
+    // A. Cek di memori kerupukManager (Makan Kerupuk Mode Solo)
     const activeKerupuk = kerupukManager.dapatkanSesi(id);
-    if (activeKerupuk && activeKerupuk.hasil) {
-      return res.json({
-        hasil: {
-          sessionId: activeKerupuk.sessionId,
-          game: 'makan_kerupuk',
-          templateJudul: activeKerupuk.templateJudul,
-          templateId: activeKerupuk.templateId,
-          totalSoal: activeKerupuk.totalSoal,
-          totalPeserta: activeKerupuk.hasil.totalPeserta,
-          totalBenar: activeKerupuk.hasil.totalJawabanBenar,
-          totalSalah: activeKerupuk.hasil.totalJawabanSalah,
-          totalKerupukHabis: activeKerupuk.hasil.totalKerupukHabis,
-          podium: activeKerupuk.hasil.podium,
-          leaderboard: activeKerupuk.hasil.leaderboard,
-        },
-      });
+    if (activeKerupuk) {
+      if (activeKerupuk.hostId !== req.user!.id) {
+        return res.status(403).json({ pesan: 'Anda tidak memiliki hak akses ke sesi ini.' });
+      }
+      if (activeKerupuk.hasil) {
+        return res.json({
+          hasil: {
+            ...activeKerupuk.hasil,
+            game: 'makan_kerupuk',
+          },
+        });
+      }
     }
 
     // B. Cek di memori soloManager
@@ -1312,6 +1376,25 @@ sesiRouter.get('/:id/hasil', async (req: AuthRequest, res: Response) => {
 
     if (sessionDb.status !== 'selesai' || !sessionDb.result) {
       return res.status(400).json({ pesan: 'Sesi ini belum memiliki hasil akhir.' });
+    }
+
+    if (sessionDb.template.game === 'makan_kerupuk') {
+      const laporanDb = await kerupukManager.muatLaporanDariDatabase(sessionDb.id);
+      if (laporanDb) {
+        return res.json({
+          hasil: {
+            ...laporanDb,
+            game: 'makan_kerupuk',
+            questionStats: sessionDb.questionStats.map((qs) => ({
+              questionId: qs.questionId,
+              nomorSoal: qs.question.urutan,
+              teksSoal: qs.question.teks,
+              jumlahBenar: qs.jumlahBenar,
+              jumlahSalah: qs.jumlahSalah,
+            })),
+          },
+        });
+      }
     }
 
     if (sessionDb.template.game === 'balap_karung') {
@@ -1401,6 +1484,57 @@ sesiRouter.post('/:id/main-lagi', async (req: AuthRequest, res: Response) => {
     }
 
     // Buat sesi baru sesuai game & mode sesi sebelumnya
+    if (sessionLama.template.game === 'makan_kerupuk') {
+      let configSebelumnya: any;
+      if (sessionLama.konfigurasi) {
+        try {
+          const parsedKonf = JSON.parse(sessionLama.konfigurasi);
+          configSebelumnya = parsedKonf?.config || parsedKonf;
+        } catch {
+          configSebelumnya = undefined;
+        }
+      }
+      const configSnapshot = bangunKonfigurasiKerupukSolo(configSebelumnya);
+
+      const sessionBaru = await prisma.session.create({
+        data: {
+          templateId: sessionLama.templateId,
+          hostId: req.user!.id,
+          mode: 'solo',
+          token: null,
+          status: 'lobi',
+          konfigurasi: JSON.stringify(configSnapshot),
+        },
+      });
+
+      const activeBaru = kerupukManager.inisialisasiSesi(
+        sessionBaru.id,
+        req.user!.id,
+        { id: sessionLama.template.id, judul: sessionLama.template.judul },
+        sessionLama.template.questions.map((q) => ({
+          id: q.id,
+          urutan: q.urutan,
+          teks: q.teks,
+          opsiA: q.opsiA,
+          opsiB: q.opsiB,
+          opsiC: q.opsiC,
+          jawabanBenar: q.jawabanBenar,
+          penjelasan: q.penjelasan,
+        })),
+        configSnapshot
+      );
+
+      return res.status(201).json({
+        pesan: 'Sesi Mode Solo Makan Kerupuk baru siap dimulai.',
+        sessionId: sessionBaru.id,
+        session: {
+          id: sessionBaru.id,
+          ...kerupukManager.serialisasiSesiUntukClient(activeBaru),
+        },
+        game: 'makan_kerupuk',
+      });
+    }
+
     if (sessionLama.template.game === 'balap_karung') {
       let configSebelumnya: any;
       if (sessionLama.konfigurasi) {
