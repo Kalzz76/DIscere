@@ -212,7 +212,7 @@ export function hsFor(b: Bounds, r = 0, z = 1): SelectionHandle[] {
 
 export function hitSelectionHandle(b: Bounds, r: number, p: Pt, z = 1): SelectionHandle | null {
   const handles = hsFor(b, r, z);
-  return handles.find((h) => Math.hypot(h.x - p.x, h.y - p.y) <= (h.k === 'rot' ? 14 : 9) / z) || null;
+  return handles.find((h) => Math.hypot(h.x - p.x, h.y - p.y) <= (h.k === 'rot' ? 20 : 16) / z) || null;
 }
 
 export function getHandleCursor(handleKey: HandleKey, r = 0): string {
@@ -243,13 +243,7 @@ export function rsz(o: CanvasObj, b0: Bounds, nb: Bounds): void {
       q.x = X(q.x);
       q.y = Y(q.y);
     });
-    const cached = strokeBoundsCache.get(o);
-    if (cached) {
-      cached.x = nb.x;
-      cached.y = nb.y;
-      cached.w = nb.w;
-      cached.h = nb.h;
-    }
+    strokeBoundsCache.delete(o);
   } else if (o.type === 'shape' || o.type === 'image') {
     const x2 = X(o.x + o.w);
     const y2 = Y(o.y + o.h);

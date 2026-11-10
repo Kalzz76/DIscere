@@ -694,7 +694,7 @@ export class Board {
       // Cek apakah kursor mengenai handle sudut resize atau rotasi objek aktif
       if (this.sel) {
         const selObj = this.objs.find((item) => item.id === this.sel);
-        if (selObj && selObj.type !== 'stroke') {
+        if (selObj) {
           const b = bounds(selObj);
           const r = selObj.rot || 0;
           const handle = hitSelectionHandle(b, r, p, this.view.z);
@@ -975,7 +975,7 @@ export class Board {
     } else if (this.state.tool === 'select' && this.sel) {
       // Hover kursor saat berada di atas handle resize atau rotasi
       const selObj = this.objs.find((item) => item.id === this.sel);
-      if (selObj && selObj.type !== 'stroke') {
+      if (selObj) {
         const b = bounds(selObj);
         const r = selObj.rot || 0;
         const h = hitSelectionHandle(b, r, p, this.view.z);
@@ -1058,6 +1058,8 @@ export class Board {
 
       if (this.drag.k === 'pan') {
         this.canvas.style.cursor = this.state.tool === 'hand' ? 'grab' : 'crosshair';
+      } else if (this.drag.k === 'rot' || this.drag.k === 'resize') {
+        this.canvas.style.cursor = 'default';
       }
 
       this.drag = null;

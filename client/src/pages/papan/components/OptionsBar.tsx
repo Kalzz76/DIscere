@@ -220,7 +220,11 @@ export function OptionsBar({
       {/* SELECT OPTIONS */}
       {t === 'select' && (
         <>
-          <span className="hint">Klik untuk memilih, seret untuk memindah</span>
+          <span className="hint">
+            {hasSelection
+              ? 'Seret pegangan sudut/tepi untuk ubah ukuran, lingkaran ungu atas untuk memutar'
+              : 'Klik objek untuk memilih & mengubah ukuran'}
+          </span>
           <button
             className="chip"
             disabled={!hasSelection}

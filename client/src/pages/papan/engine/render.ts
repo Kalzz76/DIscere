@@ -316,11 +316,10 @@ export function drawScene({
 
       ctx.setLineDash([]);
 
-      // Handles untuk objek (kecuali jika stroke saja)
-      if (s.type !== 'stroke') {
-        const hs = hsFor(b, r, z);
-        const rotHandle = hs.find((h) => h.k === 'rot');
-        const topHandle = hs.find((h) => h.k === 'n');
+      // Handles untuk semua objek yang terpilih
+      const hs = hsFor(b, r, z);
+      const rotHandle = hs.find((h) => h.k === 'rot');
+      const topHandle = hs.find((h) => h.k === 'n');
 
         // Garis penghubung ke pegangan rotasi
         if (rotHandle && topHandle) {
@@ -368,7 +367,6 @@ export function drawScene({
           ctx.lineTo(ex + 3 / z, ey - 3 / z);
           ctx.stroke();
         }
-      }
       ctx.restore();
     }
   }
