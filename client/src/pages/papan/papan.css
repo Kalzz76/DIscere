@@ -1,6 +1,7 @@
 .papan {
   --bg: #f6f7fb;
   --p: rgba(23, 29, 48, 0.94);
+  --p1: #171d30;
   --p2: #293350;
   --tx: #eef1fa;
   --mu: #8e98b4;
@@ -1552,21 +1553,38 @@ body.pres .papan .btn-exit-pres {
   gap: 10px;
   padding: 0 16px 0 14px;
   z-index: 6;
-  background: var(--p1);
+  background: var(--p);
   backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--ln);
-  box-shadow: 0 12px 36px rgba(10, 15, 35, 0.4);
+  box-shadow: 0 12px 36px rgba(10, 15, 35, 0.45);
+}
+
+.papan .prompt-plus-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.papan #plus {
+  color: #ffffff;
+  transition: 0.15s;
+}
+
+.papan #plus:hover {
+  background: var(--p2);
+  color: #ffffff;
 }
 
 .papan #pr input {
   flex: 1;
   min-width: 0;
-  background: none;
+  background: transparent;
   border: 0;
   outline: 0;
   font: 500 16px inherit;
   font-family: inherit;
-  color: var(--tx);
+  color: #ffffff;
   user-select: text;
 }
 
@@ -1617,57 +1635,59 @@ body.pres .papan .btn-exit-pres {
 
 /* Popover Menu Lampiran */
 .papan .prompt-menu-popover {
-  position: fixed;
-  bottom: 98px;
-  left: max(20px, calc(50% - 340px));
-  background: var(--p1);
-  border: 1px solid var(--ln);
-  border-radius: 16px;
-  box-shadow: 0 12px 30px rgba(10, 15, 35, 0.5);
-  padding: 6px;
-  z-index: 10;
-  min-width: 190px;
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 0;
+  background: #171d30;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgba(5, 10, 25, 0.7);
+  padding: 8px;
+  z-index: 100;
+  min-width: 210px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  backdrop-filter: blur(14px);
+  gap: 3px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .papan .prompt-menu-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
   padding: 10px 14px;
   border: 0;
-  background: none;
-  color: var(--tx);
+  background: transparent;
+  color: #eef1fa;
   font: 600 14px inherit;
   font-family: inherit;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   text-align: left;
-  transition: 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .papan .prompt-menu-item:hover {
   background: var(--p2);
-  color: #fff;
+  color: #ffffff;
 }
 
 .papan .prompt-menu-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--mu);
+  width: 20px;
+  height: 20px;
+  color: #a0aec0;
+  flex-shrink: 0;
 }
 
 .papan .prompt-menu-item:hover .prompt-menu-icon {
-  color: #fff;
+  color: #ffffff;
 }
 
 .papan .prompt-menu-divider {
   height: 1px;
-  background: var(--ln);
+  background: rgba(255, 255, 255, 0.1);
   margin: 4px 6px;
 }
 
@@ -1693,11 +1713,12 @@ body.pres .papan .btn-exit-pres {
 /* Panel Obrolan (#chat) */
 .papan #chat,
 .papan .chat-panel {
-  background: var(--p1);
+  background: rgba(23, 29, 48, 0.96);
   backdrop-filter: blur(16px);
-  border: 1px solid var(--ln);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 22px;
-  box-shadow: 0 14px 40px rgba(10, 15, 35, 0.45);
+  box-shadow: 0 16px 40px rgba(10, 15, 35, 0.55);
   padding: 14px 16px;
   max-height: min(54vh, 500px);
   display: flex;
@@ -1917,15 +1938,16 @@ body.pres .papan .btn-exit-pres {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--p1);
-  border: 1px solid var(--ln);
+  background: #171d30;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
   padding: 5px 8px;
   font-size: 13px;
   font-weight: 600;
   max-width: 240px;
-  box-shadow: 0 4px 14px rgba(10, 15, 35, 0.3);
+  box-shadow: 0 4px 14px rgba(10, 15, 35, 0.4);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .papan .attachment-thumb {
