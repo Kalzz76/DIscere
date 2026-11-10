@@ -1,6 +1,7 @@
 import assert from 'assert';
 import { multiManager } from '../server/src/games/multiManager.js';
 import { kerupukManager } from '../server/src/games/kerupukManager.js';
+import { kerupukMultiManager } from '../server/src/games/kerupukMultiManager.js';
 import { soloManager } from '../server/src/games/soloManager.js';
 
 async function runValidasiJawabanTests() {
@@ -216,6 +217,29 @@ async function runValidasiJawabanTests() {
   assert.strictEqual(hasilSalahK.gacha, null, 'Jawaban salah tidak mendapat gacha gigitan');
   kerupukManager.hapusSesi(sessionKerupukId);
   console.log('   ✓ Makan Kerupuk Mode Solo memvalidasi choiceId benar (+gacha) dan salah (poin 0, no gacha) secara presisi');
+
+  // Uji tambahan: Makan Kerupuk Mode Multiplayer
+  const sessionKerupukMultiId = 'test-kerupuk-multi-validasi-' + Date.now();
+  const tokKM = '445566';
+  kerupukMultiManager.inisialisasiSesi(
+    sessionKerupukMultiId,
+    tokKM,
+    'host-guru-kmulti',
+    { id: 'tmpl-km', judul: 'Kuis Kerupuk Multi' },
+    mockQuestions
+  );
+  const kM1 = kerupukMultiManager.gabungPeserta(tokKM, 'Eko Multi', 'sock-km1');
+  kerupukMultiManager.mulaiPermainan(sessionKerupukMultiId, 'host-guru-kmulti');
+  kerupukMultiManager.ambilSoalBerikutnyaUntukPeserta(sessionKerupukMultiId, kM1.peserta.id);
+  const presKM = kM1.peserta.activePresentation!;
+  const resKM = kerupukMultiManager.prosesJawabanSiswa(sessionKerupukMultiId, kM1.peserta.id, {
+    presentationId: presKM.presentationId,
+    choiceId: presKM.correctChoiceId,
+  });
+  assert.strictEqual(resKM.benar, true);
+  assert.ok(resKM.poinDidapat >= 100);
+  kerupukMultiManager.hapusSesi(sessionKerupukMultiId);
+  console.log('   ✓ Makan Kerupuk Mode Multiplayer memvalidasi choiceId benar secara presisi');
 
   // -------------------------------------------------------------------------
   // UJI 10: Validasi Jawaban Game Solo

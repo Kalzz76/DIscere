@@ -98,18 +98,34 @@ export function setupMultiplayerSocket(io: Server) {
           }
           const { token, nama, pesertaId, pesertaSecret } = parsedGabung.data;
 
-          // 0b. CABANG BALAP KARUNG CHALLENGE
+          // Cek seluruh manager aktif di memori terlebih dahulu agar zero query SQLite saat 40+ siswa gabung paralel
           let sesiBalapCek = balapKarungManager.dapatkanSesiDariToken(token);
-          if (!sesiBalapCek) {
+          let sesiPanjatCek = !sesiBalapCek ? panjatPinangManager.dapatkanSesiDariToken(token) : undefined;
+          let sesiKerupukCek =
+            !sesiBalapCek && !sesiPanjatCek
+              ? kerupukMultiManager.dapatkanSesiDariToken(token)
+              : undefined;
+          const sesiTarikCek =
+            !sesiBalapCek && !sesiPanjatCek && !sesiKerupukCek
+              ? multiManager.dapatkanSesiDariToken(token)
+              : undefined;
+
+          // Hanya query database 1 kali jika token belum termuat di memori server
+          if (!sesiBalapCek && !sesiPanjatCek && !sesiKerupukCek && !sesiTarikCek) {
             const dbSesi = await prisma.session.findFirst({
               where: { token, status: { in: ['lobi', 'jalan'] } },
               include: { template: { select: { game: true } } },
             });
             if (dbSesi?.template.game === 'balap_karung') {
               sesiBalapCek = (await balapKarungManager.pulihkanSesiDariDb(dbSesi.id)) || undefined;
+            } else if (dbSesi?.template.game === 'panjat_pinang') {
+              sesiPanjatCek = (await panjatPinangManager.pulihkanSesiDariDb(dbSesi.id)) || undefined;
+            } else if (dbSesi?.template.game === 'makan_kerupuk' && dbSesi.mode === 'multi') {
+              sesiKerupukCek = (await kerupukMultiManager.pulihkanSesiDariDb(dbSesi.id)) || undefined;
             }
           }
 
+          // 0b. CABANG BALAP KARUNG CHALLENGE
           if (sesiBalapCek) {
             const { sesi, peserta, isReconnect } = balapKarungManager.gabungPeserta(
               token,
@@ -162,17 +178,6 @@ export function setupMultiplayerSocket(io: Server) {
           }
 
           // 0. CABANG PANJAT PINANG CHALLENGE
-          let sesiPanjatCek = panjatPinangManager.dapatkanSesiDariToken(token);
-          if (!sesiPanjatCek) {
-            const dbSesi = await prisma.session.findFirst({
-              where: { token, status: { in: ['lobi', 'jalan'] } },
-              include: { template: { select: { game: true } } },
-            });
-            if (dbSesi?.template.game === 'panjat_pinang') {
-              sesiPanjatCek = (await panjatPinangManager.pulihkanSesiDariDb(dbSesi.id)) || undefined;
-            }
-          }
-
           if (sesiPanjatCek) {
             const { sesi, peserta, isReconnect } = panjatPinangManager.gabungPeserta(
               token,
@@ -225,16 +230,6 @@ export function setupMultiplayerSocket(io: Server) {
           }
 
           // 0c. CABANG MAKAN KERUPUK CHALLENGE (MODE MULTIPLAYER)
-          let sesiKerupukCek = kerupukMultiManager.dapatkanSesiDariToken(token);
-          if (!sesiKerupukCek) {
-            const dbSesi = await prisma.session.findFirst({
-              where: { token, mode: 'multi', status: { in: ['lobi', 'jalan'] } },
-              select: { id: true },
-            });
-            if (dbSesi) {
-              sesiKerupukCek = (await kerupukMultiManager.pulihkanSesiDariDb(dbSesi.id)) || undefined;
-            }
-          }
           if (sesiKerupukCek) {
             const { sesi, peserta, isReconnect } = kerupukMultiManager.gabungPeserta(
               token,
