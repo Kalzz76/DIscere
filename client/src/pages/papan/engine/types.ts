@@ -103,9 +103,18 @@ export type CanvasObj =
   | FormulaObj
   | ConnObj;
 
-export interface BoardDataFormat {
-  versi: 1;
+export interface BoardPage {
+  id: string;
   objs: CanvasObj[];
+  view?: BoardView;
+  judul?: string;
+}
+
+export interface BoardDataFormat {
+  versi: 1 | 2;
+  objs?: CanvasObj[];
+  pages?: BoardPage[];
+  currentPageIndex?: number;
 }
 
 export type ToolType =

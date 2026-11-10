@@ -1,4 +1,4 @@
-import { CanvasObj, BoardDataFormat } from './types';
+import { CanvasObj, BoardDataFormat, BoardPage } from './types';
 import { bounds } from './geometry';
 import { drawObj } from './render';
 import { cloneObj } from './history';
@@ -66,17 +66,49 @@ export function downloadPng(objs: CanvasObj[], title = 'papan'): boolean {
   return true;
 }
 
-export function toJson(objs: CanvasObj[]): string {
-  const cleanObjs = objs.map(cloneObj);
-  const data: BoardDataFormat = {
-    versi: 1,
-    objs: cleanObjs,
-  };
-  return JSON.stringify(data);
+export function toJson(
+  data: CanvasObj[] | BoardDataFormat | { pages?: BoardPage[]; currentPageIndex?: number; objs?: CanvasObj[] },
+  currentPageIndex = 0
+): string {
+  if (Array.isArray(data)) {
+    const cleanObjs = data.map(cloneObj);
+    const payload: BoardDataFormat = {
+      versi: 1,
+      objs: cleanObjs,
+    };
+    return JSON.stringify(payload);
+  }
+
+  if ('pages' in data && data.pages && Array.isArray(data.pages)) {
+    const cleanPages = data.pages.map((p) => ({
+      ...p,
+      objs: p.objs.map(cloneObj),
+      view: p.view ? { ...p.view } : undefined,
+    }));
+
+    const payload: BoardDataFormat = {
+      versi: 2,
+      pages: cleanPages,
+      currentPageIndex: data.currentPageIndex ?? currentPageIndex,
+    };
+    return JSON.stringify(payload);
+  }
+
+  if ('objs' in data && data.objs && Array.isArray(data.objs)) {
+    return JSON.stringify({
+      versi: 1,
+      objs: data.objs.map(cloneObj),
+    });
+  }
+
+  return JSON.stringify({ versi: 1, objs: [] });
 }
 
-export function downloadJson(objs: CanvasObj[], title = 'papan'): void {
-  const jsonStr = toJson(objs);
+export function downloadJson(
+  data: CanvasObj[] | BoardDataFormat | { pages?: BoardPage[]; currentPageIndex?: number; objs?: CanvasObj[] },
+  title = 'papan'
+): void {
+  const jsonStr = toJson(data);
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

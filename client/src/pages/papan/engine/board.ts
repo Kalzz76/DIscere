@@ -13,6 +13,8 @@ import {
   FormulaObj,
   ConnObj,
   HandleKey,
+  BoardPage,
+  BoardDataFormat,
 } from './types';
 import { generateTemplate, TemplateType } from './templates';
 import { COL, LCOL } from './color';
@@ -46,6 +48,7 @@ export interface BoardOptions {
   onToast?: (msg: string) => void;
   onLassoChange?: (lasso: Pt[] | null) => void;
   onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
+  onPageChange?: (activePageIndex: number, totalPages: number, pages: BoardPage[]) => void;
 }
 
 export class Board {
@@ -77,6 +80,8 @@ export class Board {
   public cfrom: string | null = null;
   public hov: string | null = null;
   public hanyaLihat = false;
+  public pages: BoardPage[] = [];
+  public activePageIndex = 0;
 
   private clip: CanvasObj[] = [];
   private pasteCount = 0;
@@ -114,14 +119,71 @@ export class Board {
   private options: BoardOptions;
   private resizeObserver: ResizeObserver | null = null;
 
-  constructor(canvas: HTMLCanvasElement, initialObjs: CanvasObj[] = [], options: BoardOptions = {}) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    initialData: CanvasObj[] | BoardPage[] | BoardDataFormat = [],
+    options: BoardOptions = {}
+  ) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D context tidak didukung');
     this.ctx = ctx;
-    this.objs = initialObjs.map(cloneObj);
     this.options = options;
     this.hanyaLihat = !!options.hanyaLihat;
+
+    // Normalisasi struktur data halaman
+    if (Array.isArray(initialData)) {
+      if (initialData.length > 0 && 'objs' in initialData[0] && Array.isArray((initialData[0] as any).objs)) {
+        this.pages = (initialData as BoardPage[]).map((p) => ({
+          id: p.id || crypto.randomUUID(),
+          objs: (p.objs || []).map(cloneObj),
+          view: p.view ? { ...p.view } : { x: 0, y: 0, z: 1 },
+          judul: p.judul,
+        }));
+      } else {
+        this.pages = [
+          {
+            id: crypto.randomUUID(),
+            objs: (initialData as CanvasObj[]).map(cloneObj),
+            view: { x: 0, y: 0, z: 1 },
+          },
+        ];
+      }
+    } else if (initialData && typeof initialData === 'object') {
+      if (Array.isArray(initialData.pages) && initialData.pages.length > 0) {
+        this.pages = initialData.pages.map((p) => ({
+          id: p.id || crypto.randomUUID(),
+          objs: (p.objs || []).map(cloneObj),
+          view: p.view ? { ...p.view } : { x: 0, y: 0, z: 1 },
+          judul: p.judul,
+        }));
+        if (
+          typeof initialData.currentPageIndex === 'number' &&
+          initialData.currentPageIndex >= 0 &&
+          initialData.currentPageIndex < this.pages.length
+        ) {
+          this.activePageIndex = initialData.currentPageIndex;
+        }
+      } else if (Array.isArray(initialData.objs)) {
+        this.pages = [
+          {
+            id: crypto.randomUUID(),
+            objs: initialData.objs.map(cloneObj),
+            view: { x: 0, y: 0, z: 1 },
+          },
+        ];
+      }
+    }
+
+    if (this.pages.length === 0) {
+      this.pages = [{ id: crypto.randomUUID(), objs: [], view: { x: 0, y: 0, z: 1 } }];
+    }
+
+    const curPage = this.pages[this.activePageIndex] || this.pages[0];
+    this.objs = curPage.objs;
+    if (curPage.view) {
+      this.view = { ...curPage.view };
+    }
 
     this.history = new HistoryManager(
       (payload) => {
@@ -870,7 +932,7 @@ export class Board {
     this.rd();
   }
 
-  // --- Mode Presentasi ---
+  // --- Mode Presentasi & Halaman ---
   public setPresentation(on: boolean): void {
     document.body.classList.toggle('pres', on);
     if (on) {
@@ -886,6 +948,126 @@ export class Board {
         document.exitFullscreen().catch(() => {});
       }
     }
+    if (this.options.onPageChange) {
+      this.options.onPageChange(this.activePageIndex, this.pages.length, this.pages);
+    }
+  }
+
+  // --- Manajemen Halaman / Slide ---
+  public getPages(): BoardPage[] {
+    this.saveCurrentPageSnapshot();
+    return this.pages;
+  }
+
+  public getActivePageIndex(): number {
+    return this.activePageIndex;
+  }
+
+  public saveCurrentPageSnapshot(): void {
+    if (this.pages[this.activePageIndex]) {
+      this.pages[this.activePageIndex].objs = this.objs;
+      this.pages[this.activePageIndex].view = { ...this.view };
+    }
+  }
+
+  public goPage(index: number): boolean {
+    if (index < 0 || index >= this.pages.length || index === this.activePageIndex) {
+      return false;
+    }
+    this.saveCurrentPageSnapshot();
+    this.activePageIndex = index;
+    const targetPage = this.pages[index];
+    this.objs = targetPage.objs;
+    if (targetPage.view) {
+      this.view = { ...targetPage.view };
+    }
+    this.setSelection(null);
+    this.closeLasso();
+    this.history.clear();
+    this.rd();
+    if (this.options.onPageChange) {
+      this.options.onPageChange(this.activePageIndex, this.pages.length, this.pages);
+    }
+    if (this.options.onViewChange) {
+      this.options.onViewChange(this.view);
+    }
+    if (this.options.onHistoryChange) {
+      this.options.onHistoryChange(this.canUndo(), this.canRedo());
+    }
+    return true;
+  }
+
+  public addPage(): void {
+    this.saveCurrentPageSnapshot();
+    const newPage: BoardPage = {
+      id: crypto.randomUUID(),
+      objs: [],
+      view: { x: 0, y: 0, z: 1 },
+    };
+    const nextIdx = this.activePageIndex + 1;
+    this.pages.splice(nextIdx, 0, newPage);
+    this.goPage(nextIdx);
+    this.toast(`Halaman ${this.activePageIndex + 1} ditambahkan`);
+  }
+
+  public deletePage(index?: number): boolean {
+    if (this.pages.length <= 1) {
+      this.toast('Minimal harus ada satu halaman');
+      return false;
+    }
+    const idx = index !== undefined ? index : this.activePageIndex;
+    this.saveCurrentPageSnapshot();
+    this.pages.splice(idx, 1);
+    const nextIdx = Math.min(idx, this.pages.length - 1);
+    this.activePageIndex = nextIdx;
+    const targetPage = this.pages[nextIdx];
+    this.objs = targetPage.objs;
+    if (targetPage.view) {
+      this.view = { ...targetPage.view };
+    }
+    this.setSelection(null);
+    this.closeLasso();
+    this.history.clear();
+    this.rd();
+    if (this.options.onPageChange) {
+      this.options.onPageChange(this.activePageIndex, this.pages.length, this.pages);
+    }
+    if (this.options.onViewChange) {
+      this.options.onViewChange(this.view);
+    }
+    if (this.options.onHistoryChange) {
+      this.options.onHistoryChange(this.canUndo(), this.canRedo());
+    }
+    this.toast('Halaman dihapus');
+    return true;
+  }
+
+  public duplicatePage(index?: number): void {
+    const idx = index !== undefined ? index : this.activePageIndex;
+    this.saveCurrentPageSnapshot();
+    const sourcePage = this.pages[idx];
+    const dupPage: BoardPage = {
+      id: crypto.randomUUID(),
+      objs: sourcePage.objs.map(cloneObj),
+      view: sourcePage.view ? { ...sourcePage.view } : { x: 0, y: 0, z: 1 },
+      judul: sourcePage.judul ? `${sourcePage.judul} (Salinan)` : undefined,
+    };
+    this.pages.splice(idx + 1, 0, dupPage);
+    this.goPage(idx + 1);
+    this.toast(`Halaman digandakan`);
+  }
+
+  public getFullData(): BoardDataFormat {
+    this.saveCurrentPageSnapshot();
+    return {
+      versi: 2,
+      pages: this.pages.map((p) => ({
+        ...p,
+        objs: p.objs.map(cloneObj),
+        view: p.view ? { ...p.view } : undefined,
+      })),
+      currentPageIndex: this.activePageIndex,
+    };
   }
 
   // --- Event Handlers Pointer & Window ---
@@ -1678,6 +1860,19 @@ export class Board {
       this.zoomOut();
       return;
     }
+    if (document.body.classList.contains('pres')) {
+      if (k === 'arrowright' || k === 'pagedown' || k === ' ') {
+        e.preventDefault();
+        this.goPage(this.activePageIndex + 1);
+        return;
+      }
+      if (k === 'arrowleft' || k === 'pageup') {
+        e.preventDefault();
+        this.goPage(this.activePageIndex - 1);
+        return;
+      }
+    }
+
     if (k === 'escape') {
       if (this.options.onContextMenu) {
         this.options.onContextMenu(null);
