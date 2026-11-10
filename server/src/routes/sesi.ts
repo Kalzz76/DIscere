@@ -1,6 +1,7 @@
 import { Router, Response, Request } from 'express';
 import { z } from 'zod';
 import QRCode from 'qrcode';
+import crypto from 'crypto';
 import os from 'os';
 import { prisma } from '../db.js';
 import { config } from '../config.js';
@@ -22,6 +23,28 @@ import {
 } from '../games/balapKarung.js';
 
 export const sesiRouter = Router();
+
+function isTokenDipakaiDiMemori(token: string): boolean {
+  return (
+    Boolean(balapKarungManager.dapatkanSesiDariToken(token)) ||
+    Boolean(panjatPinangManager.dapatkanSesiDariToken(token)) ||
+    Boolean(kerupukManager.dapatkanSesiDariToken(token)) ||
+    Boolean(multiManager.dapatkanSesiDariToken(token))
+  );
+}
+
+async function generateTokenUnikSemuaGame(): Promise<string> {
+  for (let i = 0; i < 200; i++) {
+    const token = crypto.randomInt(100000, 1000000).toString();
+    if (isTokenDipakaiDiMemori(token)) continue;
+    const existsDb = await prisma.session.findFirst({
+      where: { token, status: { in: ['lobi', 'jalan'] } },
+      select: { id: true },
+    });
+    if (!existsDb) return token;
+  }
+  throw new Error('Gagal menghasilkan token sesi unik.');
+}
 
 function getNetworkBaseUrl(req: Request): string {
   const interfaces = os.networkInterfaces();
@@ -353,7 +376,7 @@ sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
         ...(parsed.allowLateJoin !== undefined ? { allowLateJoin: parsed.allowLateJoin } : {}),
       });
 
-      const token = balapKarungManager.generateUniqueToken();
+      const token = await generateTokenUnikSemuaGame();
       const baseUrl = getNetworkBaseUrl(req);
       const joinUrl = `${baseUrl}/main?token=${token}`;
       const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
@@ -416,7 +439,7 @@ sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
         ...(parsed.allowLateJoin !== undefined ? { allowLateJoin: parsed.allowLateJoin } : {}),
       });
 
-      const token = panjatPinangManager.generateUniqueToken();
+      const token = await generateTokenUnikSemuaGame();
       const baseUrl = getNetworkBaseUrl(req);
       const joinUrl = `${baseUrl}/main?token=${token}`;
       const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
@@ -482,7 +505,7 @@ sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
         });
       }
 
-      const token = kerupukManager.generateUniqueToken();
+      const token = await generateTokenUnikSemuaGame();
       const baseUrl = getNetworkBaseUrl(req);
       const joinUrl = `${baseUrl}/main?token=${token}`;
       const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
@@ -545,7 +568,7 @@ sesiRouter.post('/', async (req: AuthRequest, res: Response) => {
     const targetMode = parsed.mode || (template.mode === 'multi' ? 'multi' : 'solo');
 
     if (targetMode === 'multi') {
-      const token = multiManager.generateUniqueToken();
+      const token = await generateTokenUnikSemuaGame();
       const baseUrl = getNetworkBaseUrl(req);
       const joinUrl = `${baseUrl}/main?token=${token}`;
       const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
@@ -858,7 +881,7 @@ sesiRouter.get('/:id', async (req: AuthRequest, res: Response) => {
 
       // Jika sesi multiplayer
       if (sessionDb.mode === 'multi') {
-        const token = sessionDb.token || multiManager.generateUniqueToken();
+        const token = sessionDb.token || (await generateTokenUnikSemuaGame());
         const baseUrl = getNetworkBaseUrl(req);
         const joinUrl = `${baseUrl}/main?token=${token}`;
         const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
@@ -1388,7 +1411,7 @@ sesiRouter.post('/:id/main-lagi', async (req: AuthRequest, res: Response) => {
         }
       }
       const configSnapshot = bangunKonfigurasiBalapKarung(configSebelumnya);
-      const token = balapKarungManager.generateUniqueToken();
+      const token = await generateTokenUnikSemuaGame();
       const baseUrl = getNetworkBaseUrl(req);
       const joinUrl = `${baseUrl}/main?token=${token}`;
       const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
@@ -1443,7 +1466,7 @@ sesiRouter.post('/:id/main-lagi', async (req: AuthRequest, res: Response) => {
         }
       }
       const configSnapshot = bangunKonfigurasiPanjatPinang(configSebelumnya);
-      const token = panjatPinangManager.generateUniqueToken();
+      const token = await generateTokenUnikSemuaGame();
       const baseUrl = getNetworkBaseUrl(req);
       const joinUrl = `${baseUrl}/main?token=${token}`;
       const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });
@@ -1489,7 +1512,7 @@ sesiRouter.post('/:id/main-lagi', async (req: AuthRequest, res: Response) => {
     }
 
     if (sessionLama.mode === 'multi') {
-      const token = multiManager.generateUniqueToken();
+      const token = await generateTokenUnikSemuaGame();
       const baseUrl = getNetworkBaseUrl(req);
       const joinUrl = `${baseUrl}/main?token=${token}`;
       const qrDataUrl = await QRCode.toDataURL(joinUrl, { margin: 2, width: 320 });

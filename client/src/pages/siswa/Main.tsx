@@ -5,6 +5,7 @@ import { Button, Card } from '../../components';
 import { soundEffects } from '../../lib/soundEffects';
 import MainKerupuk from './MainKerupuk';
 import MainPanjatPinang from './MainPanjatPinang';
+import MainBalapKarung from './MainBalapKarung';
 import {
   Users,
   Trophy,
@@ -57,13 +58,17 @@ export default function MainSiswa() {
   const [namaPeserta, setNamaPeserta] = useState<string>('');
   const [templateJudul, setTemplateJudul] = useState<string>('');
   const [tim, setTim] = useState<'merah' | 'putih' | null>(null);
-  const [gameType, setGameType] = useState<'tarik_tambang' | 'makan_kerupuk' | 'panjat_pinang'>('tarik_tambang');
+  const [gameType, setGameType] = useState<'tarik_tambang' | 'makan_kerupuk' | 'panjat_pinang' | 'balap_karung'>('tarik_tambang');
   const [kerupukState, setKerupukState] = useState<any>(null);
   const [kerupukLeaderboard, setKerupukLeaderboard] = useState<any[]>([]);
   const [panjatConfig, setPanjatConfig] = useState<any>(undefined);
   const [panjatState, setPanjatState] = useState<any>(undefined);
   const [panjatLeaderboard, setPanjatLeaderboard] = useState<any[]>([]);
   const [panjatSoalAktif, setPanjatSoalAktif] = useState<any>(null);
+  const [balapConfig, setBalapConfig] = useState<any>(undefined);
+  const [balapState, setBalapState] = useState<any>(undefined);
+  const [balapLeaderboard, setBalapLeaderboard] = useState<any[]>([]);
+  const [balapSoalAktif, setBalapSoalAktif] = useState<any>(null);
   const [stage, setStage] = useState<'GABUNG' | 'LOBBY' | 'PLAYING' | 'SELESAI'>('GABUNG');
 
   // Lobby states
@@ -166,6 +171,12 @@ export default function MainSiswa() {
               setPanjatState(res.peserta);
               setPanjatLeaderboard(res.leaderboard || []);
               setPanjatSoalAktif(res.soalAktif || null);
+            } else if (res.game === 'balap_karung') {
+              setGameType('balap_karung');
+              setBalapConfig(res.config);
+              setBalapState(res.peserta);
+              setBalapLeaderboard(res.leaderboard || []);
+              setBalapSoalAktif(res.soalAktif || null);
             } else {
               setGameType('tarik_tambang');
             }
@@ -176,7 +187,7 @@ export default function MainSiswa() {
 
             if (res.status === 'jalan') {
               setStage('PLAYING');
-              if (res.game !== 'panjat_pinang' && res.soalAktif) {
+              if (res.game !== 'panjat_pinang' && res.game !== 'balap_karung' && res.soalAktif) {
                 const resolvedId = res.soalAktif.id || (res.soalAktif as any).questionId || '';
                 setSoalAktif({
                   ...res.soalAktif,
@@ -410,6 +421,12 @@ export default function MainSiswa() {
           setPanjatState((res as any).peserta);
           setPanjatLeaderboard((res as any).leaderboard || []);
           setPanjatSoalAktif((res as any).soalAktif || null);
+        } else if ((res as any).game === 'balap_karung') {
+          setGameType('balap_karung');
+          setBalapConfig((res as any).config);
+          setBalapState((res as any).peserta);
+          setBalapLeaderboard((res as any).leaderboard || []);
+          setBalapSoalAktif((res as any).soalAktif || null);
         } else {
           setGameType('tarik_tambang');
         }
@@ -421,7 +438,7 @@ export default function MainSiswa() {
 
         if (res.status === 'jalan') {
           setStage('PLAYING');
-          if ((res as any).game !== 'panjat_pinang' && res.soalAktif) {
+          if ((res as any).game !== 'panjat_pinang' && (res as any).game !== 'balap_karung' && res.soalAktif) {
             const resolvedId = res.soalAktif.id || (res.soalAktif as any).questionId || '';
             setSoalAktif({
               ...res.soalAktif,
@@ -490,6 +507,10 @@ export default function MainSiswa() {
     setPanjatState(undefined);
     setPanjatLeaderboard([]);
     setPanjatSoalAktif(null);
+    setBalapConfig(undefined);
+    setBalapState(undefined);
+    setBalapLeaderboard([]);
+    setBalapSoalAktif(null);
     setTim(null);
     setSoalAktif(null);
     setFeedback(null);
@@ -1136,6 +1157,28 @@ export default function MainSiswa() {
         initialPesertaState={panjatState}
         initialLeaderboard={panjatLeaderboard}
         initialSoalAktif={panjatSoalAktif}
+        onKeluar={handleKeluar}
+      />
+    );
+  }
+
+  // ==========================================
+  // RENDER BALAP KARUNG CHALLENGE (JIKA SESI ADALAH BALAP KARUNG)
+  // ==========================================
+  if (gameType === 'balap_karung' && sessionId && pesertaId) {
+    return (
+      <MainBalapKarung
+        token={tokenInput}
+        nama={namaPeserta}
+        sessionId={sessionId}
+        pesertaId={pesertaId}
+        pesertaSecret={panjatSecret}
+        templateJudul={templateJudul}
+        config={balapConfig}
+        initialStatus={stage === 'PLAYING' ? 'jalan' : stage === 'SELESAI' ? 'selesai' : 'lobi'}
+        initialPesertaState={balapState}
+        initialLeaderboard={balapLeaderboard}
+        initialSoalAktif={balapSoalAktif}
         onKeluar={handleKeluar}
       />
     );
