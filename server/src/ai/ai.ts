@@ -507,21 +507,19 @@ tanpa markdown; kalau bukan soal hitungan, bagian Rumus boleh dilewati; kalau ga
     };
   }
 
-  // 3. Simpan ke Cache ai_cache (hanya jika API key tersedia dan bukan pesan konfigurasi)
-  if (config.aiApiKey && !hasilJawaban.jawaban.includes('belum dikonfigurasi')) {
-    try {
-      await prisma.aiCache.upsert({
-        where: { hash },
-        update: { hasil: JSON.stringify(hasilJawaban) },
-        create: {
-          hash,
-          jenis: 'jawab',
-          hasil: JSON.stringify(hasilJawaban),
-        },
-      });
-    } catch (cacheErr) {
-      console.warn('Gagal menyimpan cache Tanya AI:', cacheErr);
-    }
+  // 3. Simpan ke Cache ai_cache
+  try {
+    await prisma.aiCache.upsert({
+      where: { hash },
+      update: { hasil: JSON.stringify(hasilJawaban) },
+      create: {
+        hash,
+        jenis: 'jawab',
+        hasil: JSON.stringify(hasilJawaban),
+      },
+    });
+  } catch (cacheErr) {
+    console.warn('Gagal menyimpan cache Tanya AI:', cacheErr);
   }
 
   return { hasil: hasilJawaban, dariCache: false };

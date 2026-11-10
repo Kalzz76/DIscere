@@ -367,3 +367,4 @@ export function ProfilAdminView({ stats }: ProfilAdminViewProps) {
     </div>
   );
 }
+

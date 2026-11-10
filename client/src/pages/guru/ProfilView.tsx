@@ -390,3 +390,4 @@ export function ProfilView({ stats }: ProfilViewProps) {
     </div>
   );
 }
+
