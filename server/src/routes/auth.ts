@@ -164,3 +164,79 @@ authRouter.get('/saya', authMiddleware, (req: AuthRequest, res) => {
     user: req.user,
   });
 });
+
+const profilSchema = z.object({
+  nama: z.string({ message: 'Nama wajib diisi.' }).min(2, 'Nama minimal 2 karakter.'),
+  sekolah: z.string().optional().nullable(),
+});
+
+const gantiKataSandiSchema = z.object({
+  kataSandiLama: z.string({ message: 'Kata sandi lama wajib diisi.' }).min(1, 'Kata sandi lama wajib diisi.'),
+  kataSandiBaru: z.string({ message: 'Kata sandi baru wajib diisi.' }).min(8, 'Kata sandi baru minimal 8 karakter.'),
+});
+
+// PUT /api/auth/profil - Perbarui data profil guru atau admin
+authRouter.put('/profil', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const validData = profilSchema.parse(req.body);
+    const updated = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: {
+        nama: validData.nama.trim(),
+        sekolah: validData.sekolah ? validData.sekolah.trim() : null,
+      },
+      select: {
+        id: true,
+        nama: true,
+        email: true,
+        role: true,
+        sekolah: true,
+        status: true,
+      },
+    });
+
+    return res.json({
+      pesan: 'Profil berhasil diperbarui.',
+      user: updated,
+    });
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ pesan: error.issues[0]?.message || 'Input profil tidak valid.' });
+    }
+    const err = error as Error;
+    return res.status(500).json({ pesan: err.message || 'Gagal memperbarui profil.' });
+  }
+});
+
+// PUT /api/auth/kata-sandi - Ganti kata sandi
+authRouter.put('/kata-sandi', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const validData = gantiKataSandiSchema.parse(req.body);
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+    });
+
+    if (!user) {
+      return res.status(404).json({ pesan: 'Pengguna tidak ditemukan.' });
+    }
+
+    const cocok = await bcryptjs.compare(validData.kataSandiLama, user.passwordHash);
+    if (!cocok) {
+      return res.status(400).json({ pesan: 'Kata sandi lama tidak sesuai.' });
+    }
+
+    const passwordHash = await bcryptjs.hash(validData.kataSandiBaru, 10);
+    await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { passwordHash },
+    });
+
+    return res.json({ pesan: 'Kata sandi berhasil diperbarui.' });
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ pesan: error.issues[0]?.message || 'Input kata sandi tidak valid.' });
+    }
+    const err = error as Error;
+    return res.status(500).json({ pesan: err.message || 'Gagal memperbarui kata sandi.' });
+  }
+});

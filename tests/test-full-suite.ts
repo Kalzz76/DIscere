@@ -235,7 +235,7 @@ async function runTestSuite() {
     assert(buatPapanRes.ok && !!boardId, 'Membuat papan tulis baru', 'PapanTulis');
 
     // 5.2 Autosave Kanvas
-    const dummyCanvas = JSON.stringify({ objects: [{ type: 'rect', left: 100, top: 100, width: 80, height: 80 }] });
+    const dummyCanvas = JSON.stringify({ versi: 1, objs: [{ type: 'rect', left: 100, top: 100, width: 80, height: 80 }] });
     const autosaveRes = await fetch(`${BASE_URL}/api/papan/${boardId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Cookie: guruCookie },
